@@ -1,26 +1,458 @@
 @import "tailwindcss";
 
+/* =========================================
+   Pawny/TDB design tokens (mobile-first, dark)
+   ========================================= */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Brand */
+  --brand-bg: #060807;
+  --brand-accent: #ff8200;
+  --transparent-bg: rgba(243, 244, 246, 0);
+
+  /* UI surfaces (dark) */
+  --surface: #0e1110;
+  --surface-2: #141817;
+
+  /* Text */
+  --text: #f3f4f6;
+  --muted: rgba(243, 244, 246, 0.58);
+  --font-weight-regular: 400; /* di meno se vuoi più contrasto */
+
+  /* Borders/shadows */
+  --border: rgba(255, 255, 255, 0.08);
+  --shadow: 0 12px 26px rgba(0, 0, 0, 0.45);
+
+  /* Radius */
+  --radius: 16px;
+
+  /* Nav sizing */
+  --bottom-nav-h: 112px;
+  --topbar-h: 56px;
+
+  /* Safe area (iOS) */
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+
+  /* --------------------------
+     TYPOGRAPHY SYSTEM
+     -------------------------- */
+  --font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji";
+
+  /* Golden standard mobile */
+  --font-size-base: 16px;
+
+  /* scale (no < 16 on mobile) */
+  --font-size-xs: 16px;
+  --font-size-sm: 16px;
+  --font-size-md: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 24px;
+
+  --font-weight-regular: 500;
+  --font-weight-semibold: 700;
+  --font-weight-bold: 800;
+
+  --lh-tight: 1.15;
+  --lh-normal: 1.3;
+
+  /* --------------------------
+     FORM CONTROL SYSTEM
+     -------------------------- */
+  --control-h: 48px; /* height inputs/selects */
+  --control-px: 16px; /* horizontal padding */
+  --control-bg: var(--surface-2);
+  --control-border: var(--border);
+  --control-focus: rgba(255, 130, 0, 0.55);
+
+  /* Vertical alignment for text inside controls */
+  --control-line-height: 1.2;
+  --control-py: 12px; /* for textarea */
+
+  /* Selected cards */
+  --select-bg: rgba(255, 130, 0, 0.12);
+  --select-border: rgba(255, 130, 0, 0.85);
+
+  /* Pills / badges */
+  --pill-bg: rgba(255, 255, 255, 0.08);
+  --pill-text: var(--text);
+
+  /* Stepper buttons */
+  --stepper-btn-bg: var(--surface-2);
+  --stepper-btn-border: var(--border);
+
+    /* --------------------------
+     ✅ BUTTON SYSTEM (thumb-friendly)
+     -------------------------- */
+  --btn-h: 56px;              /* target comodo per pollice */
+  --btn-px: 18px;
+  --btn-font-size: 16px;
+  --btn-font-weight: var(--font-weight-bold);
+  --btn-radius: var(--radius);
+
+  /* --------------------------
+     ✅ FIELD TYPOGRAPHY (label/hint)
+     -------------------------- */
+  --label-font-size: 16px;
+  --label-font-weight: var(--font-weight-semibold);
+
+  --hint-font-size: 16px;     /* niente sotto 16 su mobile */
+  --hint-color: var(--muted);
+
+  --error-font-size: 16px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* =========================================
+   Base page + safety
+   ========================================= */
+html,
+body {
+  min-height: 100%;
+  background: var(--brand-bg);
+  color: var(--text);
+  overflow-x: hidden; /* no phantom horizontal scroll */
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--lh-normal);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  border-color: var(--border);
+}
+
+/* iOS Safari zoom fix:
+   Safari zooma quando un input ha font-size < 16px.
+   Noi fissiamo 16px (o più) per tutti i controlli. */
+input,
+select,
+textarea,
+button {
+  font-size: var(--font-size-base);
+}
+
+/* =========================================
+   UI SYSTEM CLASSES
+   (usale nei componenti, niente hardcode)
+   ========================================= */
+@layer utilities {
+  /* Page container */
+  .ui-page {
+    min-height: 100vh;
+    background: var(--brand-bg);
+    color: var(--text);
+  }
+  .ui-container {
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+    max-width: 48rem; /* ~max-w-3xl */
+  }
+
+  /* Text hierarchy */
+  .ui-title {
+    font-size: var(--font-size-xl);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--lh-tight);
+    color: var(--text);
+  }
+  .ui-h2 {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    line-height: var(--lh-tight);
+    color: var(--text);
+  }
+  .ui-body {
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-regular);
+    color: var(--text);
+  }
+  .ui-muted {
+    font-size: var(--font-size-sm);
+    font-weight: var(--font-weight-regular);
+    color: var(--muted);
+  }
+    /* Field label / hint / error */
+  .ui-label {
+    font-size: var(--label-font-size);
+    font-weight: var(--label-font-weight);
+    color: var(--text);
+    line-height: var(--lh-normal);
+  }
+
+  .ui-hint {
+    font-size: var(--hint-font-size);
+    font-weight: var(--font-weight-regular);
+    color: var(--hint-color);
+    line-height: var(--lh-normal);
+  }
+
+  .ui-fieldError {
+    font-size: var(--error-font-size);
+    font-weight: var(--font-weight-semibold);
+    color: rgba(255, 80, 80, 0.95);
+    line-height: var(--lh-normal);
+  }
+
+  /* Cards */
+  .ui-card {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden; /* nothing spills */
+  }
+  .ui-cardContent {
+    padding: 16px;
+  }
+
+  /* Flex helper: allow children to shrink */
+  .ui-minw0 {
+    min-width: 0;
+  }
+
+  /* --------------------------
+     Controls (inputs/select/textarea)
+     -------------------------- */
+  .ui-control {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    display: block;
+    box-sizing: border-box;
+
+    border-radius: var(--radius);
+    background: var(--control-bg);
+    color: var(--text);
+    border: 1px solid var(--control-border);
+    outline: none;
+
+    /* vertical alignment */
+    line-height: var(--control-line-height);
+  }
+
+  /* Inputs & selects: fixed height + centered text */
+  .ui-input,
+  .ui-select {
+    height: var(--control-h);
+    padding-left: var(--control-px);
+    padding-right: var(--control-px);
+
+    /* key to keep the text visually centered */
+    padding-top: 0;
+    padding-bottom: 0;
+    line-height: var(--control-h);
+  }
+
+  /* Textarea */
+  .ui-textarea {
+    padding: var(--control-px);
+    min-height: 120px;
+    line-height: 1.35;
+  }
+
+  .ui-control:focus {
+    border-color: var(--control-focus);
+  }
+
+  /* --------------------------
+     Selectable cards (dogs / taxi / yes-no / extras)
+     -------------------------- */
+  .ui-selectCard {
+    width: 100%;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 14px 16px;
+    text-align: left;
+
+    transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+  }
+
+  /* Hover only on desktop (avoid sticky :hover on iOS) */
+  @media (hover: hover) and (pointer: fine) {
+    .ui-selectCard:not(.ui-selectCard--selected):hover {
+      background: var(--surface-2);
+    }
+  }
+
+  .ui-selectCard:active {
+    transform: scale(0.99);
+  }
+
+  .ui-selectCard--selected,
+  .ui-selectCard--selected:hover {
+    border-color: var(--select-border);
+    background: var(--select-bg);
+  }
+
+  /* Pills / badges */
+  .ui-pill {
+    border-radius: 999px;
+    padding: 6px 12px;
+    background: var(--pill-bg);
+    color: var(--pill-text);
+    border: 1px solid var(--border);
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+  }
+  .ui-pill--selected {
+    background: var(--brand-accent);
+    color: #000;
+    border-color: rgba(0, 0, 0, 0.15);
+  }
+
+  /* Stepper */
+  .ui-stepper {
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    padding: 14px 16px;
+  }
+  .ui-stepperBtn {
+    height: 44px;
+    width: 44px;
+    border-radius: 999px;
+    background: var(--stepper-btn-bg);
+    border: 1px solid var(--stepper-btn-border);
+    color: var(--text);
+    font-weight: var(--font-weight-bold);
+  }
+  .ui-stepperValue {
+    width: 44px;
+    text-align: center;
+    font-weight: var(--font-weight-semibold);
+    color: var(--text);
+  }
+
+  /* Errors */
+  .ui-error {
+    border-radius: var(--radius);
+    border: 1px solid rgba(255, 0, 0, 0.25);
+    background: rgba(255, 0, 0, 0.10);
+    padding: 12px 14px;
+    color: var(--text);
+    font-size: var(--font-size-md);
+  }
+}
+
+/* =========================================
+   iOS/Safari date & time fixes
+   (prevent overflow + reserve space for indicator)
+   ========================================= */
+
+/* Make native date/time not enforce weird intrinsic sizing */
+input[type="date"],
+input[type="time"] {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  inline-size: 100% !important;
+  max-inline-size: 100% !important;
+  min-inline-size: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* When using our ui-input class, keep icon space + centered line-height */
+.ui-input[type="date"],
+.ui-input[type="time"] {
+  padding-right: 44px; /* room for native indicator */
+  text-align: left;
+}
+
+/* indicator normalization */
+.ui-input[type="date"]::-webkit-calendar-picker-indicator,
+.ui-input[type="time"]::-webkit-calendar-picker-indicator {
+  margin: 0;
+  padding: 0;
+  opacity: 0.85;
+}
+
+/* DON'T kill select arrow globally.
+   We keep appearance default for select unless we later decide custom arrow. */
+.ui-input[type="date"],
+.ui-input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* =========================================
+   Dark remap utilities (screen only)
+   Keep legacy pages from showing white/gray
+   ========================================= */
+@media screen {
+  /* Backgrounds */
+  .bg-white {
+    background-color: var(--surface) !important;
+  }
+  .bg-gray-100 {
+    background-color: var(--brand-bg) !important;
+  }
+  .bg-gray-50 {
+    background-color: var(--surface-2) !important;
+  }
+
+  /* Borders */
+  .border-gray-200,
+  .border-gray-300 {
+    border-color: var(--border) !important;
+  }
+
+  /* Text */
+  .text-gray-900,
+  .text-gray-800 {
+    color: var(--text) !important;
+  }
+  .text-gray-700,
+  .text-gray-600,
+  .text-gray-500 {
+    color: var(--muted) !important;
+  }
+
+  /* Hover backgrounds */
+  .hover\:bg-gray-50:hover,
+  .hover\:bg-gray-100:hover {
+    background-color: var(--surface-2) !important;
+  }
+
+  /* Focus ring (blue -> brand accent) */
+  .focus\:ring-blue-500:focus,
+  .focus\:ring-2:focus {
+    --tw-ring-color: rgba(255, 130, 0, 0.45) !important;
+  }
+
+  /* Blue utilities remapped to accent */
+  .text-blue-600 {
+    color: var(--brand-accent) !important;
+  }
+  .border-blue-600 {
+    border-color: rgba(255, 130, 0, 0.55) !important;
+  }
+  .bg-blue-50 {
+    background-color: rgba(255, 130, 0, 0.10) !important;
+  }
+
+  /* Shadows */
+  .shadow,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: var(--shadow) !important;
+  }
+
+  /* ✅ Typography safety net: niente testo sotto 16px su mobile (senza toccare i file) */
+  /* tailwind: text-xs/text-sm spesso usati nei vecchi file */
+  .text-xs,
+  .text-sm {
+    font-size: var(--font-size-base) !important; /* 16px */
+    line-height: var(--lh-normal) !important;
+  }
 }
