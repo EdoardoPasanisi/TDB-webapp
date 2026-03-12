@@ -16,6 +16,9 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 const ID_DOC_BUCKET = 'identity-documents';
 const PROFILE_SELECT =
   'user_id, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
+const DOC_ACTION_WIDTH_CLASS = 'w-[132px]';
+const DOC_DOWNLOAD_LINK_CLASS =
+  'inline-flex items-center justify-center rounded-[var(--btn-radius)] h-[var(--btn-h)] px-[var(--btn-px)] text-[length:var(--btn-font-size)] font-[var(--btn-font-weight)] leading-none bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] w-[132px]';
 
 type UserDocumentKind = 'ID_DOCUMENT' | 'WAIVER_SIGNED';
 type UserDocumentStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
@@ -524,7 +527,7 @@ export default function AccountPage() {
   if (authLoading || loadingData) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-700">Caricamento...</p>
+        <p className="ui-body text-gray-700">Caricamento...</p>
       </main>
     );
   }
@@ -557,13 +560,13 @@ export default function AccountPage() {
     <main className="min-h-screen bg-gray-100 text-[var(--text)]">
       <div className="mx-auto w-full max-w-xl px-4 pb-10 pt-4 space-y-4">
         {topError ? (
-          <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 ui-body text-red-700">
             {topError}
           </div>
         ) : null}
 
         {fiscalCodeWarning ? (
-          <div className="rounded-[var(--radius)] border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="rounded-[var(--radius)] border border-amber-200 bg-amber-50 p-3 ui-body text-amber-900">
             {fiscalCodeWarning}
           </div>
         ) : null}
@@ -614,7 +617,7 @@ export default function AccountPage() {
             {showIdDocumentSection ? (
               <div className="space-y-3">
                 {idDocError ? (
-                  <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                  <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 ui-body text-red-700">
                     {idDocError}
                   </div>
                 ) : null}
@@ -633,26 +636,26 @@ export default function AccountPage() {
                 />
 
                 <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
-                  <p className="text-sm">
+                  <p className="ui-body">
                     <span className="font-medium">Stato:</span> {idDocStatusLabel}
                   </p>
 
                   {profile?.id_document_path ? (
-                    <p className="text-xs text-[var(--muted)]">
+                    <p className="ui-muted">
                       File: <span className="font-mono">{profile.id_document_path.split('/').pop()}</span>
                     </p>
                   ) : (
-                    <p className="text-xs text-[var(--muted)]">Nessun file caricato.</p>
+                    <p className="ui-muted">Nessun file caricato.</p>
                   )}
 
                   {profile?.id_document_uploaded_at ? (
-                    <p className="text-xs text-[var(--muted)]">
+                    <p className="ui-muted">
                       Ultimo upload: {new Date(profile.id_document_uploaded_at).toLocaleString()}
                     </p>
                   ) : null}
 
                   {profile?.id_document_path ? (
-                    <p className="text-[11px] text-[var(--muted)]">
+                    <p className="ui-muted">
                       {idDocIsPdf ? 'Formato: PDF' : 'Formato: immagine'}
                     </p>
                   ) : null}
@@ -662,6 +665,7 @@ export default function AccountPage() {
                   <Button
                     type="button"
                     variant="primary"
+                    className={DOC_ACTION_WIDTH_CLASS}
                     disabled={idDocUploading}
                     onClick={() => fileInputRef.current?.click()}
                   >
@@ -674,7 +678,7 @@ export default function AccountPage() {
                         href={idDocSignedUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center gap-2 rounded-[var(--radius)] px-4 h-11 text-sm font-semibold bg-white text-[var(--text)] border border-[var(--border)] hover:bg-gray-50"
+                        className={DOC_DOWNLOAD_LINK_CLASS}
                       >
                         Scarica
                       </a>
@@ -690,7 +694,7 @@ export default function AccountPage() {
                   ) : null}
 
                   {idDocUploading ? (
-                    <p className="text-xs text-[var(--muted)]">Caricamento…</p>
+                    <p className="ui-muted">Caricamento…</p>
                   ) : null}
                 </div>
               </div>
@@ -717,8 +721,8 @@ export default function AccountPage() {
                 <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">Liberatoria da firmare</p>
-                      <p className="text-xs text-[var(--muted)] mt-1">
+                      <p className="ui-body font-[var(--font-weight-semibold)] text-gray-900">Liberatoria da firmare</p>
+                      <p className="ui-muted mt-1">
                         Genera la liberatoria precompilata, scaricala e firmala.
                       </p>
                     </div>
@@ -736,15 +740,15 @@ export default function AccountPage() {
 
                   {!canGenerateWaiver ? (
                     <div className="rounded-[var(--radius)] border border-amber-200 bg-amber-50 p-3">
-                      <p className="text-sm text-amber-900 font-medium">
+                      <p className="ui-body text-amber-900 font-medium">
                         Per generare la liberatoria mancano:
                       </p>
-                      <ul className="list-disc pl-5 text-sm text-amber-900 mt-1">
+                      <ul className="list-disc pl-5 ui-body text-amber-900 mt-1">
                         {waiverMissingFields.map((f) => (
                           <li key={f}>{f}</li>
                         ))}
                       </ul>
-                      <p className="text-[11px] text-amber-800 mt-2">
+                      <p className="ui-muted text-amber-800 mt-2">
                         Compila e salva i dati del profilo qui sopra.
                       </p>
                     </div>
@@ -754,7 +758,7 @@ export default function AccountPage() {
                 {/* Parte 2: liberatoria firmata */}
                 <div className="space-y-3">
                   {waiverError ? (
-                    <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 ui-body text-red-700">
                       {waiverError}
                     </div>
                   ) : null}
@@ -773,23 +777,23 @@ export default function AccountPage() {
                   />
 
                   <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
-                    <p className="text-sm">
+                    <p className="ui-body">
                       <span className="font-medium">Stato:</span> {waiverStatusLabel}
                     </p>
 
                     {latestWaiverSigned?.path ? (
-                      <p className="text-xs text-[var(--muted)]">
+                      <p className="ui-muted">
                         File:{' '}
                         <span className="font-mono">
                           {latestWaiverSigned.path.split('/').pop()}
                         </span>
                       </p>
                     ) : (
-                      <p className="text-xs text-[var(--muted)]">Nessun file caricato.</p>
+                      <p className="ui-muted">Nessun file caricato.</p>
                     )}
 
                     {latestWaiverSigned?.created_at ? (
-                      <p className="text-xs text-[var(--muted)]">
+                      <p className="ui-muted">
                         Ultimo upload: {new Date(latestWaiverSigned.created_at).toLocaleString()}
                       </p>
                     ) : null}
@@ -799,6 +803,7 @@ export default function AccountPage() {
                     <Button
                       type="button"
                       variant="primary"
+                      className={DOC_ACTION_WIDTH_CLASS}
                       disabled={waiverUploading}
                       onClick={() => waiverFileInputRef.current?.click()}
                     >
@@ -811,7 +816,7 @@ export default function AccountPage() {
                           href={waiverSignedUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="inline-flex items-center justify-center gap-2 rounded-[var(--radius)] px-4 h-11 text-sm font-semibold bg-white text-[var(--text)] border border-[var(--border)] hover:bg-gray-50"
+                          className={DOC_DOWNLOAD_LINK_CLASS}
                         >
                           Scarica
                         </a>
@@ -827,20 +832,12 @@ export default function AccountPage() {
                     ) : null}
 
                     {waiverUploading ? (
-                      <p className="text-xs text-[var(--muted)]">Caricamento…</p>
+                      <p className="ui-muted">Caricamento…</p>
                     ) : null}
                   </div>
                 </div>
               </div>
             ) : null}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent>
-            <Button variant="secondary" onClick={() => router.push('/account/password')}>
-              Cambia password
-            </Button>
           </CardContent>
         </Card>
       </div>

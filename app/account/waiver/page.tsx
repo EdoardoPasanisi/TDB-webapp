@@ -18,9 +18,6 @@ const COMPANY = {
   vatLabel: 'P.IVA: 08804121005',
 };
 
-// Logo opzionale: se non esiste in /public, sparisce senza rompere nulla
-const LOGO_SRC = '/logo.png';
-
 function sanitizeFiscalCode(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, '').toUpperCase();
 }
@@ -35,8 +32,6 @@ export default function AccountWaiverPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-
-  const [logoOk, setLogoOk] = useState(true);
 
   const prevTitleRef = useRef<string | null>(null);
 
@@ -124,8 +119,8 @@ export default function AccountWaiverPage() {
 
   if (authLoading || loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-700">Caricamento...</p>
+      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
+        <p className="ui-body text-[var(--muted)]">Caricamento...</p>
       </main>
     );
   }
@@ -133,49 +128,148 @@ export default function AccountWaiverPage() {
   if (!user) return null;
 
   return (
-    <main className="min-h-screen bg-gray-100 text-[var(--text)]">
+    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
       <style>{`
-        /* Stampa A4, una pagina */
-        @page { size: A4; margin: 12mm; }
+        @page { size: A4; margin: 3mm; }
+
+        .print-only { display: none; }
+        .waiver-page {
+          color: var(--text);
+        }
+        .waiver-page * {
+          color: inherit;
+        }
 
         @media print {
+          [data-app-chrome] { display: none !important; }
           .no-print { display: none !important; }
+          .print-only { display: block !important; }
 
           html, body {
             background: white !important;
-            height: auto !important;
-            overflow: visible !important;
+            color: #000 !important;
+            print-color-adjust: exact !important;
+            -webkit-print-color-adjust: exact !important;
           }
 
           main {
             padding: 0 !important;
+            margin: 0 !important;
             background: white !important;
-            min-height: auto !important;
+            min-height: 0 !important;
           }
 
-          /* Evita overflow dovuto a space-y-* in stampa */
-          .waiver-wrap > * { margin-top: 0 !important; }
+          .waiver-wrap {
+            max-width: none !important;
+            width: 100% !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+
+          .waiver-wrap > * {
+            margin-top: 0 !important;
+          }
 
           .waiver-paper {
             box-shadow: none !important;
             border-radius: 0 !important;
-            padding: 0 !important;
             border: none !important;
+            background: white !important;
           }
 
-          /* Layout in colonna per tenere la firma in fondo */
+          .waiver-paper > * {
+            padding: 0 !important;
+          }
+
           .waiver-page {
-            display: flex !important;
-            flex-direction: column !important;
-            /* Altezza utile: A4 (297mm) - margini pagina (24mm) */
-            min-height: 273mm !important;
+            display: block !important;
+            min-height: 0 !important;
+            padding-bottom: 8mm !important;
+            color: #000 !important;
           }
 
-          /* Micro-compressione verticale per rientrare sempre in una pagina */
-          .waiver-title { margin-top: 8mm !important; }
-          .waiver-body { margin-top: 3mm !important; }
-          .waiver-footer { margin-top: auto !important; }
-          .waiver-signline { margin-top: 14mm !important; }
+          .waiver-page * {
+            color: #000 !important;
+            text-shadow: none !important;
+          }
+
+          .waiver-print-head {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: flex-start !important;
+            gap: 8mm !important;
+            font-size: 10px !important;
+            line-height: 1.3 !important;
+            margin-bottom: 2mm !important;
+          }
+
+          .waiver-print-company {
+            flex: 1 1 auto;
+          }
+
+          .waiver-print-logo {
+            display: block !important;
+            width: 38mm !important;
+            max-height: 20mm !important;
+            object-fit: contain !important;
+            background: transparent !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            filter: none !important;
+          }
+
+          .waiver-title {
+            width: 88% !important;
+            margin: 0 auto 5mm !important;
+            font-size: 30px !important;
+            line-height: 1.2 !important;
+            text-align: center !important;
+          }
+
+          .waiver-body {
+            width: 88% !important;
+            font-size: 14px !important;
+            line-height: 1.5 !important;
+            margin: 0 auto !important;
+            text-align: justify !important;
+            text-justify: inter-word !important;
+          }
+
+          .waiver-body p {
+            margin: 0 !important;
+          }
+
+          .waiver-body p + p {
+            margin-top: 1.2mm !important;
+          }
+
+          .waiver-nota {
+            margin-top: 5mm !important;
+            margin-bottom: 2.2mm !important;
+            font-size: 14px !important;
+          }
+
+          .waiver-signature {
+            width: 88% !important;
+            margin: 28mm auto 0 !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+
+          .waiver-client-data {
+            font-size: 12px !important;
+            line-height: 1.3 !important;
+            margin-bottom: 6mm !important;
+          }
+
+          .waiver-signblock {
+            max-width: 96mm !important;
+          }
+
+          .waiver-signline {
+            width: 100% !important;
+            margin-top: 3.2mm !important;
+          }
         }
       `}</style>
 
@@ -198,7 +292,7 @@ export default function AccountWaiverPage() {
               }
             />
             {error ? (
-              <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 ui-body text-red-700">
                 {error}
               </div>
             ) : null}
@@ -208,14 +302,14 @@ export default function AccountWaiverPage() {
         {!canRender ? (
           <Card>
             <CardContent className="space-y-2">
-              <h2 className="text-base font-semibold text-gray-900">Dati mancanti</h2>
-              <p className="text-sm text-gray-700">Per generare la liberatoria mancano:</p>
-              <ul className="list-disc pl-5 text-sm text-gray-700">
+              <h2 className="ui-h2 text-gray-900">Dati mancanti</h2>
+              <p className="ui-body text-gray-700">Per generare la liberatoria mancano:</p>
+              <ul className="list-disc pl-5 ui-body text-gray-700">
                 {missing.map((m) => (
                   <li key={m}>{m}</li>
                 ))}
               </ul>
-              <p className="text-[11px] text-gray-500">
+              <p className="ui-muted text-gray-500">
                 Torna su “Dati proprietario” e inserisci/salva i dati richiesti.
               </p>
               <div className="pt-2 no-print">
@@ -229,32 +323,21 @@ export default function AccountWaiverPage() {
           <Card className="waiver-paper bg-white">
             <CardContent className="p-6 print:p-0">
               <article className="waiver-page">
-                {/* Header */}
-                <header className="flex items-start justify-between gap-6">
-                  <div className="text-sm text-gray-900">
+                <header className="waiver-print-head print-only">
+                  <div className="waiver-print-company">
                     <p className="font-semibold">{COMPANY.name}</p>
                     <p>{COMPANY.addressLine}</p>
                     <p>{COMPANY.city}</p>
-                    <p className="mt-1">{COMPANY.vatLabel}</p>
+                    <p>{COMPANY.vatLabel}</p>
                   </div>
-
-                  <div className="flex items-start justify-end">
-                    {logoOk ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={LOGO_SRC}
-                        alt="Logo"
-                        className="h-12 w-auto object-contain"
-                        onError={() => setLogoOk(false)}
-                      />
-                    ) : null}
-                  </div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/tenuta-logo-print.png" alt="Tenuta del Barone" className="waiver-print-logo" />
                 </header>
 
-                <h1 className="waiver-title text-xl font-bold text-center mt-6">Liberatoria</h1>
+                <h1 className="waiver-title text-[var(--font-size-xl)] font-[var(--font-weight-bold)]">Liberatoria</h1>
 
                 {/* Body */}
-                <section className="waiver-body mt-4 text-sm leading-relaxed text-gray-900 space-y-3">
+                <section className="waiver-body text-[17px] leading-7 space-y-3">
                   <p>
                     Per l’eventualità che durante il periodo di permanenza dell’animale custodito all’interno della
                     struttura, lo stesso dovesse essere colpito da malattie e/o infortuni, il cliente autorizza
@@ -271,7 +354,7 @@ export default function AccountWaiverPage() {
                     non assume alcuna responsabilità in ordine agli esiti delle stesse sulla sua salute.
                   </p>
 
-                  <h2 className="font-semibold mt-4">Nota Bene</h2>
+                  <h2 className="waiver-nota text-[17px] font-[var(--font-weight-semibold)]">Nota Bene</h2>
                   <p>
                     La tariffa relativa al soggiorno dell’animale scatta dal giorno di ingresso, indipendentemente
                     dall’orario di entrata. Il giorno di uscita non viene calcolato se il box viene liberato entro le
@@ -285,21 +368,17 @@ export default function AccountWaiverPage() {
                   </p>
                 </section>
 
-                {/* Footer firma */}
-                <footer className="waiver-footer mt-10">
-                  <div className="flex items-end justify-between gap-6">
-                    <div className="flex-1">
-                      <p className="text-sm font-medium">Per presa visione e accettazione</p>
-                      <div className="waiver-signline mt-8 border-b border-gray-400 w-full" />
-                      <p className="text-[11px] text-gray-500 mt-2">Firma</p>
-                    </div>
+                <footer className="waiver-signature print-only">
+                  <div className="waiver-client-data ui-body">
+                    <p className="font-[var(--font-weight-semibold)]">{fullName}</p>
+                    <p className="mt-1">
+                      <span className="font-[var(--font-weight-semibold)]">C.F.:</span> {fiscalCode}
+                    </p>
+                  </div>
 
-                    <div className="text-sm text-gray-900 text-right">
-                      <p className="font-semibold">{fullName}</p>
-                      <p className="mt-1">
-                        <span className="font-medium">C.F.:</span> {fiscalCode}
-                      </p>
-                    </div>
+                  <div className="waiver-signblock">
+                    <p className="ui-body font-[var(--font-weight-semibold)]">Firma cliente</p>
+                    <div className="waiver-signline border-b border-gray-400" />
                   </div>
                 </footer>
               </article>

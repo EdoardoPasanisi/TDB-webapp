@@ -4,7 +4,13 @@ import LoginClient from "./LoginClient";
 
 export default function Page() {
   return (
-    <Suspense fallback={<div className="p-6 text-sm text-gray-600">Caricamento…</div>}>
+    <Suspense
+      fallback={
+        <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
+          <p className="ui-body text-[var(--muted)]">Caricamento…</p>
+        </main>
+      }
+    >
       <LoginClient />
     </Suspense>
   );

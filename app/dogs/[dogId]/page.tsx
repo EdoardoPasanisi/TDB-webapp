@@ -7,6 +7,8 @@ import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 
 import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 import { DogForm } from '@/components/dogs/DogForm';
 import { DogPublicCard, type PublicDogCardDog, type PublicDogCardOwner } from '@/components/dogs/DogPublicCard';
 import { DogCardPreferencesModal } from '@/components/dogs/DogCardPreferencesModal';
@@ -37,6 +39,15 @@ function formatDDMMYYYY(iso: string | null): string | null {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
+function sizeLabel(value: Dog['size_category']): string {
+  if (!value) return '';
+  if (value === 'toy') return 'Toy';
+  if (value === 'piccola') return 'Piccola';
+  if (value === 'media') return 'Media';
+  if (value === 'grande') return 'Grande';
+  return 'Gigante';
+}
+
 function getDogPhotoPublicUrl(photoPath: string | null | undefined, updatedAt: string | null | undefined): string | null {
   if (!photoPath) return null;
   const { data } = supabase.storage.from('dog-images').getPublicUrl(photoPath);
@@ -54,8 +65,8 @@ export default function DogDetailPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen flex items-center justify-center bg-gray-100">
-          <p className="text-sm text-gray-700">Caricamento...</p>
+        <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
+          <p className="ui-body text-[var(--muted)]">Caricamento...</p>
         </main>
       }
     >
@@ -170,8 +181,8 @@ function DogDetailInner() {
 
   if (authLoading || loadingDog) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-700">Caricamento cane...</p>
+      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
+        <p className="ui-body text-[var(--muted)]">Caricamento cane...</p>
       </main>
     );
   }
@@ -180,13 +191,17 @@ function DogDetailInner() {
 
   if (!dog) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="bg-white rounded-lg shadow p-4 max-w-md w-full text-center space-y-3">
-          <h1 className="text-lg font-semibold">Cane non trovato</h1>
-          <p className="text-sm text-gray-700">{error ?? 'Impossibile caricare il cane.'}</p>
-          <Button onClick={() => router.replace('/profile')} className="w-full">
-            Torna all’area personale
-          </Button>
+      <main className="min-h-screen bg-[var(--brand-bg)] p-4">
+        <div className="mx-auto w-full max-w-xl pt-8">
+          <Card>
+            <CardContent className="space-y-3 text-center">
+              <h1 className="ui-h2">Cane non trovato</h1>
+              <p className="ui-body">{error ?? 'Impossibile caricare il cane.'}</p>
+              <Button fullWidth onClick={() => router.replace('/profile')}>
+                Torna all’area personale
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </main>
     );
@@ -353,151 +368,156 @@ function DogDetailInner() {
   const dogForCard = dog as unknown as PublicDogCardDog;
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 text-gray-900">
-      {/* mobile-first: max width stretta, tutto in colonna */}
-      <div className="max-w-xl mx-auto space-y-4">
-        {/* Header mobile-first: colonna + CTA full width */}
-        <header className="bg-white rounded-lg shadow p-4 space-y-3">
-          <div className="flex items-center gap-3">
-            <div className="h-14 w-14 rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex items-center justify-center shrink-0">
-              {photoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={photoUrl} alt="Foto cane" className="h-full w-full object-cover" />
-              ) : (
-                <span className="text-[11px] text-gray-500">Foto</span>
-              )}
-            </div>
-
-            <div className="min-w-0">
-              <h1 className="text-lg font-bold truncate">{dog.name}</h1>
-              <p className="text-sm text-gray-600 truncate">
-                {dog.breed ? dog.breed : ''}
-                {dog.breed && ageLabel ? ' • ' : ''}
-                {ageLabel ?? ''}
-              </p>
-            </div>
-          </div>
-
-          {mode === 'view' ? (
-            <Button className="w-full" onClick={() => setMode('edit')}>
-              Modifica
-            </Button>
-          ) : (
-            <Button className="w-full" onClick={() => setMode('view')}>
-              Annulla modifica
-            </Button>
-          )}
-        </header>
-
-        {createdBanner && (
-          <div className="bg-green-50 border border-green-100 text-green-800 rounded-lg p-3 text-sm">
-            ✅ Cane creato correttamente.
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-50 border border-red-100 text-red-700 rounded-lg p-3 text-sm">
-            {error}
-          </div>
-        )}
-
-        {mode === 'edit' ? (
-          <section className="bg-white rounded-lg shadow p-4">
-            <DogForm
-              mode="edit"
-              initialDog={dog}
-              initialPhotoUrl={photoUrl}
-              onPhotoSelected={setPhotoFile}
-              photoUploading={photoUploading}
-              onSubmit={handleSubmit}
-              submitting={submitting}
-              deleting={deleting}
-              onDelete={handleDelete}
-              onPhotoRemove={handleRemovePhoto}
-              onCancel={() => setMode('view')}
-            />
-          </section>
-        ) : (
-          <>
-            <section className="bg-white rounded-lg shadow p-4">
-              <h2 className="text-base font-semibold mb-3">Informazioni</h2>
-
-              <div className="space-y-2 text-sm text-gray-800">
-                {dog.breed && (
-                  <p>
-                    <span className="font-medium">Razza:</span> {dog.breed}
-                  </p>
-                )}
-
-                {dog.sex && (
-                  <p>
-                    <span className="font-medium">Sesso:</span> {sexLabel(dog.sex)}
-                  </p>
-                )}
-
-                {dog.size_category && (
-                  <p>
-                    <span className="font-medium">Taglia:</span> {dog.size_category}
-                  </p>
-                )}
-
-                {dog.birth_date && (
-                  <p>
-                    <span className="font-medium">Data di nascita:</span> {formatDDMMYYYY(dog.birth_date)}
-                  </p>
-                )}
-
-                {dog.microchip && (
-                  <p>
-                    <span className="font-medium">Microchip:</span> {dog.microchip}
-                  </p>
-                )}
-
-                {dog.coat_color && (
-                  <p>
-                    <span className="font-medium">Colore mantello:</span> {dog.coat_color}
-                  </p>
-                )}
-
-                {infoTemperaments && (
-                  <p>
-                    <span className="font-medium">Carattere:</span> {infoTemperaments}
-                  </p>
-                )}
-
-                {dog.notes && (
-                  <p>
-                    <span className="font-medium">Note:</span>{' '}
-                    <span className="whitespace-pre-line">{dog.notes}</span>
-                  </p>
+    <main className="min-h-screen bg-[var(--brand-bg)] p-4 text-[var(--text)]">
+      <div className="mx-auto w-full max-w-xl space-y-4">
+        <Card>
+          <CardContent className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div
+                className="rounded-[var(--radius)] bg-[var(--surface-2)] overflow-hidden border border-[var(--border)] flex items-center justify-center shrink-0"
+                style={{ width: 72, height: 72 }}
+              >
+                {photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={photoUrl} alt="Foto cane" className="block h-full w-full max-h-full max-w-full object-cover" />
+                ) : (
+                  <span className="ui-muted">Foto</span>
                 )}
               </div>
-            </section>
 
-            <section className="bg-white rounded-lg shadow p-4 space-y-3">
-              <div className="space-y-2">
-                <h2 className="text-base font-semibold">Scheda cane (anteprima)</h2>
+              <div className="min-w-0">
+                <h1 className="ui-h2 truncate">{dog.name}</h1>
+                <p className="ui-muted truncate">
+                  {dog.breed ? dog.breed : ''}
+                  {dog.breed && ageLabel ? ' • ' : ''}
+                  {ageLabel ?? ''}
+                </p>
+              </div>
+            </div>
 
-                {/* mobile-first: due CTA full-width, una sotto l’altra */}
+            {mode === 'view' ? (
+              <Button fullWidth onClick={() => setMode('edit')}>
+                Modifica
+              </Button>
+            ) : (
+              <Button fullWidth variant="secondary" onClick={() => setMode('view')}>
+                Annulla modifica
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+
+        {createdBanner ? (
+          <div className="rounded-[var(--radius)] border border-[rgba(100,220,140,0.45)] bg-[rgba(100,220,140,0.12)] p-3">
+            <p className="ui-body">Cane creato correttamente.</p>
+          </div>
+        ) : null}
+
+        {error ? <div className="ui-error">{error}</div> : null}
+
+        {mode === 'edit' ? (
+          <Card>
+            <CardContent>
+              <DogForm
+                mode="edit"
+                initialDog={dog}
+                initialPhotoUrl={photoUrl}
+                onPhotoSelected={setPhotoFile}
+                photoUploading={photoUploading}
+                onSubmit={handleSubmit}
+                submitting={submitting}
+                deleting={deleting}
+                onDelete={handleDelete}
+                onPhotoRemove={handleRemovePhoto}
+                onCancel={() => setMode('view')}
+              />
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <Card>
+              <CardContent className="space-y-3">
+                <SectionHeader title="Informazioni" />
+
+                <div className="space-y-2">
+                  {dog.breed ? (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="ui-muted">Razza</p>
+                      <p className="ui-body mt-1">{dog.breed}</p>
+                    </div>
+                  ) : null}
+
+                  {dog.sex ? (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="ui-muted">Sesso</p>
+                      <p className="ui-body mt-1">{sexLabel(dog.sex)}</p>
+                    </div>
+                  ) : null}
+
+                  {dog.size_category ? (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="ui-muted">Taglia</p>
+                      <p className="ui-body mt-1">{sizeLabel(dog.size_category)}</p>
+                    </div>
+                  ) : null}
+
+                  {dog.birth_date ? (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="ui-muted">Data di nascita</p>
+                      <p className="ui-body mt-1">{formatDDMMYYYY(dog.birth_date)}</p>
+                    </div>
+                  ) : null}
+
+                  {dog.microchip ? (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="ui-muted">Microchip</p>
+                      <p className="ui-body mt-1 break-all">{dog.microchip}</p>
+                    </div>
+                  ) : null}
+
+                  {dog.coat_color ? (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="ui-muted">Colore mantello</p>
+                      <p className="ui-body mt-1">{dog.coat_color}</p>
+                    </div>
+                  ) : null}
+
+                  {infoTemperaments ? (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="ui-muted">Carattere</p>
+                      <p className="ui-body mt-1">{infoTemperaments}</p>
+                    </div>
+                  ) : null}
+
+                  {dog.notes ? (
+                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                      <p className="ui-muted">Note</p>
+                      <p className="ui-body mt-1 whitespace-pre-line">{dog.notes}</p>
+                    </div>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="space-y-3">
+                <SectionHeader
+                  title="Scheda cane (anteprima)"
+                  subtitle="Questa anteprima è identica alla scheda pubblica generata dal QR."
+                />
+
                 <div className="grid gap-2">
-                  <Button className="w-full" onClick={() => setPrefsOpen(true)}>
+                  <Button fullWidth variant="secondary" onClick={() => setPrefsOpen(true)}>
                     Personalizza scheda cane
                   </Button>
-
-                  <Button className="w-full" onClick={() => router.push(`/dogs/tag/${dog.id}`)}>
+                  <Button fullWidth variant="primary" onClick={() => router.push(`/dogs/tag/${dog.id}`)}>
                     Vai al QR
                   </Button>
                 </div>
-              </div>
 
-              <div className="flex justify-center">
                 <DogPublicCard dog={dogForCard} owner={owner} showFooter={false} />
-              </div>
-
-              <p className="text-[11px] text-gray-500">
-                Questa è un’anteprima: è identica alla scheda pubblica generata dal QR.
-              </p>
-            </section>
+              </CardContent>
+            </Card>
 
             <DogCardPreferencesModal
               open={prefsOpen}
@@ -512,12 +532,6 @@ function DogDetailInner() {
           </>
         )}
 
-        {/* Footer mobile-first: CTA full-width */}
-        <div className="pb-6">
-          <Button className="w-full" onClick={() => router.push('/profile')}>
-            Torna all’area personale
-          </Button>
-        </div>
       </div>
     </main>
   );

@@ -141,6 +141,9 @@ export default function ProfileOverviewPage() {
                     Tocca qui per gestire dati, documenti e liberatoria
                   </div>
                 </div>
+                <div className="shrink-0 pl-1" aria-hidden="true">
+                  <span className="text-4xl leading-none font-black text-black/80">›</span>
+                </div>
               </div>
             </div>
           </div>

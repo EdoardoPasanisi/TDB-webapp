@@ -1,9 +1,11 @@
-// FILE: pawny-webapp/app/reset-password/page.tsx
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
+import { Field } from '@/components/ui/Field';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -20,16 +22,15 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     const run = async () => {
-      // Se detectSessionInUrl è true, Supabase può stabilire la sessione dal link di recovery
       const { data } = await supabase.auth.getSession();
       setHasSession(!!data.session);
       setChecking(false);
     };
-    run();
+    void run();
   }, []);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     setErrorMessage(null);
     setDoneMessage(null);
 
@@ -51,8 +52,7 @@ export default function ResetPasswordPage() {
         return;
       }
 
-      setDoneMessage('✅ Password aggiornata. Verrai reindirizzato al login...');
-      // opzionale ma pulito: chiudiamo la sessione di recovery e torniamo al login
+      setDoneMessage('Password aggiornata. Verrai reindirizzato al login…');
       await supabase.auth.signOut();
       setTimeout(() => {
         router.replace('/login?reset=1');
@@ -64,93 +64,89 @@ export default function ResetPasswordPage() {
 
   if (checking) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="bg-white rounded-lg shadow-md p-6 max-w-sm w-full">
-          <p className="text-sm text-gray-700">Verifica link in corso...</p>
-        </div>
+      <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)] flex items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent>
+            <p className="ui-body text-[var(--muted)]">Verifica link in corso…</p>
+          </CardContent>
+        </Card>
       </main>
     );
   }
 
   if (!hasSession) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="bg-white rounded-lg shadow-md p-6 max-w-sm w-full space-y-3">
-          <h1 className="text-xl font-bold">Link non valido o scaduto</h1>
-          <p className="text-sm text-gray-700">
-            Il link di recupero non è valido oppure è scaduto. Richiedine uno nuovo.
-          </p>
+      <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)] flex items-center justify-center px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <h1 className="ui-title">Link non valido o scaduto</h1>
+              <p className="ui-muted">
+                Il link di recupero non è valido oppure è scaduto. Richiedine uno nuovo.
+              </p>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => router.push('/forgot-password')}
-            className="w-full px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-          >
-            Richiedi nuovo link
-          </button>
-
-          <button
-            type="button"
-            onClick={() => router.push('/login')}
-            className="w-full px-4 py-2 rounded border border-gray-300 text-sm font-medium hover:bg-gray-50"
-          >
-            Torna al login
-          </button>
-        </div>
+            <div className="grid grid-cols-1 gap-2">
+              <Button type="button" variant="primary" fullWidth onClick={() => router.push('/forgot-password')}>
+                Richiedi nuovo link
+              </Button>
+              <Button type="button" variant="secondary" fullWidth onClick={() => router.push('/login')}>
+                Torna al login
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white rounded-lg shadow-md p-6 max-w-sm w-full space-y-4">
-        <h1 className="text-2xl font-bold text-center">Imposta nuova password</h1>
+    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+      <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <h1 className="ui-title">Imposta nuova password</h1>
+              <p className="ui-muted">Scegli una password nuova e confermala.</p>
+            </div>
 
-        {doneMessage && (
-          <div className="rounded border border-green-200 bg-green-50 p-3">
-            <p className="text-sm text-green-800">{doneMessage}</p>
-          </div>
-        )}
+            {doneMessage ? (
+              <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.12)] p-3 ui-body">
+                {doneMessage}
+              </div>
+            ) : null}
 
-        {errorMessage && (
-          <div className="rounded border border-red-200 bg-red-50 p-3">
-            <p className="text-sm text-red-700">{errorMessage}</p>
-          </div>
-        )}
+            {errorMessage ? <div className="ui-error">{errorMessage}</div> : null}
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nuova password</label>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <Field label="Nuova password" required hint="Minimo 8 caratteri.">
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="ui-control ui-input"
+                  required
+                />
+              </Field>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Conferma password</label>
-            <input
-              type="password"
-              autoComplete="new-password"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
+              <Field label="Conferma password" required>
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className="ui-control ui-input"
+                  required
+                />
+              </Field>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
-          >
-            {loading ? 'Salvataggio...' : 'Aggiorna password'}
-          </button>
-        </form>
+              <Button type="submit" variant="primary" fullWidth disabled={loading}>
+                {loading ? 'Salvataggio…' : 'Aggiorna password'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

@@ -1,47 +1,43 @@
-// FILE: app/login/LoginClient.tsx
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
-
-// ⚠️ Nota: questo file replica la logica esistente del login.
-// Se nel tuo page.tsx originale c'erano campi/messaggi extra, copiali qui identici.
+import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
+import { Field } from '@/components/ui/Field';
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Errore inaspettato.";
+  return error instanceof Error ? error.message : 'Errore inaspettato.';
 }
 
 export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const redirectedFrom = useMemo(() => searchParams.get("redirectedFrom"), [searchParams]);
-  const justVerified = useMemo(() => searchParams.get("verified"), [searchParams]);
-  const reason = useMemo(() => searchParams.get("reason"), [searchParams]);
+  const redirectedFrom = useMemo(() => searchParams.get('redirectedFrom'), [searchParams]);
+  const justVerified = useMemo(() => searchParams.get('verified'), [searchParams]);
+  const reason = useMemo(() => searchParams.get('reason'), [searchParams]);
 
   useEffect(() => {
-    // Manteniamo comportamento "informativo" (se già c'era).
-    // Se non c'era, questa parte è innocua (solo UI).
-    if (justVerified === "1") setMessage("Email verificata. Ora puoi accedere.");
-    if (reason === "email_not_confirmed") setMessage("Conferma l’email per poter accedere.");
+    if (justVerified === '1') setMessage('Email verificata. Ora puoi accedere.');
+    if (reason === 'email_not_confirmed') setMessage('Conferma l’email per poter accedere.');
   }, [justVerified, reason]);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     setError(null);
     setMessage(null);
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -51,79 +47,73 @@ export default function LoginClient() {
         return;
       }
 
-      // Se avevi un redirect custom, lo manteniamo:
-      const target = redirectedFrom || "/profile";
-      // Dopo login con cookie-based SSR, spesso conviene refresh del router:
+      const target = redirectedFrom || '/profile';
       router.replace(target);
       router.refresh();
-
-      // opzionale: data session non usata
-      void data;
-    } catch (e) {
-      setError(getErrorMessage(e));
+    } catch (submitError) {
+      setError(getErrorMessage(submitError));
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-4 p-6">
-      <h1 className="text-2xl font-semibold">Accedi</h1>
+    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+      <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <h1 className="ui-title">Accedi</h1>
+              <p className="ui-muted">Entra nel tuo account per gestire profilo e prenotazioni.</p>
+            </div>
 
-      {message && <div className="rounded-lg border border-gray-200 bg-white p-3 text-sm">{message}</div>}
-      {error && <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+            {message ? (
+              <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.12)] p-3 ui-body">
+                {message}
+              </div>
+            ) : null}
 
-      <form className="flex flex-col gap-3" onSubmit={onSubmit}>
-        <label className="flex flex-col gap-1 text-sm">
-          Email
-          <input
-            className="h-11 rounded-lg border border-gray-300 bg-white px-3"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-        </label>
+            {error ? <div className="ui-error">{error}</div> : null}
 
-        <label className="flex flex-col gap-1 text-sm">
-          Password
-          <input
-            className="h-11 rounded-lg border border-gray-300 bg-white px-3"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
+            <form onSubmit={onSubmit} className="space-y-3">
+              <Field label="Email" required>
+                <input
+                  className="ui-control ui-input"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  required
+                />
+              </Field>
 
-        <button
-          className="mt-2 h-11 rounded-lg bg-black px-4 text-sm font-medium text-white disabled:opacity-60"
-          type="submit"
-          disabled={loading}
-        >
-          {loading ? "Accesso…" : "Accedi"}
-        </button>
+              <Field label="Password" required>
+                <input
+                  className="ui-control ui-input"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </Field>
 
-        <div className="mt-2 flex items-center justify-between text-sm">
-          <button
-            type="button"
-            className="text-gray-700 underline"
-            onClick={() => router.push("/signup")}
-          >
-            Crea account
-          </button>
+              <Button type="submit" variant="primary" fullWidth disabled={loading}>
+                {loading ? 'Accesso…' : 'Accedi'}
+              </Button>
+            </form>
 
-          <button
-            type="button"
-            className="text-gray-700 underline"
-            onClick={() => router.push("/forgot-password")}
-          >
-            Password dimenticata?
-          </button>
-        </div>
-      </form>
-    </div>
+            <div className="grid grid-cols-1 gap-2">
+              <Button type="button" variant="secondary" fullWidth onClick={() => router.push('/signup')}>
+                Crea account
+              </Button>
+              <Button type="button" variant="ghost" fullWidth onClick={() => router.push('/forgot-password')}>
+                Password dimenticata?
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </main>
   );
 }

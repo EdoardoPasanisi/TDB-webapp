@@ -35,7 +35,17 @@ type BookingDogDbRow = {
 // Tipo “list row”: SOLO i campi effettivamente selezionati nelle liste
 type BookingListDbRow = Pick<
   BookingRow,
-  'id' | 'user_id' | 'service_type' | 'status' | 'start_date' | 'end_date' | 'dogs_count' | 'total_price' | 'taxi_option'
+  | 'id'
+  | 'user_id'
+  | 'service_type'
+  | 'status'
+  | 'start_date'
+  | 'end_date'
+  | 'arrival_time'
+  | 'departure_time'
+  | 'dogs_count'
+  | 'total_price'
+  | 'taxi_option'
 > & {
   booking_dogs?: BookingDogDbRow[] | null;
 };
@@ -78,7 +88,6 @@ function summarizeExtras(extrasList: Array<BookingDogExtras | null | undefined>)
   let tracking = 0;
   let fitness = 0;
   let walk = 0;
-  let therapy = 0;
 
   for (const ex of extrasList) {
     if (!ex) continue;
@@ -87,7 +96,6 @@ function summarizeExtras(extrasList: Array<BookingDogExtras | null | undefined>)
     if (typeof ex.trackingSessions === 'number') tracking += ex.trackingSessions;
     if (typeof ex.fitnessSessions === 'number') fitness += ex.fitnessSessions;
     if (typeof ex.walkSessions === 'number') walk += ex.walkSessions;
-    if (ex.therapyActive) therapy += 1;
   }
 
   const parts: string[] = [];
@@ -96,7 +104,6 @@ function summarizeExtras(extrasList: Array<BookingDogExtras | null | undefined>)
   if (tracking > 0) parts.push(`Tracking (${tracking})`);
   if (fitness > 0) parts.push(`Fitness (${fitness})`);
   if (walk > 0) parts.push(`Passeggiate (${walk})`);
-  if (therapy > 0) parts.push('Terapia');
 
   return parts.length > 0 ? parts.join(', ') : 'Nessun extra';
 }
@@ -116,7 +123,7 @@ export async function getFutureBookingsForUser(userId: string): Promise<BookingL
   const { data, error } = await supabase
     .from('bookings')
     .select(
-      'id, user_id, service_type, status, start_date, end_date, dogs_count, total_price, taxi_option, booking_dogs(id, booking_id, dog_id, extras, dogs(id, name))'
+      'id, user_id, service_type, status, start_date, end_date, arrival_time, departure_time, dogs_count, total_price, taxi_option, booking_dogs(id, booking_id, dog_id, extras, dogs(id, name))'
     )
     .eq('user_id', userId)
     .order('start_date', { ascending: true });
@@ -136,6 +143,8 @@ export async function getFutureBookingsForUser(userId: string): Promise<BookingL
       status: (r.status as BookingStatus) ?? null,
       start_date: r.start_date,
       end_date: r.end_date ?? null,
+      arrival_time: r.arrival_time ?? null,
+      departure_time: r.departure_time ?? null,
       dogs_count: r.dogs_count ?? null,
       total_price: r.total_price ?? null,
       taxi_option: r.taxi_option ?? null,
@@ -226,6 +235,8 @@ export async function getPensioneBookingsForUserInRange(args: {
     Pick<
       BookingRow,
       'id' | 'service_type' | 'start_date' | 'end_date' | 'status' | 'total_price' | 'taxi_option' | 'dogs_count'
+      | 'arrival_time'
+      | 'departure_time'
     > & { dogNames: string[]; extrasSummary: string }
   >
 > {
@@ -234,7 +245,7 @@ export async function getPensioneBookingsForUserInRange(args: {
   const { data, error } = await supabase
     .from('bookings')
     .select(
-      'id, user_id, service_type, status, start_date, end_date, dogs_count, total_price, taxi_option, booking_dogs(id, booking_id, dog_id, extras, dogs(id, name))'
+      'id, user_id, service_type, status, start_date, end_date, arrival_time, departure_time, dogs_count, total_price, taxi_option, booking_dogs(id, booking_id, dog_id, extras, dogs(id, name))'
     )
     .eq('user_id', userId)
     .in('status', ['PENDING', 'CONFIRMED', 'PAID'])
@@ -255,6 +266,8 @@ export async function getPensioneBookingsForUserInRange(args: {
       service_type: r.service_type,
       start_date: r.start_date,
       end_date: r.end_date ?? null,
+      arrival_time: r.arrival_time ?? null,
+      departure_time: r.departure_time ?? null,
       status: r.status ?? null,
       total_price: r.total_price ?? null,
       taxi_option: r.taxi_option ?? null,

@@ -405,7 +405,7 @@ export function usePensioneBooking() {
     if (!startDate) return setError('Seleziona la data di inizio.');
     if (!endDate) return setError('Seleziona la data di fine.');
     if (endDate < startDate)
-      return setError('La data di fine non può essere precedente alla data di inizio.');
+      return setError('La data di partenza deve essere uguale o successiva alla data di arrivo.');
 
     if (!departureTime) {
       return setError(
@@ -425,6 +425,12 @@ export function usePensioneBooking() {
       if (form.therapy === '') {
         const dogName = dogs.find((d) => d.id === dogId)?.name ?? 'il cane';
         return setError(`Seleziona “Terapia in corso” (Sì/No) per ${dogName}.`);
+      }
+      if (form.therapy === 'YES' && !form.therapyNotes.trim()) {
+        const dogName = dogs.find((d) => d.id === dogId)?.name ?? 'il cane';
+        return setError(
+          `Hai selezionato terapia attiva per ${dogName}: inserisci i dettagli della terapia (farmaco, dose e orari).`
+        );
       }
     }
 

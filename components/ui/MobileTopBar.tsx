@@ -9,12 +9,8 @@ export function MobileTopBar() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // pagine "pulite" (stampa liberatoria) + profilo (usa banner)
-  if (
-    pathname === '/account/waiver' ||
-    pathname.startsWith('/account/waiver/') ||
-    pathname === '/profile'
-  ) {
+  // profilo (usa banner dedicato)
+  if (pathname === '/profile') {
     return null;
   }
 
@@ -31,7 +27,7 @@ export function MobileTopBar() {
   };
 
   return (
-    <header className="md:hidden fixed top-0 inset-x-0 z-40">
+    <header data-app-chrome="mobile-top" className="md:hidden fixed top-0 inset-x-0 z-40">
       <div
         className="h-[var(--topbar-h)] px-4 flex items-center justify-between"
         style={{

@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { formatTemperamentsForDisplay, getAgeLabel } from '@/lib/dogs/dogDisplay';
 import type { DogSex } from '@/types/dog';
+import { Card, CardContent } from '@/components/ui/Card';
 
 export type PublicDogCardDog = {
   id: string;
@@ -205,76 +206,96 @@ export function DogPublicCard({
   }
 
   return (
-    <div className="bg-white rounded-xl shadow-lg p-4 w-full max-w-md space-y-4">
-      <header className="border-b border-gray-200 pb-3">
-        <div className="flex items-center gap-3">
-          {photoUrl ? (
-            <div className="h-16 w-16 rounded-xl overflow-hidden border border-gray-200 bg-gray-100 flex-shrink-0">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photoUrl} alt="Foto cane" className="h-full w-full object-cover" />
-            </div>
-          ) : null}
-
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-gray-900 truncate">{dog.name}</h1>
-            {subtitleParts.length > 0 && (
-              <p className="text-xs text-gray-600 mt-1">{subtitleParts.join(' • ')}</p>
+    <Card className="w-full">
+      <CardContent className="space-y-4">
+        <header className="border-b border-[var(--border)] pb-4">
+          <div className="flex items-center gap-3">
+            {photoUrl ? (
+              <div
+                className="rounded-[var(--radius)] overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] shrink-0"
+                style={{ width: 72, height: 72 }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={photoUrl} alt="Foto cane" className="block h-full w-full max-h-full max-w-full object-cover" />
+              </div>
+            ) : (
+              <div
+                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-center shrink-0"
+                style={{ width: 72, height: 72 }}
+              >
+                <span className="ui-muted">Nessuna foto</span>
+              </div>
             )}
+
+            <div className="min-w-0">
+              <h1 className="ui-h2 truncate">{dog.name}</h1>
+              {subtitleParts.length > 0 ? <p className="mt-1 ui-muted">{subtitleParts.join(' • ')}</p> : null}
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
+        {lines.length > 0 ? (
+          <section className="space-y-2">
+            {lines.map((line) => (
+              <div key={line.key} className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <p className="ui-muted">{line.label}</p>
+                <p className="ui-body mt-1 whitespace-pre-line break-words">{line.value}</p>
+              </div>
+            ))}
+          </section>
+        ) : (
+          <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+            <p className="ui-muted">Nessun dettaglio visibile nella scheda.</p>
+          </section>
+        )}
 
-      <section className="space-y-2">
-        {lines.length > 0 &&
-          lines.map((l) => (
-            <p key={l.key} className="text-sm text-gray-800">
-              <span className="font-medium">{l.label}:</span> {l.value}
-            </p>
-          ))}
-      </section>
+        {ownerBlock?.anyOwnerInfoVisible && owner ? (
+          <section className="border-t border-[var(--border)] pt-4 space-y-2">
+            <h2 className="ui-body font-[var(--font-weight-semibold)]">Contatti proprietario</h2>
 
-      {ownerBlock?.anyOwnerInfoVisible && owner && (
-        <section className="border-t border-gray-200 pt-3 space-y-2">
-          <h2 className="text-sm font-semibold text-gray-900">Contatti proprietario</h2>
+            {ownerBlock.ownerNameVisible ? (
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <p className="ui-muted">Nome</p>
+                <p className="ui-body mt-1">{ownerBlock.ownerName}</p>
+              </div>
+            ) : null}
 
-          {ownerBlock.ownerNameVisible && (
-            <p className="text-sm text-gray-800">
-              <span className="font-medium">Nome:</span> {ownerBlock.ownerName}
-            </p>
-          )}
+            {ownerBlock.ownerPhoneVisible && owner.phone ? (
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <p className="ui-muted">Telefono</p>
+                <p className="ui-body mt-1">{owner.phone}</p>
+              </div>
+            ) : null}
 
-          {ownerBlock.ownerPhoneVisible && owner.phone && (
-            <p className="text-sm text-gray-800">
-              <span className="font-medium">Telefono:</span> {owner.phone}
-            </p>
-          )}
+            {ownerBlock.ownerEmailVisible && owner.email ? (
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <p className="ui-muted">Email</p>
+                <p className="ui-body mt-1 break-all">{owner.email}</p>
+              </div>
+            ) : null}
 
-          {ownerBlock.ownerEmailVisible && owner.email && (
-            <p className="text-sm text-gray-800">
-              <span className="font-medium">Email:</span> {owner.email}
-            </p>
-          )}
+            {ownerBlock.ownerHomeAddressVisible && ownerBlock.homeAddress ? (
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <p className="ui-muted">Indirizzo</p>
+                <p className="ui-body mt-1">{ownerBlock.homeAddress}</p>
+              </div>
+            ) : null}
 
-          {ownerBlock.ownerHomeAddressVisible && ownerBlock.homeAddress && (
-            <p className="text-sm text-gray-800">
-              <span className="font-medium">Indirizzo:</span> {ownerBlock.homeAddress}
-            </p>
-          )}
+            {ownerBlock.ownerDogAddressVisible && ownerBlock.dogAddress ? (
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <p className="ui-muted">Indirizzo cane</p>
+                <p className="ui-body mt-1">{ownerBlock.dogAddress}</p>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
 
-          {ownerBlock.ownerDogAddressVisible && ownerBlock.dogAddress && (
-            <p className="text-sm text-gray-800">
-              <span className="font-medium">Indirizzo cane:</span> {ownerBlock.dogAddress}
-            </p>
-          )}
-        </section>
-      )}
-
-      {showFooter && (
-        <footer className="text-center pt-2">
-          <p className="text-[11px] text-gray-500">Tenuta del Barone • Scheda cane</p>
-        </footer>
-      )}
-    </div>
+        {showFooter ? (
+          <footer className="pt-1">
+            <p className="ui-muted text-center">Tenuta del Barone • Scheda cane</p>
+          </footer>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }

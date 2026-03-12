@@ -9,6 +9,7 @@ import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
 import { MonthCalendar, type CalendarBookingItem } from '@/components/services/calendar/MonthCalendar';
 import { FutureBookingsList } from '@/components/services/FutureBookingsList';
 import { useFutureBookings } from '@/lib/services/hooks/useFutureBookings';
+import { OpenDetailsHint } from '@/components/ui/OpenDetailsHint';
 
 import {
   getUserServiceSlotBookingsInRange,
@@ -56,6 +57,11 @@ type SelectedItem = CalendarBookingItem & {
   uid: string; // sempre univoco (niente key duplicate)
   dayKey: string; // YYYY-MM-DD
   kind: 'SLOT' | 'PENSIONE';
+  serviceType: ServiceType;
+  dogNames?: string[];
+  dogsCount?: number | null;
+  arrivalTime?: string | null;
+  departureTime?: string | null;
 };
 
 function dayKeyFromIso(iso: string): string {
@@ -131,6 +137,7 @@ export default function CalendarPage() {
           const endAtIso = slot?.end_at ?? '';
           const serviceType: ServiceType = booking.service_type;
           const serviceVariant: ServiceVariant | null = booking.service_variant ?? slot?.service_variant ?? null;
+          const dogName = (booking.dogs?.name ?? '').trim();
 
           // ✅ id usato per aprire il riepilogo booking (logica invariata)
           const id = booking.slot_id || slot?.id || booking.id;
@@ -144,8 +151,10 @@ export default function CalendarPage() {
             startAtIso,
             endAtIso,
             dayKey,
+            serviceType,
             label: getServiceLabel(serviceType, serviceVariant),
             colorClass: colorForServiceType(serviceType),
+            dogNames: dogName ? [dogName] : [],
           };
         });
 
@@ -163,9 +172,14 @@ export default function CalendarPage() {
             startAtIso,
             endAtIso,
             dayKey,
+            serviceType: 'PENSIONE',
             label: 'Pensione',
             colorClass: colorForServiceType('PENSIONE'),
             showTime: false,
+            dogNames: booking.dogNames ?? [],
+            dogsCount: booking.dogs_count ?? null,
+            arrivalTime: booking.arrival_time ?? null,
+            departureTime: booking.departure_time ?? null,
           };
         });
 
@@ -253,7 +267,7 @@ export default function CalendarPage() {
         {/* Eventi del giorno selezionato */}
         <section className="ui-card ui-cardContent">
           <div className="ui-h2">Eventi del giorno</div>
-          <div className="ui-muted mt-1">{selectedDayKey ?? '—'}</div>
+          <div className="ui-muted mt-1">{selectedDayKey ? formatDayKeyVerbose(selectedDayKey) : '—'}</div>
 
           {selectedItems.length === 0 ? (
             <div className="ui-muted mt-3">Nessuna prenotazione in questo giorno.</div>
@@ -266,15 +280,59 @@ export default function CalendarPage() {
                   onClick={() => router.push(`/services/booking/${it.id}`)}
                   className="ui-selectCard"
                 >
-                  <div className="flex items-center justify-between gap-3 ui-minw0">
-                    <div className="ui-minw0">
-                      <div className="ui-body font-[var(--font-weight-bold)] truncate">{it.label}</div>
-                      <div className="ui-muted mt-1 truncate">
-                        {it.showTime === false ? 'Giornata' : formatTimeRange(it.startAtIso, it.endAtIso)}
-                      </div>
-                    </div>
+                  <div className="ui-minw0">
+                    <div className="ui-body font-[var(--font-weight-bold)]">{it.label}</div>
+                    <div className="mt-2 space-y-1">
+                      {it.kind === 'PENSIONE' ? (
+                        <>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="ui-muted shrink-0">Cani</span>
+                            <span className="ui-body font-[var(--font-weight-semibold)] text-right leading-tight">
+                              {formatDogsSummary(it.dogNames, it.dogsCount)}
+                            </span>
+                          </div>
 
-                    <span className="ui-pill">Apri</span>
+                          {selectedDayKey && selectedDayKey === toDayKeyFromIso(it.startAtIso) ? (
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="ui-muted shrink-0">Arrivo</span>
+                              <span className="ui-body font-[var(--font-weight-semibold)] text-right leading-tight">
+                                Ore {formatClock(it.arrivalTime)}
+                              </span>
+                            </div>
+                          ) : null}
+
+                          {selectedDayKey && selectedDayKey === toDayKeyFromIso(it.endAtIso ?? it.startAtIso) ? (
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="ui-muted shrink-0">Partenza</span>
+                              <span className="ui-body font-[var(--font-weight-semibold)] text-right leading-tight">
+                                Ore {formatClock(it.departureTime)}
+                              </span>
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <>
+                          {it.serviceType !== 'CONSULENZA' ? (
+                            <div className="flex items-start justify-between gap-2">
+                              <span className="ui-muted shrink-0">Cani</span>
+                              <span className="ui-body font-[var(--font-weight-semibold)] text-right leading-tight">
+                                {formatDogsSummary(it.dogNames)}
+                              </span>
+                            </div>
+                          ) : null}
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="ui-muted shrink-0">Orario</span>
+                            <span className="ui-body font-[var(--font-weight-semibold)] text-right leading-tight">
+                              {it.showTime === false ? 'Giornata' : formatTimeRange(it.startAtIso, it.endAtIso)}
+                            </span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-end">
+                    <OpenDetailsHint />
                   </div>
                 </button>
               ))}
@@ -295,7 +353,30 @@ function formatTimeRange(startIso: string, endIso?: string): string {
   return a || b || '';
 }
 
+function formatDayKeyVerbose(dayKey: string): string {
+  if (!dayKey) return '—';
+  const d = new Date(`${dayKey}T00:00:00`);
+  return d.toLocaleDateString('it-IT', {
+    weekday: 'long',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatClock(value: string | null | undefined): string {
+  if (!value) return '—';
+  return value.slice(0, 5);
+}
+
+function formatDogsSummary(dogNames: string[] | null | undefined, fallbackCount?: number | null): string {
+  const names = (dogNames ?? []).map((name) => name.trim()).filter(Boolean);
+  if (names.length > 0) return names.join(', ');
+  if (fallbackCount && fallbackCount > 0) return `${fallbackCount} cane/i`;
+  return '—';
 }

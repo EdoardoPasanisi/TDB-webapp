@@ -35,10 +35,19 @@ function formatAddressLine(
 }
 
 const inputBase =
-  'w-full h-11 rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 text-sm ' +
+  'w-full h-11 rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 text-[length:var(--font-size-md)] text-[var(--text)] ' +
   'focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)]/30';
 
-const labelBase = 'block text-xs font-medium text-gray-700';
+const labelBase = 'block ui-label';
+
+function DetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <span className="ui-muted shrink-0">{label}</span>
+      <span className="ui-body font-[var(--font-weight-semibold)] text-right break-words">{value || '—'}</span>
+    </div>
+  );
+}
 
 export function ProfileDetails({
   userEmail,
@@ -84,51 +93,30 @@ export function ProfileDetails({
         />
 
         {!profileEditing ? (
-          <div className="space-y-1 text-sm text-[var(--text)]">
+          <div className="space-y-3">
             {profile ? (
-              <>
-                <p>
-                  Nome e cognome: <span className="font-medium">{ownerNamePreview || '—'}</span>
-                </p>
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white divide-y divide-[var(--border)] overflow-hidden">
+                <div className="p-3 space-y-2">
+                  <p className="ui-body font-[var(--font-weight-semibold)]">Contatti</p>
+                  <DetailRow label="Nome e cognome" value={ownerNamePreview || '—'} />
+                  <DetailRow label="Telefono" value={profile.phone ?? '—'} />
+                  <DetailRow label="Email" value={profile.email ?? userEmail ?? '—'} />
+                </div>
 
-                {profile.phone ? (
-                  <p>
-                    Telefono: <span className="font-medium">{profile.phone}</span>
-                  </p>
-                ) : null}
+                <div className="p-3 space-y-2">
+                  <p className="ui-body font-[var(--font-weight-semibold)]">Indirizzi</p>
+                  <DetailRow label="Casa" value={homeAddressPreview || '—'} />
+                  <DetailRow label="Ritiro/servizi" value={dogAddressPreview || '—'} />
+                </div>
 
-                {(profile.email || userEmail) ? (
-                  <p>
-                    Email: <span className="font-medium">{profile.email ?? userEmail}</span>
-                  </p>
-                ) : null}
-
-                {homeAddressPreview ? (
-                  <p>
-                    Indirizzo casa: <span className="font-medium">{homeAddressPreview}</span>
-                  </p>
-                ) : null}
-
-                {dogAddressPreview ? (
-                  <p>
-                    Indirizzo ritiro/servizi: <span className="font-medium">{dogAddressPreview}</span>
-                  </p>
-                ) : null}
-
-                {profile.fiscal_code ? (
-                  <p>
-                    Codice fiscale: <span className="font-medium">{profile.fiscal_code}</span>
-                  </p>
-                ) : null}
-
-                {profile.birth_date ? (
-                  <p>
-                    Data di nascita: <span className="font-medium">{profile.birth_date}</span>
-                  </p>
-                ) : null}
-              </>
+                <div className="p-3 space-y-2">
+                  <p className="ui-body font-[var(--font-weight-semibold)]">Anagrafica</p>
+                  <DetailRow label="Codice fiscale" value={profile.fiscal_code ?? '—'} />
+                  <DetailRow label="Data di nascita" value={profile.birth_date ?? '—'} />
+                </div>
+              </div>
             ) : (
-              <p className="text-gray-700">
+              <p className="ui-body">
                 Non hai ancora completato i tuoi dati. Tocca “Completa” per inserirli.
               </p>
             )}
@@ -178,7 +166,7 @@ export function ProfileDetails({
 
               {/* Indirizzo casa */}
               <div className="space-y-2 sm:col-span-2">
-                <p className="text-xs font-semibold text-gray-900">Indirizzo di casa</p>
+                <p className="ui-body font-[var(--font-weight-semibold)]">Indirizzo di casa</p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2 space-y-1">
@@ -225,9 +213,9 @@ export function ProfileDetails({
 
               {/* Indirizzo ritiro/servizi */}
               <div className="space-y-2 sm:col-span-2">
-                <p className="text-xs font-semibold text-gray-900">Indirizzo ritiro/servizi</p>
+                <p className="ui-body font-[var(--font-weight-semibold)]">Indirizzo ritiro/servizi</p>
 
-                <label className="flex items-center gap-2 text-xs text-gray-700">
+                <label className="flex items-center gap-2 ui-body">
                   <input
                     type="checkbox"
                     checked={profileForm.dog_address_same_as_home}
@@ -287,7 +275,7 @@ export function ProfileDetails({
               {/* CF */}
               <div className="sm:col-span-2">
                 <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
-                  <p className="text-xs font-semibold text-gray-900">Codice fiscale</p>
+                  <p className="ui-body font-[var(--font-weight-semibold)]">Codice fiscale</p>
                   <input
                     type="text"
                     value={profileForm.fiscal_code}
@@ -297,21 +285,21 @@ export function ProfileDetails({
                     className={`${inputBase} uppercase`}
                     placeholder="RSSMRA80A01H501U"
                   />
-                  <p className="text-[11px] text-gray-500">Usato per liberatoria/servizi.</p>
+                  <p className="ui-muted">Usato per liberatoria/servizi.</p>
                 </div>
               </div>
 
               {/* Birth date */}
               <div className="sm:col-span-2">
                 <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
-                  <p className="text-xs font-semibold text-gray-900">Data di nascita</p>
+                  <p className="ui-body font-[var(--font-weight-semibold)]">Data di nascita</p>
                   <input
                     type="date"
                     value={profileForm.birth_date}
                     onChange={(e) => onChangeText('birth_date', e.target.value)}
                     className={inputBase}
                   />
-                  <p className="text-[11px] text-gray-500">Usata per liberatoria/servizi.</p>
+                  <p className="ui-muted">Usata per liberatoria/servizi.</p>
                 </div>
               </div>
             </div>

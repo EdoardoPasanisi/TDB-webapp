@@ -101,6 +101,8 @@ export interface BookingListItem {
 
   start_date: string;
   end_date: string | null;
+  arrival_time: string | null;
+  departure_time: string | null;
 
   dogs_count: number | null;
   total_price: number | null;

@@ -162,7 +162,7 @@ export function getServiceLabel(type: ServiceType, variant: ServiceVariant | nul
   if (type === 'CONSULENZA') return 'Consulenza cinofila';
   if (type === 'ASILO') {
     if (variant === 'HALF') return 'Asilo – Mezza giornata';
-    if (variant === 'FULL') return 'Asilo – Giornata intera';
+    if (variant === 'FULL') return 'Asilo - Intera giornata';
     return 'Asilo';
   }
   if (type === 'PENSIONE') return 'Pensione';

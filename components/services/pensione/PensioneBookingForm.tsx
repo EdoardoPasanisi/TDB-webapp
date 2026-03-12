@@ -175,8 +175,6 @@ export function PensioneBookingForm(props: Props) {
         <h1 className="ui-title ui-minw0">{title}</h1>
       </div>
 
-      {error ? <div className="ui-error">{error}</div> : null}
-
       {!isSingleDog ? (
         <Card>
           <CardContent className="space-y-3 ui-minw0">
@@ -443,7 +441,7 @@ export function PensioneBookingForm(props: Props) {
 
                     {form.therapy === 'YES' ? (
                       <div className="pt-2 ui-minw0">
-                        <Field label="Dettagli terapia (farmaco, dosi, orari…)">
+                        <Field label="Dettagli terapia (farmaco, dosi, orari…) *">
                           <textarea
                             value={form.therapyNotes}
                             onChange={(e) => onUpdatePerDogField(dogId, 'therapyNotes', e.target.value)}
@@ -451,6 +449,11 @@ export function PensioneBookingForm(props: Props) {
                             rows={3}
                           />
                         </Field>
+                        {!form.therapyNotes.trim() ? (
+                          <div className="ui-muted text-[rgba(255,0,0,0.85)]">
+                            Se hai selezionato “Sì”, inserisci i dettagli della terapia.
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                   </div>
@@ -515,10 +518,12 @@ export function PensioneBookingForm(props: Props) {
               variant="primary"
               fullWidth
               onClick={onSubmit}
-              disabled={saving || pricing.totalPrice <= 0}
+              disabled={saving}
             >
               {saving ? 'Salvataggio…' : showCancelEdit ? 'Salva modifiche' : 'Crea prenotazione'}
             </Button>
+
+            {error ? <div className="ui-error">{error}</div> : null}
           </div>
         </CardContent>
       </Card>

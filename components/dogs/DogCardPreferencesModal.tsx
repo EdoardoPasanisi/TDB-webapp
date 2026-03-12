@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import type { Dog } from '@/types/dog';
 import type { PublicDogCardOwner } from '@/components/dogs/DogPublicCard';
+import { Button } from '@/components/ui/Button';
 
 type DogPrefs = {
   show_breed: boolean;
@@ -96,20 +97,23 @@ function PreferenceItem({
 }: PreferenceItemProps) {
   return (
     <label
-      className={`flex items-start gap-3 p-3 rounded border ${
-        disabled ? 'bg-gray-50 border-gray-200' : 'bg-white border-gray-200 hover:bg-gray-50'
-      } cursor-pointer`}
+      className={[
+        'flex items-start gap-3 p-3 rounded-[var(--radius)] border cursor-pointer',
+        disabled
+          ? 'bg-[rgba(255,255,255,0.04)] border-[var(--border)] opacity-60'
+          : 'bg-[var(--surface-2)] border-[var(--border)] md:hover:bg-[rgba(255,255,255,0.08)]',
+      ].join(' ')}
     >
       <input
         type="checkbox"
-        className="mt-1 h-4 w-4"
+        className="mt-1 h-5 w-5 accent-[var(--brand-accent)]"
         checked={checked}
         disabled={disabled || saving}
         onChange={(event) => onChange(event.target.checked)}
       />
       <div className="min-w-0">
-        <div className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-900'}`}>{label}</div>
-        <div className={`text-xs ${disabled ? 'text-gray-400' : 'text-gray-600'}`}>{description}</div>
+        <div className="ui-body font-[var(--font-weight-semibold)]">{label}</div>
+        <div className="ui-muted mt-1">{description}</div>
       </div>
     </label>
   );
@@ -196,27 +200,22 @@ function DogCardPreferencesDialog({
       <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="Chiudi" />
 
       <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-4">
-        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-xl max-h-[85vh] overflow-auto">
-          <div className="p-4 border-b border-gray-200 flex items-start justify-between gap-3">
+        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-t-[var(--radius)] sm:rounded-[var(--radius)] shadow-[var(--shadow)] w-full sm:max-w-xl max-h-[85vh] overflow-auto">
+          <div className="p-4 border-b border-[var(--border)] flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-base font-semibold text-gray-900">Personalizza scheda cane</h2>
-              <p className="text-xs text-gray-600 mt-1">
+              <h2 className="ui-h2">Personalizza scheda cane</h2>
+              <p className="ui-muted mt-1">
                 Scegli cosa mostrare nella scheda pubblica del cane (quella del QR).
               </p>
             </div>
-            <button
-              type="button"
-              className="px-3 py-2 rounded border border-gray-300 text-sm font-medium hover:bg-gray-50"
-              onClick={onClose}
-              disabled={saving}
-            >
+            <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
               Chiudi
-            </button>
+            </Button>
           </div>
 
           <div className="p-4 space-y-6">
             <section className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900">Informazioni del cane</h3>
+              <h3 className="ui-body font-[var(--font-weight-semibold)]">Informazioni del cane</h3>
               <div className="grid grid-cols-1 gap-2">
                 <PreferenceItem
                   label="Razza"
@@ -294,8 +293,8 @@ function DogCardPreferencesDialog({
             </section>
 
             <section className="space-y-3">
-              <h3 className="text-sm font-semibold text-gray-900">Informazioni del proprietario</h3>
-              <p className="text-xs text-gray-600">Queste informazioni vengono prese dal profilo utente.</p>
+              <h3 className="ui-body font-[var(--font-weight-semibold)]">Informazioni del proprietario</h3>
+              <p className="ui-muted">Queste informazioni vengono prese dal profilo utente.</p>
 
               <div className="grid grid-cols-1 gap-2">
                 <PreferenceItem
@@ -372,23 +371,13 @@ function DogCardPreferencesDialog({
             </section>
           </div>
 
-          <div className="p-4 border-t border-gray-200 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              className="px-4 py-2 rounded border border-gray-300 text-sm font-medium hover:bg-gray-50"
-              onClick={onClose}
-              disabled={saving}
-            >
+          <div className="p-4 border-t border-[var(--border)] grid gap-2 sm:grid-cols-2">
+            <Button type="button" variant="secondary" fullWidth onClick={onClose} disabled={saving}>
               Annulla
-            </button>
-            <button
-              type="button"
-              className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
-              onClick={handleSave}
-              disabled={saving}
-            >
+            </Button>
+            <Button type="button" variant="primary" fullWidth onClick={handleSave} disabled={saving}>
               {saving ? 'Salvataggio…' : 'Salva'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

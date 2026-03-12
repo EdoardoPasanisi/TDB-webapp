@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DogBreed } from '@/data/dogBreeds';
+import { Button } from '@/components/ui/Button';
 
 type Props = {
   breeds: DogBreed[];
@@ -68,31 +69,32 @@ export function BreedSearchInput({
             setQuery(value ?? '');
             setOpen(true);
           }}
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+          className="ui-control ui-input"
           placeholder={placeholder}
           autoComplete="off"
         />
 
         {onClear && (value || query) ? (
-          <button
+          <Button
             type="button"
             onClick={() => {
               setQuery('');
               setOpen(false);
               onClear();
             }}
-            className="rounded border border-gray-300 px-3 py-2 text-sm"
+            variant="secondary"
+            className="h-[var(--control-h)] min-w-[48px] px-4"
             aria-label="Svuota razza"
           >
             ✕
-          </button>
+          </Button>
         ) : null}
       </div>
 
       {open && (
-        <div className="absolute z-20 mt-2 w-full rounded-lg border border-gray-200 bg-white shadow-lg max-h-72 overflow-auto">
+        <div className="absolute z-20 mt-2 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)] max-h-72 overflow-auto">
           {filtered.length === 0 ? (
-            <div className="p-3 text-sm text-gray-600">
+            <div className="p-3 ui-muted">
               Nessuna razza trovata. Prova con un nome alternativo (es. “German Shepherd”).
             </div>
           ) : (
@@ -106,11 +108,11 @@ export function BreedSearchInput({
                       setQuery(b.name); // ✅ mostra solo nome principale nel campo
                       setOpen(false);
                     }}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                    className="w-full text-left px-3 py-2 md:hover:bg-[var(--surface-2)]"
                   >
-                    <div className="font-medium text-gray-900">{b.name}</div>
+                    <div className="ui-body font-[var(--font-weight-semibold)]">{b.name}</div>
                     {b.aliases && b.aliases.length > 0 ? (
-                      <div className="text-xs text-gray-500 truncate">{b.aliases.join(', ')}</div>
+                      <div className="ui-muted truncate">{b.aliases.join(', ')}</div>
                     ) : null}
                   </button>
                 </li>
@@ -122,8 +124,8 @@ export function BreedSearchInput({
 
       {/* Helper: se value è impostato ma query è diversa, evitiamo confusione */}
       {value && query && value !== query ? (
-        <p className="mt-1 text-[11px] text-gray-500">
-          Selezionata: <span className="font-medium">{value}</span>
+        <p className="mt-2 ui-muted">
+          Selezionata: <span className="font-[var(--font-weight-semibold)]">{value}</span>
         </p>
       ) : null}
     </div>

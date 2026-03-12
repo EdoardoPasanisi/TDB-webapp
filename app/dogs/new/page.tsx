@@ -31,8 +31,8 @@ export default function NewDogPage() {
 
   if (authLoading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-700">Caricamento...</p>
+      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
+        <p className="ui-body text-[var(--muted)]">Caricamento...</p>
       </main>
     );
   }
@@ -87,7 +87,7 @@ export default function NewDogPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-100 text-[var(--text)]">
+    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
       <div className="mx-auto w-full max-w-xl px-4 pb-10 pt-4 space-y-4">
         <Card>
           <CardContent className="space-y-3">
@@ -102,7 +102,7 @@ export default function NewDogPage() {
             />
 
             {error && (
-              <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <div className="ui-error">
                 {error}
               </div>
             )}

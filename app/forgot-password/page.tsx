@@ -1,17 +1,17 @@
-// FILE: pawny-webapp/app/forgot-password/page.tsx
 'use client';
 
 import { FormEvent, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
+import { Field } from '@/components/ui/Field';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
 
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
-
-  // messaggio “neutro” (non leakiamo se l’email esiste)
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -20,30 +20,19 @@ export default function ForgotPasswordPage() {
     return window.location.origin;
   }, []);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
     setDoneMessage(null);
     setErrorMessage(null);
     setLoading(true);
 
     try {
       const redirectTo = origin ? `${origin}/reset-password` : undefined;
+      await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo,
-      });
-
-      // Per UX/sicurezza: stesso messaggio sia che l’email esista sia che no.
-      if (error) {
-        // Mostriamo un messaggio umano ma non tecnico
-        setDoneMessage(
-          'Se l’indirizzo è registrato, riceverai un’email con le istruzioni per reimpostare la password.'
-        );
-      } else {
-        setDoneMessage(
-          'Se l’indirizzo è registrato, riceverai un’email con le istruzioni per reimpostare la password.'
-        );
-      }
+      setDoneMessage(
+        'Se l’indirizzo è registrato, riceverai un’email con le istruzioni per reimpostare la password.'
+      );
     } catch {
       setErrorMessage('Qualcosa è andato storto. Riprova tra poco.');
     } finally {
@@ -52,57 +41,47 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white rounded-lg shadow-md p-6 max-w-sm w-full space-y-4">
-        <h1 className="text-2xl font-bold text-center">Recupera password</h1>
+    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+      <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <h1 className="ui-title">Recupera password</h1>
+              <p className="ui-muted">
+                Inserisci la tua email. Se registrata, riceverai un link per impostare una nuova password.
+              </p>
+            </div>
 
-        <p className="text-sm text-gray-700">
-          Inserisci la tua email. Se è registrata, riceverai un link per impostare una nuova password.
-        </p>
+            {doneMessage ? (
+              <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.12)] p-3 ui-body">
+                {doneMessage}
+              </div>
+            ) : null}
 
-        {doneMessage && (
-          <div className="rounded border border-green-200 bg-green-50 p-3">
-            <p className="text-sm text-green-800">{doneMessage}</p>
-          </div>
-        )}
+            {errorMessage ? <div className="ui-error">{errorMessage}</div> : null}
 
-        {errorMessage && (
-          <div className="rounded border border-red-200 bg-red-50 p-3">
-            <p className="text-sm text-red-700">{errorMessage}</p>
-          </div>
-        )}
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <Field label="Email" required>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="ui-control ui-input"
+                  required
+                />
+              </Field>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              autoComplete="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
+              <Button type="submit" variant="primary" fullWidth disabled={loading}>
+                {loading ? 'Invio in corso…' : 'Invia email di recupero'}
+              </Button>
+            </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
-          >
-            {loading ? 'Invio in corso...' : 'Invia email di recupero'}
-          </button>
-        </form>
-
-        <p className="text-xs text-gray-700 text-center">
-          <button
-            type="button"
-            onClick={() => router.push('/login')}
-            className="text-blue-600 hover:underline"
-          >
-            Torna al login
-          </button>
-        </p>
+            <Button type="button" variant="secondary" fullWidth onClick={() => router.push('/login')}>
+              Torna al login
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

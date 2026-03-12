@@ -112,6 +112,8 @@ export function useFutureBookings(userId: string | undefined) {
         status: booking.status ?? null,
         start_date: booking.start_date,
         end_date: booking.end_date ?? null,
+        arrival_time: booking.arrival_time ?? null,
+        departure_time: booking.departure_time ?? null,
         dogs_count: booking.dogs_count ?? null,
         total_price: booking.total_price ?? null,
         taxi_option: booking.taxi_option ?? null,

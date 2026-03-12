@@ -1,15 +1,16 @@
-// FILE: app/signup/check-email/CheckEmailClient.tsx
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
 
 export default function CheckEmailClient() {
-  const sp = useSearchParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
 
-  const email = useMemo(() => (sp.get('email') ?? '').trim(), [sp]);
+  const email = useMemo(() => (searchParams.get('email') ?? '').trim(), [searchParams]);
 
   const [sending, setSending] = useState(false);
   const [info, setInfo] = useState<string | null>(null);
@@ -25,67 +26,53 @@ export default function CheckEmailClient() {
     }
 
     setSending(true);
-    const { error } = await supabase.auth.resend({
+    const { error: resendError } = await supabase.auth.resend({
       type: 'signup',
       email,
     });
     setSending(false);
 
-    if (error) {
-      setError(
-        'Non sono riuscito a reinviare l’email. Riprova tra poco oppure controlla spam/promozioni.'
-      );
+    if (resendError) {
+      setError('Non sono riuscito a reinviare l’email. Riprova tra poco o controlla spam/promozioni.');
       return;
     }
 
-    setInfo('Email di conferma reinviata ✅');
+    setInfo('Email di conferma reinviata.');
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-      <div className="bg-white rounded-lg shadow-md p-6 max-w-md w-full space-y-3">
-        <h1 className="text-xl font-bold text-center">Controlla la tua email</h1>
+    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+      <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
+        <Card>
+          <CardContent className="space-y-4">
+            <div className="space-y-1">
+              <h1 className="ui-title">Controlla la tua email</h1>
+              <p className="ui-body">
+                Ti abbiamo inviato un link di conferma{email ? ` a ${email}` : ''}. Aprilo per completare la
+                registrazione.
+              </p>
+              <p className="ui-muted">Se non trovi la mail, controlla anche Spam o Promozioni.</p>
+            </div>
 
-        <p className="text-sm text-gray-700 text-center">
-          Ti abbiamo inviato un link di conferma{email ? ` a ${email}` : ''}.
-          <br />
-          Aprilo per completare la registrazione.
-        </p>
+            {error ? <div className="ui-error">{error}</div> : null}
 
-        <p className="text-xs text-gray-500 text-center">
-          Se non trovi la mail, controlla anche Spam/Promozioni.
-        </p>
+            {info ? (
+              <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.12)] p-3 ui-body">
+                {info}
+              </div>
+            ) : null}
 
-        {error && (
-          <div className="rounded border border-red-200 bg-red-50 p-3">
-            <p className="text-sm text-red-700 text-center">{error}</p>
-          </div>
-        )}
+            <div className="grid grid-cols-1 gap-2">
+              <Button type="button" variant="primary" fullWidth onClick={() => router.push('/login')}>
+                Vai al login
+              </Button>
 
-        {info && (
-          <div className="rounded border border-green-200 bg-green-50 p-3">
-            <p className="text-sm text-green-800 text-center">{info}</p>
-          </div>
-        )}
-
-        <div className="pt-2 flex items-center justify-center gap-2">
-          <button
-            type="button"
-            onClick={() => router.push('/login')}
-            className="px-4 py-2 rounded bg-black text-white text-sm font-medium hover:opacity-90"
-          >
-            Vai al login
-          </button>
-
-          <button
-            type="button"
-            disabled={!email || sending}
-            onClick={handleResend}
-            className="px-4 py-2 rounded border border-gray-300 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
-          >
-            {sending ? 'Invio…' : 'Reinvia email'}
-          </button>
-        </div>
+              <Button type="button" variant="secondary" fullWidth disabled={!email || sending} onClick={handleResend}>
+                {sending ? 'Invio…' : 'Reinvia email'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

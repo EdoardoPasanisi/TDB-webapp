@@ -34,9 +34,6 @@ export function BottomNav({ homeHref, calendarHref }: BottomNavProps) {
   const router = useRouter();
   const pathname = usePathname();
 
-  // pagine "pulite"
-  if (pathname === '/account/waiver' || pathname.startsWith('/account/waiver/')) return null;
-
   const isHomeActive = pathname === homeHref || pathname.startsWith(homeHref + '/');
   const isCalendarActive = pathname === calendarHref || pathname.startsWith(calendarHref + '/');
 
@@ -48,7 +45,7 @@ export function BottomNav({ homeHref, calendarHref }: BottomNavProps) {
   const active = 'text-black';
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-40">
+    <nav data-app-chrome="mobile-bottom" className="md:hidden fixed bottom-0 inset-x-0 z-40">
       {/* ✅ Barra ATTACCATA al fondo + safe-area */}
       <div
         className="relative"

@@ -6,9 +6,9 @@ export default function SignupCheckEmailPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-          <div className="bg-white rounded-lg shadow-md p-6 max-w-md w-full space-y-3">
-            <p className="text-sm text-gray-700 text-center">Caricamento…</p>
+        <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)] p-4">
+          <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-6 max-w-md w-full">
+            <p className="ui-body text-center text-[var(--muted)]">Caricamento…</p>
           </div>
         </main>
       }

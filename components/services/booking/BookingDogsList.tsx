@@ -2,7 +2,7 @@
 'use client';
 
 import type { BookingDogExtras, BookingDogRow } from '@/types/booking';
-import { euro } from '@/lib/services/formatters';
+import { accommodationLabel, euro } from '@/lib/services/formatters';
 
 function extrasToLines(extras: BookingDogExtras | null | undefined): string[] {
   const lines: string[] = [];
@@ -21,10 +21,16 @@ function extrasToLines(extras: BookingDogExtras | null | undefined): string[] {
     lines.push(`Passeggiate: ${extras.walkSessions}`);
   }
 
-  if (extras.therapyActive) lines.push('Terapia attiva');
-  if (extras.therapyNotes) lines.push(`Note terapia: ${extras.therapyNotes}`);
-
   return lines;
+}
+
+function InfoTile({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+      <div className="ui-muted">{label}</div>
+      <div className="ui-body font-[var(--font-weight-semibold)] mt-1 leading-tight">{value}</div>
+    </div>
+  );
 }
 
 export function BookingDogsList({
@@ -33,51 +39,72 @@ export function BookingDogsList({
   dogs: Array<BookingDogRow & { dogName: string; dogBreed?: string | null }>;
 }) {
   return (
-    <section className="bg-white rounded-lg shadow p-4 space-y-3">
-      <h2 className="text-lg font-semibold">Cani</h2>
+    <section className="ui-card ui-cardContent space-y-3">
+      <h2 className="ui-h2">Cani</h2>
 
       <div className="space-y-3">
         {dogs.map((d) => {
           const extrasLines = extrasToLines(d.extras);
+          const therapyActive = Boolean(d.extras?.therapyActive);
+          const therapyNotes = d.extras?.therapyNotes?.trim() ?? '';
 
           return (
-            <div key={d.id} className="border border-gray-200 rounded-lg p-3">
+            <article key={d.id} className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3">
               <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold">{d.dogName}</p>
-                  {d.dogBreed && <p className="text-sm text-gray-600">{d.dogBreed}</p>}
+                <div className="ui-minw0">
+                  <p className="ui-body font-[var(--font-weight-semibold)] break-words">{d.dogName}</p>
+                  {d.dogBreed ? (
+                    <div className="mt-1 ui-muted">
+                      Razza: <span className="text-[var(--text)]">{d.dogBreed}</span>
+                    </div>
+                  ) : null}
                 </div>
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">Totale cane</p>
-                  <p className="text-sm font-semibold">{euro(d.per_dog_total)}</p>
+
+                <div className="shrink-0 rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.14)] px-3 py-2 text-right">
+                  <p className="ui-muted">Totale cane</p>
+                  <p className="ui-body font-[var(--font-weight-semibold)]">{euro(d.per_dog_total)}</p>
                 </div>
               </div>
 
-              {/* ✅ più leggibile: niente text-xs */}
-              <div className="mt-2 text-sm text-gray-700 space-y-1">
-                <p>
-                  <span className="font-medium">Alloggio:</span> {String(d.accommodation_type)} —{' '}
-                  {euro(d.accommodation_price_per_day)}/giorno × {d.days_count}
-                </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="col-span-2">
+                  <InfoTile label="Alloggio" value={accommodationLabel(d.accommodation_type)} />
+                </div>
+                <InfoTile label="Tariffa al giorno" value={euro(d.accommodation_price_per_day)} />
+                <InfoTile label="Giorni" value={String(d.days_count)} />
+                <InfoTile label="Totale alloggio" value={euro(d.accommodation_subtotal)} />
+                <InfoTile label="Totale extra" value={euro(d.extras_subtotal)} />
+              </div>
 
-                {d.extras_subtotal > 0 && (
-                  <p>
-                    <span className="font-medium">Extra:</span> {euro(d.extras_subtotal)}
-                  </p>
-                )}
+              {extrasLines.length > 0 ? (
+                <div className="mt-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                  <p className="ui-body font-[var(--font-weight-semibold)]">Extra selezionati</p>
+                  <ul className="mt-2 list-disc pl-5 space-y-1 ui-body">
+                    {extrasLines.map((l) => (
+                      <li key={l}>{l}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3 ui-muted">
+                  Nessun extra selezionato
+                </div>
+              )}
 
-                {extrasLines.length > 0 && (
-                  <div className="mt-2">
-                    <p className="font-medium">Dettagli extra:</p>
-                    <ul className="list-disc pl-5 space-y-0.5">
-                      {extrasLines.map((l) => (
-                        <li key={l}>{l}</li>
-                      ))}
-                    </ul>
+              {therapyActive || therapyNotes ? (
+                <div className="mt-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                  <p className="ui-body font-[var(--font-weight-semibold)]">Terapia</p>
+                  <div className="mt-2 space-y-1">
+                    {therapyActive ? <p className="ui-body">Terapia attiva</p> : null}
+                    {therapyNotes ? (
+                      <p className="ui-muted">
+                        Note: <span className="text-[var(--text)]">{therapyNotes}</span>
+                      </p>
+                    ) : null}
                   </div>
-                )}
-              </div>
-            </div>
+                </div>
+              ) : null}
+            </article>
           );
         })}
       </div>

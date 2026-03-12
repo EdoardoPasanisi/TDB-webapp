@@ -1,7 +1,7 @@
 // components/dogs/DogForm.tsx
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { DOG_BREEDS, type GroomingDifficulty, type SizeCategory } from '@/data/dogBreeds';
 import { BreedSearchInput } from '@/components/dogs/BreedSearchInput';
 import type { Dog, DogInput, DogSex } from '@/types/dog';
@@ -150,9 +150,11 @@ export function DogForm({
   const showTemperament = editableDog?.show_temperament ?? false;
 
   const [formError, setFormError] = useState<string | null>(null);
+  const [submitNotice, setSubmitNotice] = useState<string | null>(null);
 
   // ✅ NEW: preview locale della foto selezionata
   const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
 
   function clampBirthDay(y: number | null, m: number | null, d: number | null): number | null {
     if (!y || !m || !d) return d;
@@ -186,12 +188,11 @@ export function DogForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
+    setSubmitNotice(null);
 
     const errors = validateRequired();
     if (errors.length > 0) {
-      const msg = errors.join('\n');
       setFormError(errors.join(' '));
-      window.alert(msg);
       return;
     }
 
@@ -203,6 +204,8 @@ export function DogForm({
       setMicrochipWarning(
         'Il numero di microchip non sembra corretto: deve essere composto da 15 cifre. Il valore non verrà salvato.'
       );
+    } else {
+      setMicrochipWarning(null);
     }
 
     const microchipToSave = !microchipIsProvided
@@ -247,15 +250,14 @@ export function DogForm({
     await onSubmit(payload);
 
     if (microchipIsProvided && !microchipIsValid) {
-      window.alert(
-        'Attenzione: il numero di microchip inserito non è nel formato corretto. Non lo abbiamo salvato.'
-      );
+      setSubmitNotice('Attenzione: il numero di microchip inserito non è nel formato corretto e non è stato salvato.');
     }
   }
 
   const yearOptions = useMemo(() => {
     const years: number[] = [];
-    for (let y = 2000; y <= 2026; y += 1) years.push(y);
+    const currentYear = new Date().getFullYear();
+    for (let y = 2000; y <= currentYear; y += 1) years.push(y);
     return years;
   }, []);
 
@@ -270,112 +272,106 @@ export function DogForm({
   const hasSavedPhoto = Boolean(initialPhotoUrl);
   const hasLocalSelection = Boolean(photoPreviewUrl);
 
+  const handlePhotoChange = (file: File | null) => {
+    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
+    const nextPreview = file ? URL.createObjectURL(file) : null;
+    setPhotoPreviewUrl(nextPreview);
+    onPhotoSelected?.(file);
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {formError && (
-        <div className="bg-red-50 border border-red-100 text-red-700 rounded-lg p-3 text-sm">
-          {formError}
+      {formError ? <div className="ui-error">{formError}</div> : null}
+
+      {submitNotice ? (
+        <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.55)] bg-[rgba(255,130,0,0.14)] p-3">
+          <p className="ui-body">{submitNotice}</p>
         </div>
-      )}
+      ) : null}
 
       {/* ✅ Foto cane */}
-      <div className="border border-gray-200 rounded-lg p-3 space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-xs font-medium text-gray-800">Foto</p>
-            <p className="text-[11px] text-gray-500 mt-0.5">Facoltativa. JPG/PNG/WebP.</p>
+      <Card>
+        <CardContent className="space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="ui-body font-[var(--font-weight-semibold)]">Foto</p>
+              <p className="ui-muted mt-1">Facoltativa. JPG, PNG o WebP.</p>
+            </div>
+            {photoUploading ? <span className="ui-muted">Caricamento…</span> : null}
           </div>
-          {photoUploading && <span className="text-[11px] text-gray-500">Caricamento…</span>}
-        </div>
 
-        <div className="flex items-start gap-3">
-          <label
-            className="h-16 w-16 rounded-lg bg-gray-100 overflow-hidden flex items-center justify-center border border-gray-200 cursor-pointer relative"
-            title="Carica o cambia foto"
-          >
-            {effectivePhotoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={effectivePhotoUrl} alt="Foto cane" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-[11px] text-gray-500">Nessuna</span>
-            )}
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              className="rounded-[var(--radius)] bg-[var(--surface-2)] overflow-hidden flex items-center justify-center border border-[var(--border)] shrink-0"
+              style={{ width: 72, height: 72 }}
+              title="Carica o cambia foto"
+              disabled={photoUploading}
+              onClick={() => photoInputRef.current?.click()}
+            >
+              {effectivePhotoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={effectivePhotoUrl} alt="Foto cane" className="block h-full w-full max-h-full max-w-full object-cover" />
+              ) : (
+                <span className="ui-muted">Foto</span>
+              )}
+            </button>
+
             <input
+              ref={photoInputRef}
               type="file"
               accept="image/png,image/jpeg,image/webp"
               disabled={photoUploading}
               onChange={(e) => {
                 const f = e.target.files?.[0] ?? null;
-
-                if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-                const nextPreview = f ? URL.createObjectURL(f) : null;
-                setPhotoPreviewUrl(nextPreview);
-
-                onPhotoSelected?.(f);
+                handlePhotoChange(f);
               }}
               className="sr-only"
             />
-          </label>
 
-          <div className="flex-1 space-y-2">
-            <div className="flex flex-wrap gap-2">
-              <label className="inline-flex">
-                <span className="px-3 py-2 rounded border border-gray-300 text-xs font-medium hover:bg-gray-50 cursor-pointer">
+            <div className="flex-1 space-y-2">
+              <div className="grid gap-2 sm:grid-cols-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth
+                  disabled={photoUploading}
+                  onClick={() => photoInputRef.current?.click()}
+                >
                   {hasSavedPhoto ? 'Cambia foto' : 'Carica foto'}
-                </span>
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  disabled={photoUploading}
-                  onChange={(e) => {
-                    const f = e.target.files?.[0] ?? null;
+                </Button>
 
-                    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-                    const nextPreview = f ? URL.createObjectURL(f) : null;
-                    setPhotoPreviewUrl(nextPreview);
+                {hasLocalSelection ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    fullWidth
+                    disabled={photoUploading}
+                    onClick={() => {
+                      handlePhotoChange(null);
+                    }}
+                  >
+                    Annulla selezione
+                  </Button>
+                ) : hasSavedPhoto && onPhotoRemove ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth
+                    className="border-[rgba(255,80,80,0.45)] text-[rgba(255,80,80,0.95)]"
+                    disabled={photoUploading}
+                    onClick={() => void onPhotoRemove()}
+                  >
+                    Rimuovi foto
+                  </Button>
+                ) : null}
+              </div>
 
-                    onPhotoSelected?.(f);
-                  }}
-                  className="sr-only"
-                />
-              </label>
-
-              {hasLocalSelection && (
-                <button
-                  type="button"
-                  className="px-3 py-2 rounded border border-gray-300 text-xs font-medium hover:bg-gray-50"
-                  disabled={photoUploading}
-                  onClick={() => {
-                    if (photoPreviewUrl) URL.revokeObjectURL(photoPreviewUrl);
-                    setPhotoPreviewUrl(null);
-                    onPhotoSelected?.(null);
-                  }}
-                >
-                  Annulla selezione
-                </button>
-              )}
-
-              {hasSavedPhoto && !hasLocalSelection && onPhotoRemove && (
-                <button
-                  type="button"
-                  className="px-3 py-2 rounded border border-red-200 text-xs font-medium text-red-700 hover:bg-red-50"
-                  disabled={photoUploading}
-                  onClick={async () => {
-                    const ok = window.confirm('Vuoi rimuovere la foto del cane?');
-                    if (!ok) return;
-                    await onPhotoRemove();
-                  }}
-                >
-                  Rimuovi foto
-                </button>
-              )}
+              <p className="ui-muted">Tocca la foto oppure il pulsante per selezionare un’immagine.</p>
             </div>
-
-            <p className="text-[11px] text-gray-500">
-              Clicca sull’anteprima oppure sul pulsante per selezionare un’immagine.
-            </p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
 
       {/* Nome (required) */}
@@ -387,7 +383,7 @@ export function DogForm({
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              className="ui-control ui-input"
               placeholder="Es. Luna"
               aria-invalid={!name.trim()}
             />
@@ -437,7 +433,7 @@ export function DogForm({
             <select
               value={sizeCategory ?? ''}
               onChange={(e) => setSizeCategory((e.target.value as SizeCategory) || null)}
-              className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              className="ui-control ui-select"
             >
               <option value="" disabled>
                 Seleziona taglia...
@@ -467,7 +463,7 @@ export function DogForm({
               <select
                 value={birthD ?? ''}
                 onChange={(e) => setBirthD(e.target.value ? Number(e.target.value) : null)}
-                className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                className="ui-control ui-select"
               >
                 <option value="">Giorno</option>
                 {Array.from({ length: maxDay }, (_, i) => i + 1).map((d) => (
@@ -484,7 +480,7 @@ export function DogForm({
                   setBirthM(nextMonth);
                   setBirthD((prevDay) => clampBirthDay(birthY, nextMonth, prevDay));
                 }}
-                className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                className="ui-control ui-select"
               >
                 <option value="">Mese</option>
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -501,7 +497,7 @@ export function DogForm({
                   setBirthY(nextYear);
                   setBirthD((prevDay) => clampBirthDay(nextYear, birthM, prevDay));
                 }}
-                className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 py-2 text-sm"
+                className="ui-control ui-select"
               >
                 <option value="">Anno *</option>
                 {yearOptions.map((y) => (
@@ -525,7 +521,7 @@ export function DogForm({
             <select
               value={sex ?? ''}
               onChange={(e) => setSex((e.target.value as DogSex) || null)}
-              className="w-full rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 py-2 text-sm"
+              className="ui-control ui-select"
             >
               <option value="">Non specificato</option>
               <option value="male">Maschio</option>
@@ -545,7 +541,7 @@ export function DogForm({
               inputMode="numeric"
               value={microchip}
               onChange={(e) => setMicrochip(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              className="ui-control ui-input"
               placeholder="Es. 380260123456789"
               aria-invalid={!!microchipWarning}
               aria-describedby={microchipWarning ? 'dog-microchip-error' : undefined}
@@ -563,7 +559,7 @@ export function DogForm({
               type="text"
               value={coatColor}
               onChange={(e) => setCoatColor(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              className="ui-control ui-input"
               placeholder="Es. nero / miele / fulvo…"
             />
           </Field>
@@ -584,8 +580,10 @@ export function DogForm({
                     type="button"
                     onClick={() => toggleTemperament(opt)}
                     className={[
-                      'px-3 py-1.5 rounded-full text-sm border',
-                      active ? 'bg-black text-white border-black' : 'bg-white text-gray-800 border-gray-300',
+                      'rounded-full border px-4 py-2 ui-body',
+                      active
+                        ? 'bg-[var(--brand-accent)] text-black border-[rgba(0,0,0,0.2)]'
+                        : 'bg-[var(--surface-2)] text-[var(--text)] border-[var(--border)]',
                     ].join(' ')}
                   >
                     {label}
@@ -605,7 +603,7 @@ export function DogForm({
               id="dog-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              className="ui-control ui-textarea"
               rows={4}
               placeholder="Es. Allergico al pollo…"
             />
@@ -613,18 +611,18 @@ export function DogForm({
         </CardContent>
       </Card> 
 
-      <div className="sticky bottom-0 -mx-4 mt-6 border-t border-[var(--border)] bg-gray-100 px-4 py-3">
-        <div className="flex items-center gap-2">
+      <div className="sticky bottom-0 -mx-4 mt-6 border-t border-[var(--border)] bg-[var(--brand-bg)]/95 px-4 py-3 backdrop-blur">
+        <div className="grid gap-2 sm:grid-cols-2">
           <Button
             type="submit"
             disabled={submitting || photoUploading}
-            className="flex-1"
+            fullWidth
           >
             {submitting ? 'Salvataggio…' : 'Salva'}
           </Button>
 
           {onCancel ? (
-            <Button type="button" variant="secondary" onClick={onCancel}>
+            <Button type="button" variant="secondary" fullWidth onClick={onCancel}>
               Annulla
             </Button>
           ) : null}
@@ -632,14 +630,16 @@ export function DogForm({
       </div>
 
       {isEdit && onDelete && (
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          fullWidth
           disabled={deleting}
           onClick={() => onDelete()}
-          className="w-full rounded border border-red-500 text-red-600 px-4 py-2 text-sm font-semibold hover:bg-red-50 disabled:opacity-50"
+          className="border-[rgba(255,80,80,0.5)] text-[rgba(255,80,80,0.95)]"
         >
           {deleting ? 'Eliminazione…' : 'Elimina cane'}
-        </button>
+        </Button>
       )}
     </form>
   );

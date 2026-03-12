@@ -1,5 +1,5 @@
 // lib/services/formatters.ts
-import type { BookingStatus, ServiceType, TaxiOption } from '@/types/booking';
+import type { AccommodationKey, BookingStatus, ServiceType, TaxiOption } from '@/types/booking';
 
 export function serviceLabel(service: ServiceType): string {
   switch (service) {
@@ -66,4 +66,18 @@ export function taxiLabel(option: TaxiOption | null | undefined): string {
     default:
       return '';
   }
+}
+
+const ACCOMMODATION_LABELS: Record<AccommodationKey, string> = {
+  BOX: 'Box',
+  BOX_GARDEN: 'Box con giardino',
+  CHALET: 'Chalet',
+  APT_GARDEN: 'Appartamento con giardino',
+  APT_GARDEN_NIGHT_PERSON: 'Appartamento con giardino (presenza notturna)',
+  CATTERY: 'Gattile',
+};
+
+export function accommodationLabel(key: AccommodationKey | null | undefined): string {
+  if (!key) return '—';
+  return ACCOMMODATION_LABELS[key] ?? key;
 }

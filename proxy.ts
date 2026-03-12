@@ -27,6 +27,10 @@ function isPublicPath(pathname: string) {
   if (pathname.startsWith('/_next')) return true;
   if (pathname.startsWith('/favicon')) return true;
   if (pathname.startsWith('/public')) return true;
+  // Public assets from /public are served from root (e.g. /icon-pensione.png)
+  if (/\.(?:png|jpe?g|gif|webp|svg|ico|css|js|map|txt|xml|webmanifest|woff2?|ttf|eot)$/i.test(pathname)) {
+    return true;
+  }
 
   // Pagina pubblica tag cane (QR)
   if (pathname.startsWith('/dogs/tag/')) return true;
@@ -91,5 +95,7 @@ export async function proxy(request: NextRequest) {
 
 // Applica a tutte le rotte tranne static/next internals
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpe?g|gif|webp|svg|ico|css|js|map|txt|xml|webmanifest|woff2?|ttf|eot)$).*)',
+  ],
 };

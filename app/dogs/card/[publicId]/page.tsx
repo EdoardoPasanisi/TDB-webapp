@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { DogPublicCard, type PublicDogCardDog, type PublicDogCardOwner } from '@/components/dogs/DogPublicCard';
+import { Card, CardContent } from '@/components/ui/Card';
 
 async function loadOwnerProfile(ownerId: string): Promise<PublicDogCardOwner | null> {
   const select = `
@@ -106,26 +107,30 @@ export default function PublicDogCardPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <p className="text-sm text-gray-700">Caricamento scheda...</p>
+      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)] p-4">
+        <p className="ui-body text-[var(--muted)]">Caricamento scheda...</p>
       </main>
     );
   }
 
   if (error || !dog) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="bg-white rounded-lg shadow p-6 max-w-md w-full text-center space-y-3">
-          <h1 className="text-xl font-bold">Scheda non disponibile</h1>
-          <p className="text-sm text-gray-700">{error ?? 'Scheda non trovata.'}</p>
+      <main className="min-h-screen bg-[var(--brand-bg)] p-4">
+        <div className="mx-auto w-full max-w-xl pt-8">
+          <Card>
+            <CardContent className="space-y-2 text-center">
+              <h1 className="ui-h2">Scheda non disponibile</h1>
+              <p className="ui-body">{error ?? 'Scheda non trovata.'}</p>
+            </CardContent>
+          </Card>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 text-gray-900">
-      <div className="max-w-2xl mx-auto">
+    <main className="min-h-screen bg-[var(--brand-bg)] p-4 text-[var(--text)]">
+      <div className="mx-auto w-full max-w-xl">
         <DogPublicCard dog={dog} owner={owner} showFooter />
       </div>
     </main>

@@ -6,6 +6,9 @@ import { useParams, useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
 import { supabase } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 
 interface ApiResponse {
   publicId?: string;
@@ -76,6 +79,7 @@ export default function DogTagPage() {
   const [loading, setLoading] = useState(true);
 
   const [toast, setToast] = useState<string | null>(null);
+  const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const toastTimer = useRef<number | null>(null);
 
   const qrWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -150,14 +154,44 @@ export default function DogTagPage() {
 
   const hasUrl = useMemo(() => Boolean(publicUrl), [publicUrl]);
 
+  const copyText = async (text: string): Promise<boolean> => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch {
+      // fallback below
+    }
+
+    try {
+      const input = document.createElement('textarea');
+      input.value = text;
+      input.setAttribute('readonly', '');
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      input.style.pointerEvents = 'none';
+      document.body.appendChild(input);
+      input.focus();
+      input.select();
+      input.setSelectionRange(0, input.value.length);
+      const copied = document.execCommand('copy');
+      document.body.removeChild(input);
+      return copied;
+    } catch {
+      return false;
+    }
+  };
+
   const onCopyLink = async () => {
     if (!publicUrl) return;
-    try {
-      await navigator.clipboard.writeText(publicUrl);
+    const copied = await copyText(publicUrl);
+    if (copied) {
       showToast('Link copiato!');
-    } catch {
-      showToast('Impossibile copiare. Seleziona e copia manualmente.');
+      setSharePanelOpen(false);
+      return;
     }
+    showToast('Impossibile copiare automaticamente.');
   };
 
   const onDownload = async () => {
@@ -191,27 +225,6 @@ export default function DogTagPage() {
     if (!publicUrl) return;
 
     try {
-      const wrapper = qrWrapperRef.current;
-      const svg = wrapper?.querySelector('svg');
-
-      // Se possibile, condividiamo il FILE PNG (migliore UX)
-      if (svg && navigator.share) {
-        const blob = await svgToPngBlob(svg, 600);
-        const file = new File([blob], 'qr-cane.png', { type: 'image/png' });
-
-        const canShareFiles = (navigator as any).canShare ? (navigator as any).canShare({ files: [file] }) : false;
-
-        if (canShareFiles) {
-          await navigator.share({
-            title: 'QR Code scheda cane',
-            text: 'Ecco il QR Code della scheda del cane.',
-            files: [file],
-          });
-          return;
-        }
-      }
-
-      // Fallback: condividiamo il link
       if (navigator.share) {
         await navigator.share({
           title: 'Scheda cane',
@@ -221,35 +234,35 @@ export default function DogTagPage() {
         return;
       }
 
-      // Ultimo fallback: copia link
-      await onCopyLink();
+      setSharePanelOpen(true);
     } catch (e) {
-      console.error(e);
-      showToast('Condivisione annullata o non disponibile.');
+      if (e instanceof DOMException && e.name === 'AbortError') return;
+      console.error('Condivisione non disponibile, apertura pannello fallback:', e);
+      setSharePanelOpen(true);
     }
   };
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <p className="text-sm text-gray-700">Generazione QR code...</p>
+      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)] p-4">
+        <p className="ui-body text-[var(--muted)]">Generazione QR code...</p>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="bg-white rounded-lg shadow p-6 max-w-md w-full text-center space-y-4">
-          <h1 className="text-xl font-bold">Errore</h1>
-          <p className="text-sm text-red-600">{error}</p>
-          <button
-            type="button"
-            onClick={() => router.back()}
-            className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700"
-          >
-            Indietro
-          </button>
+      <main className="min-h-screen bg-[var(--brand-bg)] p-4">
+        <div className="mx-auto w-full max-w-xl pt-8">
+          <Card>
+            <CardContent className="space-y-3 text-center">
+              <h1 className="ui-h2">Errore</h1>
+              <p className="ui-body text-[rgba(255,0,0,0.85)]">{error}</p>
+              <Button type="button" variant="secondary" fullWidth onClick={() => router.back()}>
+                Indietro
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </main>
     );
@@ -257,67 +270,93 @@ export default function DogTagPage() {
 
   if (!publicId || !publicUrl) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <p className="text-sm text-gray-700">QR code non disponibile.</p>
+      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)] p-4">
+        <p className="ui-body text-[var(--muted)]">QR code non disponibile.</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 text-gray-900 print:bg-white">
-      <div className="max-w-2xl mx-auto space-y-4">
-        <header className="bg-white rounded-lg shadow p-4 print:shadow-none">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h1 className="text-xl font-bold">QR Code Scheda Cane</h1>
-              <p className="text-xs text-gray-600">Scansiona per aprire la scheda pubblica del cane.</p>
+    <main className="min-h-screen bg-[var(--brand-bg)] p-4 text-[var(--text)] print:bg-white">
+      <div className="mx-auto w-full max-w-xl space-y-4">
+        <Card className="print:hidden">
+          <CardContent className="space-y-3">
+            <SectionHeader
+              title="QR code scheda cane"
+              subtitle="Scansiona per aprire la scheda pubblica del cane."
+            />
+          </CardContent>
+        </Card>
+
+        <Card className="print:shadow-none print:border-none print:bg-white">
+          <CardContent className="p-6 space-y-4">
+            <div className="flex justify-center">
+              <div ref={qrWrapperRef} className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3">
+                <QRCode value={publicUrl} size={svgSize} />
+              </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => router.back()}
-              className="print:hidden px-3 py-2 rounded border border-gray-300 text-sm font-medium hover:bg-gray-50"
-            >
-              Indietro
-            </button>
-          </div>
-        </header>
+            <div className="print:hidden grid gap-2">
+              <Button type="button" variant="primary" fullWidth onClick={() => void onDownload()}>
+                Scarica QR
+              </Button>
+              <Button type="button" variant="secondary" fullWidth disabled={!hasUrl} onClick={() => void onCopyLink()}>
+                Copia link
+              </Button>
+              <Button type="button" variant="secondary" fullWidth disabled={!hasUrl} onClick={() => void onShare()}>
+                Condividi
+              </Button>
+            </div>
 
-        {toast && <div className="print:hidden bg-black text-white text-xs px-3 py-2 rounded w-fit">{toast}</div>}
+            {sharePanelOpen ? (
+              <div className="print:hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3 space-y-2">
+                <p className="ui-body font-[var(--font-weight-semibold)]">Condividi con</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth
+                    onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Scheda cane: ${publicUrl}`)}`, '_blank', 'noopener,noreferrer')}
+                  >
+                    WhatsApp
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth
+                    onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent('Scheda cane')}`, '_blank', 'noopener,noreferrer')}
+                  >
+                    Telegram
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth
+                    onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(publicUrl)}`, '_blank', 'noopener,noreferrer')}
+                  >
+                    Facebook
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth
+                    onClick={() => {
+                      window.location.href = `mailto:?subject=${encodeURIComponent('Scheda cane')}&body=${encodeURIComponent(`Scheda cane: ${publicUrl}`)}`;
+                    }}
+                  >
+                    Email
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
-        <section className="bg-white rounded-lg shadow p-6 flex flex-col items-center gap-4 print:shadow-none">
-          <div ref={qrWrapperRef} className="p-3 bg-white rounded">
-            <QRCode value={publicUrl} size={svgSize} />
-          </div>
-
-          <div className="print:hidden w-full flex flex-col sm:flex-row gap-2">
-            <button
-              type="button"
-              onClick={() => void onCopyLink()}
-              disabled={!hasUrl}
-              className="flex-1 px-4 py-2 rounded border border-gray-300 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
-            >
-              Copia link
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void onDownload()}
-              className="flex-1 px-4 py-2 rounded bg-black text-white text-sm font-medium hover:opacity-90"
-            >
-              Scarica
-            </button>
-
-            <button
-              type="button"
-              onClick={() => void onShare()}
-              disabled={!hasUrl}
-              className="flex-1 px-4 py-2 rounded border border-gray-300 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
-            >
-              Condividi
-            </button>
-          </div>
-        </section>
+            {toast ? (
+              <div className="print:hidden rounded-[var(--radius)] border border-[rgba(114,221,139,0.55)] bg-[rgba(114,221,139,0.15)] p-3">
+                <p className="ui-body text-[rgb(154,244,174)]">{toast}</p>
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
       </div>
     </main>
   );

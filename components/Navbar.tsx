@@ -38,10 +38,7 @@ export default function Navbar() {
 
   if (loading) return null;
   if (!user) return null;
-
-  if (pathname === '/account/waiver' || pathname.startsWith('/account/waiver/')) {
-    return null;
-  }
+  if (pathname.startsWith('/dogs/card/')) return null;
 
   const isServicesActive = pathname === '/services' || pathname.startsWith('/services/');
   const isSettingsActive = pathname === '/settings' || pathname.startsWith('/settings/');
@@ -54,7 +51,7 @@ export default function Navbar() {
       <BottomNav homeHref="/services" calendarHref="/services/calendar" />
 
       {/* DESKTOP */}
-      <header className="hidden md:block">
+      <header data-app-chrome="desktop-top" className="hidden md:block">
         <div className="bg-[var(--brand-bg)] text-[var(--text)] border-b border-[var(--border)]">
           <nav className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
             <button onClick={() => router.push('/profile')} className="text-lg font-bold">

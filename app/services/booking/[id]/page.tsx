@@ -4,7 +4,6 @@
 import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
-import { BackButton } from '@/components/common/BackButton';
 import { Modal } from '@/components/common/Modal';
 import { supabase } from '@/lib/supabaseClient';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
@@ -18,22 +17,47 @@ import { getServiceLabel } from '@/types/services';
 import type { TaxiOption } from '@/types/booking';
 import { Button } from '@/components/ui/Button';
 
-function formatDateOnly(yyyyMmDd: string): string {
-  if (!yyyyMmDd) return '';
-  const d = new Date(yyyyMmDd);
-  return d.toLocaleDateString('it-IT', { year: 'numeric', month: '2-digit', day: '2-digit' });
+function formatDateOnlyVerbose(yyyyMmDd: string): string {
+  if (!yyyyMmDd) return '—';
+  const d = new Date(`${yyyyMmDd}T00:00:00`);
+  return d.toLocaleDateString('it-IT', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
 }
 
-function formatDateTime(iso: string): string {
-  if (!iso) return '';
+function formatIsoDateVerbose(iso: string): string {
+  if (!iso) return '—';
   const d = new Date(iso);
-  return d.toLocaleString('it-IT', {
-    year: 'numeric',
-    month: '2-digit',
+  return d.toLocaleDateString('it-IT', {
+    weekday: 'short',
     day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function formatIsoClock(iso: string): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleTimeString('it-IT', {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+function formatIsoDayRangeVerbose(startIso: string, endIso: string | null | undefined): string {
+  const start = formatIsoDateVerbose(startIso);
+  if (!endIso) return start;
+  const end = formatIsoDateVerbose(endIso);
+  return start === end ? start : `${start} → ${end}`;
+}
+
+function formatClock(value: string | null | undefined): string {
+  if (!value) return '—';
+  return value.slice(0, 5);
 }
 
 function isWithin24Hours(startAtIso: string): boolean {
@@ -90,8 +114,7 @@ export default function BookingDetailPage() {
       <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
         <div className="bg-white rounded-lg shadow p-4 max-w-md w-full text-center">
           <h1 className="text-lg font-semibold mb-2">Prenotazione non disponibile</h1>
-          <p className="text-sm text-gray-700 mb-4">{authError?.message ?? error ?? 'Prenotazione non trovata.'}</p>
-          <BackButton hrefFallback="/services" label="← Torna ai servizi" />
+          <p className="text-sm text-gray-700">{authError?.message ?? error ?? 'Prenotazione non trovata.'}</p>
         </div>
       </main>
     );
@@ -110,10 +133,8 @@ export default function BookingDetailPage() {
   // =========================
   if (detail.kind === 'PENSIONE') {
     const b = detail.booking;
-
-    const dateRange = b.end_date
-      ? `${formatDateOnly(b.start_date)} → ${formatDateOnly(b.end_date)}`
-      : formatDateOnly(b.start_date);
+    const arrivalDate = formatDateOnlyVerbose(b.start_date);
+    const departureDate = formatDateOnlyVerbose(b.end_date ?? b.start_date);
 
     const daysCount = (() => {
       if (!b.start_date) return null;
@@ -133,19 +154,7 @@ export default function BookingDetailPage() {
 
           <section className="bg-white rounded-lg shadow p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-base font-semibold text-gray-900">Riepilogo</div>
-                <div className="text-sm text-gray-700 mt-0.5">
-                  <span className="font-medium">Periodo:</span> {dateRange}
-                  {daysCount ? ` • ${daysCount} giorni` : ''}
-                </div>
-                <div className="text-sm text-gray-700 mt-0.5">
-                  <span className="font-medium">Orari:</span>{' '}
-                  Arrivo <span className="font-semibold">{b.arrival_time ?? '—'}</span>
-                  <span className="mx-2">•</span>
-                  Partenza <span className="font-semibold">{b.departure_time ?? '—'}</span>
-                </div>
-              </div>
+              <div className="text-base font-semibold text-gray-900">Riepilogo</div>
 
               <div className="text-right">
                 <div className="text-sm font-semibold text-gray-900">{statusLabel(b.status)}</div>
@@ -153,6 +162,25 @@ export default function BookingDetailPage() {
                   <div className="text-base font-semibold mt-1">{euro(b.total_price)}</div>
                 )}
               </div>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="ui-muted">Arrivo</div>
+                <div className="ui-body font-[var(--font-weight-semibold)] leading-tight mt-1">{arrivalDate}</div>
+                <div className="ui-muted mt-1">Ore {formatClock(b.arrival_time)}</div>
+              </div>
+
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="ui-muted">Partenza</div>
+                <div className="ui-body font-[var(--font-weight-semibold)] leading-tight mt-1">{departureDate}</div>
+                <div className="ui-muted mt-1">Ore {formatClock(b.departure_time)}</div>
+              </div>
+            </div>
+
+            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-muted">Durata soggiorno</div>
+              <div className="ui-body font-[var(--font-weight-semibold)] mt-1">{daysCount ? `${daysCount} giorni` : '—'}</div>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 pt-3 border-t">
@@ -186,6 +214,7 @@ export default function BookingDetailPage() {
   // =========================
   const sb = detail.slotBooking;
   const within24h = isWithin24Hours(sb.start_at);
+  const showDogs = sb.service_type !== 'CONSULENZA';
 
   const serviceTitle = getServiceLabel(sb.service_type, sb.service_variant ?? null);
 
@@ -242,25 +271,45 @@ export default function BookingDetailPage() {
 
         <section className="bg-white rounded-lg shadow p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-base font-semibold text-gray-900">Riepilogo</div>
-              <div className="text-sm text-gray-700 mt-0.5">
-                <span className="font-medium">Quando:</span> {formatDateTime(sb.start_at)}
-                {sb.end_at ? ` → ${formatDateTime(sb.end_at)}` : ''}
-              </div>
-              <div className="text-sm text-gray-700 mt-0.5">
-                <span className="font-medium">Cani:</span> {dogsLabel}
-              </div>
-              <div className="text-sm text-gray-700 mt-0.5">
-                <span className="font-medium">Crediti usati:</span> {sb.credits_spent}
-              </div>
-            </div>
+            <div className="text-base font-semibold text-gray-900">Riepilogo</div>
 
             <div className="text-right">
               <div className="text-sm font-semibold text-gray-900">{statusLabel(sb.status)}</div>
               {typeof sb.total_price === 'number' && sb.total_price > 0 && (
                 <div className="text-base font-semibold mt-1">{euro(sb.total_price)}</div>
               )}
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="sm:col-span-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-muted">Giorno</div>
+              <div className="ui-body font-[var(--font-weight-semibold)] leading-tight mt-1">
+                {formatIsoDayRangeVerbose(sb.start_at, sb.end_at)}
+              </div>
+            </div>
+
+            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-muted">Inizio</div>
+              <div className="ui-body font-[var(--font-weight-semibold)] mt-1">Ore {formatIsoClock(sb.start_at)}</div>
+            </div>
+
+            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-muted">Fine</div>
+              <div className="ui-body font-[var(--font-weight-semibold)] mt-1">Ore {sb.end_at ? formatIsoClock(sb.end_at) : '—'}</div>
+            </div>
+          </div>
+
+          <div className={showDogs ? 'grid gap-2 sm:grid-cols-2' : 'grid gap-2'}>
+            {showDogs ? (
+              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="ui-muted">Cani</div>
+                <div className="ui-body font-[var(--font-weight-semibold)] mt-1">{dogsLabel}</div>
+              </div>
+            ) : null}
+            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-muted">Crediti usati</div>
+              <div className="ui-body font-[var(--font-weight-semibold)] mt-1">{sb.credits_spent}</div>
             </div>
           </div>
 
@@ -278,8 +327,8 @@ export default function BookingDetailPage() {
               <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{sb.notes?.trim() ? sb.notes : '—'}</div>
             </div>
 
-            <div className="sm:col-span-2 flex items-center justify-end gap-2 pt-2">
-              <Button type="button" variant="secondary" disabled={actionLoading} onClick={() => setConfirmOpen(true)}>
+            <div className="sm:col-span-2 pt-2">
+              <Button type="button" variant="primary" fullWidth disabled={actionLoading} onClick={() => setConfirmOpen(true)}>
                 {actionLoading ? 'Annullamento…' : 'Annulla prenotazione'}
               </Button>
             </div>
