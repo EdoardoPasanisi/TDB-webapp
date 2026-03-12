@@ -358,7 +358,7 @@ export default function AccountWaiverPage() {
                   <p>
                     La tariffa relativa al soggiorno dell’animale scatta dal giorno di ingresso, indipendentemente
                     dall’orario di entrata. Il giorno di uscita non viene calcolato se il box viene liberato entro le
-                    ore 13,00, in caso di uscita dell’animale dalla struttura nel pomeriggio, la giornata verrà
+                    ore 13:00, in caso di uscita dell’animale dalla struttura nel pomeriggio, la giornata verrà
                     calcolata per intero.
                   </p>
 
