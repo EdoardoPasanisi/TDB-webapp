@@ -37,7 +37,7 @@ export function DogAvatar({ photoPath, updatedAt, alt, size = 40, className }: P
         style={dim}
         className={
           className ??
-          'rounded-full object-cover border border-gray-200 bg-white flex-shrink-0'
+          'rounded-full object-cover border border-[var(--border)] bg-[var(--surface-2)] flex-shrink-0'
         }
       />
     );
@@ -50,7 +50,7 @@ export function DogAvatar({ photoPath, updatedAt, alt, size = 40, className }: P
       style={dim}
       className={
         className ??
-        'rounded-full object-cover border border-gray-200 bg-white flex-shrink-0'
+        'rounded-full object-cover border border-[var(--border)] bg-[var(--surface-2)] flex-shrink-0'
       }
     />
   );

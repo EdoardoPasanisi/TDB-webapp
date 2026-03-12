@@ -79,7 +79,6 @@ export default function DogTagPage() {
   const [loading, setLoading] = useState(true);
 
   const [toast, setToast] = useState<string | null>(null);
-  const [sharePanelOpen, setSharePanelOpen] = useState(false);
   const toastTimer = useRef<number | null>(null);
 
   const qrWrapperRef = useRef<HTMLDivElement | null>(null);
@@ -188,7 +187,6 @@ export default function DogTagPage() {
     const copied = await copyText(publicUrl);
     if (copied) {
       showToast('Link copiato!');
-      setSharePanelOpen(false);
       return;
     }
     showToast('Impossibile copiare automaticamente.');
@@ -234,11 +232,13 @@ export default function DogTagPage() {
         return;
       }
 
-      setSharePanelOpen(true);
+      const copied = await copyText(publicUrl);
+      showToast(copied ? 'Condivisione non supportata qui. Link copiato.' : 'Condivisione non supportata su questo browser.');
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return;
-      console.error('Condivisione non disponibile, apertura pannello fallback:', e);
-      setSharePanelOpen(true);
+      console.error('Condivisione non disponibile:', e);
+      const copied = await copyText(publicUrl);
+      showToast(copied ? 'Condivisione non riuscita. Link copiato.' : 'Condivisione non riuscita.');
     }
   };
 
@@ -307,48 +307,6 @@ export default function DogTagPage() {
                 Condividi
               </Button>
             </div>
-
-            {sharePanelOpen ? (
-              <div className="print:hidden rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3 space-y-2">
-                <p className="ui-body font-[var(--font-weight-semibold)]">Condividi con</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth
-                    onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(`Scheda cane: ${publicUrl}`)}`, '_blank', 'noopener,noreferrer')}
-                  >
-                    WhatsApp
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth
-                    onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent('Scheda cane')}`, '_blank', 'noopener,noreferrer')}
-                  >
-                    Telegram
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth
-                    onClick={() => window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(publicUrl)}`, '_blank', 'noopener,noreferrer')}
-                  >
-                    Facebook
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth
-                    onClick={() => {
-                      window.location.href = `mailto:?subject=${encodeURIComponent('Scheda cane')}&body=${encodeURIComponent(`Scheda cane: ${publicUrl}`)}`;
-                    }}
-                  >
-                    Email
-                  </Button>
-                </div>
-              </div>
-            ) : null}
 
             {toast ? (
               <div className="print:hidden rounded-[var(--radius)] border border-[rgba(114,221,139,0.55)] bg-[rgba(114,221,139,0.15)] p-3">
