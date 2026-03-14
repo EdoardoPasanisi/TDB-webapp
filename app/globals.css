@@ -596,7 +596,7 @@ button {
     align-items: center;
     justify-content: center;
     background: #000;
-    border: 2px solid var(--brand-accent) !important;
+    border: 3px solid var(--brand-accent) !important;
     border-color: var(--brand-accent) !important;
     box-shadow: 0 8px 14px rgba(0, 0, 0, 0.32);
     transition: transform 90ms ease, box-shadow 120ms ease, filter 120ms ease;
