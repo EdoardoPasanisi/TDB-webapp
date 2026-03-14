@@ -95,27 +95,30 @@ function PreferenceItem({
   saving,
   onChange,
 }: PreferenceItemProps) {
+  const isDisabled = disabled || saving;
+
   return (
-    <label
+    <button
+      type="button"
+      onClick={() => onChange(!checked)}
+      disabled={isDisabled}
+      aria-pressed={checked}
       className={[
-        'flex items-start gap-3 p-3 rounded-[var(--radius)] border cursor-pointer',
-        disabled
-          ? 'bg-[rgba(255,255,255,0.04)] border-[var(--border)] opacity-60'
-          : 'bg-[var(--surface-2)] border-[var(--border)] md:hover:bg-[rgba(255,255,255,0.08)]',
+        'ui-selectCard ui-minw0',
+        checked ? 'ui-selectCard--selected' : '',
+        isDisabled ? 'opacity-60 pointer-events-none' : '',
       ].join(' ')}
     >
-      <input
-        type="checkbox"
-        className="mt-1 h-5 w-5 accent-[var(--brand-accent)]"
-        checked={checked}
-        disabled={disabled || saving}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <div className="min-w-0">
-        <div className="ui-body font-[var(--font-weight-semibold)]">{label}</div>
-        <div className="ui-muted mt-1">{description}</div>
+      <div className="flex items-start justify-between gap-3 ui-minw0">
+        <div className="ui-minw0">
+          <div className="ui-body font-[var(--font-weight-semibold)]">{label}</div>
+          <div className="ui-muted mt-1">{description}</div>
+        </div>
+        <div className={['ui-pill', checked ? 'ui-pill--selected' : ''].join(' ')}>
+          {checked ? 'Attivo' : 'Disattivo'}
+        </div>
       </div>
-    </label>
+    </button>
   );
 }
 
@@ -197,11 +200,11 @@ function DogCardPreferencesDialog({
 
   return (
     <div className="fixed inset-0 z-50">
-      <button type="button" className="absolute inset-0 bg-black/40" onClick={onClose} aria-label="Chiudi" />
+      <button type="button" className="ui-modalOverlay" onClick={onClose} aria-label="Chiudi" />
 
       <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-4">
-        <div className="bg-[var(--surface)] border border-[var(--border)] rounded-t-[var(--radius)] sm:rounded-[var(--radius)] shadow-[var(--shadow)] w-full sm:max-w-xl max-h-[85vh] overflow-auto">
-          <div className="p-4 border-b border-[var(--border)] flex items-start justify-between gap-3">
+        <div className="ui-modalPanel w-full sm:max-w-xl overflow-auto">
+          <div className="ui-modalHeader items-start">
             <div>
               <h2 className="ui-h2">Personalizza scheda cane</h2>
               <p className="ui-muted mt-1">
@@ -371,7 +374,7 @@ function DogCardPreferencesDialog({
             </section>
           </div>
 
-          <div className="p-4 border-t border-[var(--border)] grid gap-2 sm:grid-cols-2">
+          <div className="ui-modalFooter grid gap-2 sm:grid-cols-2">
             <Button type="button" variant="secondary" fullWidth onClick={onClose} disabled={saving}>
               Annulla
             </Button>

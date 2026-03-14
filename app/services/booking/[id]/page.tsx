@@ -101,8 +101,8 @@ export default function BookingDetailPage() {
 
   if (authLoading || !bookingId || loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-700">Caricamento...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }
@@ -111,10 +111,10 @@ export default function BookingDetailPage() {
 
   if (authError || error) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
-        <div className="bg-white rounded-lg shadow p-4 max-w-md w-full text-center">
-          <h1 className="text-lg font-semibold mb-2">Prenotazione non disponibile</h1>
-          <p className="text-sm text-gray-700">{authError?.message ?? error ?? 'Prenotazione non trovata.'}</p>
+      <main className="ui-page min-h-screen flex items-center justify-center p-4">
+        <div className="ui-panel p-4 max-w-md w-full text-center">
+          <h1 className="ui-h2 mb-2">Prenotazione non disponibile</h1>
+          <p className="ui-muted">{authError?.message ?? error ?? 'Prenotazione non trovata.'}</p>
         </div>
       </main>
     );
@@ -122,8 +122,8 @@ export default function BookingDetailPage() {
 
   if (!detail) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-700">Caricamento...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }
@@ -148,37 +148,37 @@ export default function BookingDetailPage() {
     const showTaxi = taxiLine !== '—' && taxiLine !== 'Nessun taxi dog';
 
     return (
-      <main className="min-h-screen bg-gray-100 p-4 text-gray-900">
+      <main className="ui-page min-h-screen p-4">
         <div className="max-w-3xl mx-auto space-y-4">
           <BookingDetailHeader title={serviceLabel(b.service_type)} />
 
-          <section className="bg-white rounded-lg shadow p-4 space-y-3">
+          <section className="ui-panel p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
-              <div className="text-base font-semibold text-gray-900">Riepilogo</div>
+              <div className="ui-body font-[var(--font-weight-semibold)]">Riepilogo</div>
 
               <div className="text-right">
-                <div className="text-sm font-semibold text-gray-900">{statusLabel(b.status)}</div>
+                <div className="ui-body font-[var(--font-weight-semibold)]">{statusLabel(b.status)}</div>
                 {typeof b.total_price === 'number' && b.total_price > 0 && (
-                  <div className="text-base font-semibold mt-1">{euro(b.total_price)}</div>
+                  <div className="ui-body font-[var(--font-weight-semibold)] mt-1">{euro(b.total_price)}</div>
                 )}
               </div>
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <div className="ui-muted">Arrivo</div>
                 <div className="ui-body font-[var(--font-weight-semibold)] leading-tight mt-1">{arrivalDate}</div>
                 <div className="ui-muted mt-1">Ore {formatClock(b.arrival_time)}</div>
               </div>
 
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <div className="ui-muted">Partenza</div>
                 <div className="ui-body font-[var(--font-weight-semibold)] leading-tight mt-1">{departureDate}</div>
                 <div className="ui-muted mt-1">Ore {formatClock(b.departure_time)}</div>
               </div>
             </div>
 
-            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+            <div className="ui-panelInset p-3">
               <div className="ui-muted">Durata soggiorno</div>
               <div className="ui-body font-[var(--font-weight-semibold)] mt-1">{daysCount ? `${daysCount} giorni` : '—'}</div>
             </div>
@@ -186,8 +186,8 @@ export default function BookingDetailPage() {
             <div className="grid gap-3 sm:grid-cols-2 pt-3 border-t">
               {showTaxi && (
                 <div>
-                  <div className="text-sm font-medium text-gray-800">Taxi dog</div>
-                  <div className="mt-1 text-sm text-gray-700">
+                  <div className="ui-body font-[var(--font-weight-semibold)]">Taxi dog</div>
+                  <div className="mt-1 ui-muted">
                     {taxiLine}
                     {typeof b.taxi_price === 'number' && b.taxi_price > 0 ? ` • ${euro(b.taxi_price)}` : ''}
                   </div>
@@ -195,8 +195,8 @@ export default function BookingDetailPage() {
               )}
 
               <div className={showTaxi ? '' : 'sm:col-span-2'}>
-                <div className="text-sm font-medium text-gray-800">Note</div>
-                <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{b.notes?.trim() ? b.notes : '—'}</div>
+                <div className="ui-body font-[var(--font-weight-semibold)]">Note</div>
+                <div className="mt-1 ui-muted whitespace-pre-wrap">{b.notes?.trim() ? b.notes : '—'}</div>
               </div>
             </div>
           </section>
@@ -265,36 +265,36 @@ export default function BookingDetailPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 text-gray-900">
+    <main className="ui-page min-h-screen p-4">
       <div className="max-w-3xl mx-auto space-y-4">
         <BookingDetailHeader title={serviceTitle} />
 
-        <section className="bg-white rounded-lg shadow p-4 space-y-3">
+        <section className="ui-panel p-4 space-y-3">
           <div className="flex items-start justify-between gap-3">
-            <div className="text-base font-semibold text-gray-900">Riepilogo</div>
+            <div className="ui-body font-[var(--font-weight-semibold)]">Riepilogo</div>
 
             <div className="text-right">
-              <div className="text-sm font-semibold text-gray-900">{statusLabel(sb.status)}</div>
+              <div className="ui-body font-[var(--font-weight-semibold)]">{statusLabel(sb.status)}</div>
               {typeof sb.total_price === 'number' && sb.total_price > 0 && (
-                <div className="text-base font-semibold mt-1">{euro(sb.total_price)}</div>
+                <div className="ui-body font-[var(--font-weight-semibold)] mt-1">{euro(sb.total_price)}</div>
               )}
             </div>
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
-            <div className="sm:col-span-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+            <div className="sm:col-span-2 ui-panelInset p-3">
               <div className="ui-muted">Giorno</div>
               <div className="ui-body font-[var(--font-weight-semibold)] leading-tight mt-1">
                 {formatIsoDayRangeVerbose(sb.start_at, sb.end_at)}
               </div>
             </div>
 
-            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+            <div className="ui-panelInset p-3">
               <div className="ui-muted">Inizio</div>
               <div className="ui-body font-[var(--font-weight-semibold)] mt-1">Ore {formatIsoClock(sb.start_at)}</div>
             </div>
 
-            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+            <div className="ui-panelInset p-3">
               <div className="ui-muted">Fine</div>
               <div className="ui-body font-[var(--font-weight-semibold)] mt-1">Ore {sb.end_at ? formatIsoClock(sb.end_at) : '—'}</div>
             </div>
@@ -302,12 +302,12 @@ export default function BookingDetailPage() {
 
           <div className={showDogs ? 'grid gap-2 sm:grid-cols-2' : 'grid gap-2'}>
             {showDogs ? (
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <div className="ui-muted">Cani</div>
                 <div className="ui-body font-[var(--font-weight-semibold)] mt-1">{dogsLabel}</div>
               </div>
             ) : null}
-            <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+            <div className="ui-panelInset p-3">
               <div className="ui-muted">Crediti usati</div>
               <div className="ui-body font-[var(--font-weight-semibold)] mt-1">{sb.credits_spent}</div>
             </div>
@@ -315,20 +315,20 @@ export default function BookingDetailPage() {
 
           <div className="grid gap-3 sm:grid-cols-2 pt-3 border-t">
             <div>
-              <div className="text-sm font-medium text-gray-800">Taxi dog</div>
-              <div className="mt-1 text-sm text-gray-700">
+              <div className="ui-body font-[var(--font-weight-semibold)]">Taxi dog</div>
+              <div className="mt-1 ui-muted">
                 {taxiLine}
                 {taxiDetails ? ` • ${taxiDetails}` : ''}
               </div>
             </div>
 
             <div className="sm:col-span-1">
-              <div className="text-sm font-medium text-gray-800">Note</div>
-              <div className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{sb.notes?.trim() ? sb.notes : '—'}</div>
+              <div className="ui-body font-[var(--font-weight-semibold)]">Note</div>
+              <div className="mt-1 ui-muted whitespace-pre-wrap">{sb.notes?.trim() ? sb.notes : '—'}</div>
             </div>
 
             <div className="sm:col-span-2 pt-2">
-              <Button type="button" variant="primary" fullWidth disabled={actionLoading} onClick={() => setConfirmOpen(true)}>
+              <Button type="button" variant="danger" fullWidth disabled={actionLoading} onClick={() => setConfirmOpen(true)}>
                 {actionLoading ? 'Annullamento…' : 'Annulla prenotazione'}
               </Button>
             </div>
@@ -345,15 +345,15 @@ export default function BookingDetailPage() {
           }}
         >
           <div className="space-y-4">
-            <p className="text-sm text-[var(--text)]">
+            <p className="ui-body">
               {sb.dogs.length > 1
                 ? `Vuoi annullare questa prenotazione per ${sb.dogs.length} cani?`
                 : 'Vuoi annullare questa prenotazione?'}
             </p>
-            <p className="text-sm text-[var(--muted)]">{warnNoRefund}</p>
+            <p className="ui-muted">{warnNoRefund}</p>
 
             {actionError ? (
-              <div className="rounded-[var(--radius)] border border-[rgba(255,80,80,0.35)] bg-[rgba(255,0,0,0.08)] p-3 text-sm text-[var(--text)]">
+              <div className="ui-error">
                 {actionError}
               </div>
             ) : null}
@@ -370,7 +370,7 @@ export default function BookingDetailPage() {
               >
                 Mantieni prenotazione
               </Button>
-              <Button type="button" variant="primary" disabled={actionLoading} onClick={handleCancelServiceSlotGroup}>
+              <Button type="button" variant="danger" disabled={actionLoading} onClick={handleCancelServiceSlotGroup}>
                 {actionLoading ? 'Annullamento…' : 'Conferma annullamento'}
               </Button>
             </div>

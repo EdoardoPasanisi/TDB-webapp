@@ -19,7 +19,7 @@ export function ServicePassCards({
 
       {passes.length === 0 ? (
         <Card>
-          <CardContent className="text-sm text-[var(--muted)]">Nessun credito disponibile.</CardContent>
+          <CardContent className="ui-muted">Nessun credito disponibile.</CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-2 gap-3">
@@ -33,25 +33,18 @@ export function ServicePassCards({
                 className="w-full text-left"
                 aria-label={`Crediti ${label}. Tocca per fissare una data.`}
               >
-                <Card className="hover:bg-[var(--surface-2)]">
+                <Card className="ui-cardHover">
                   <CardContent className="p-0">
                     <div className="aspect-square flex flex-col items-center justify-center gap-3 px-3">
-                      <div className="text-xs text-[var(--muted)] text-center leading-snug line-clamp-3">
+                      <div className="ui-fine text-center leading-snug line-clamp-3">
                         {label}
                       </div>
 
-                      <div
-                        className="h-12 w-12 rounded-full flex items-center justify-center text-lg font-extrabold"
-                        style={{
-                          border: '2px solid rgba(255,130,0,0.75)',
-                          background: 'rgba(255,130,0,0.10)',
-                          color: 'var(--text)',
-                        }}
-                      >
+                      <div className="ui-accentCircle">
                         {g.creditsRemaining}
                       </div>
 
-                      <div className="text-[11px] text-[var(--muted)] text-center">
+                      <div className="ui-fine text-center">
                         Tocca per fissare
                       </div>
                     </div>

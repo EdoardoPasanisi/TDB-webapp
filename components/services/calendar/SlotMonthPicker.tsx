@@ -3,7 +3,6 @@
 
 import { useMemo } from 'react';
 import type { ServiceSlotRow } from '@/types/services';
-import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 
 type Props = {
@@ -63,21 +62,31 @@ export function SlotMonthPicker({
       <CardContent>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-sm font-semibold text-[var(--text)]">Disponibilità</div>
-            <div className="text-xs text-[var(--muted)] capitalize">{monthLabel}</div>
+            <div className="ui-body font-[var(--font-weight-semibold)]">Disponibilità</div>
+            <div className="ui-fine capitalize">{monthLabel}</div>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={onPrevMonth} aria-label="Mese precedente">
+            <button
+              type="button"
+              onClick={onPrevMonth}
+              aria-label="Mese precedente"
+              className="ui-btn ui-clickableDay h-[52px] w-[56px] px-0"
+            >
               ←
-            </Button>
-            <Button variant="secondary" onClick={onNextMonth} aria-label="Mese successivo">
+            </button>
+            <button
+              type="button"
+              onClick={onNextMonth}
+              aria-label="Mese successivo"
+              className="ui-btn ui-clickableDay h-[52px] w-[56px] px-0"
+            >
               →
-            </Button>
+            </button>
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-7 gap-2 text-xs font-medium text-[var(--muted)]">
+        <div className="mt-3 grid grid-cols-7 gap-2 ui-fine font-medium">
           {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map((d) => (
             <div key={d} className="text-center">
               {d}
@@ -91,11 +100,10 @@ export function SlotMonthPicker({
             const isSelected = c.key && selectedDayKey === c.key;
 
             const base =
-              'min-h-[44px] rounded-[var(--radius)] border px-2 py-2 text-left text-xs transition';
+              'min-h-[44px] px-2 py-2 text-left transition ui-fine ui-clickableDay ui-clickableDayCell';
             const empty = 'border-transparent bg-transparent';
             const disabled = 'opacity-40 cursor-not-allowed';
-            const normal = 'border-[var(--border)] bg-[var(--surface-2)] hover:opacity-95';
-            const selected = 'border-[var(--brand-accent)] bg-[rgba(255,130,0,0.14)] ring-2 ring-[rgba(255,130,0,0.35)]';
+            const selected = 'ui-clickableDay--selected';
 
             return (
               <button
@@ -105,19 +113,19 @@ export function SlotMonthPicker({
                 onClick={() => c.key && onSelectDay(c.key)}
                 className={[
                   base,
-                  !c.key ? empty : normal,
+                  !c.key ? empty : '',
                   !c.key || !isAvailable ? disabled : '',
                   isSelected ? selected : '',
                 ].join(' ')}
               >
-                <div className="font-semibold text-[var(--text)]">{c.day ?? ''}</div>
-                {isAvailable && <div className="mt-1 text-[11px] text-[var(--muted)]">slot</div>}
+                <div className="font-semibold">{c.day ?? ''}</div>
+                {isAvailable && <div className="mt-1 ui-fine opacity-80">slot</div>}
               </button>
             );
           })}
         </div>
 
-        <div className="mt-3 text-xs text-[var(--muted)]">
+        <div className="mt-3 ui-fine">
           Seleziona un giorno evidenziato per vedere gli slot disponibili.
         </div>
       </CardContent>

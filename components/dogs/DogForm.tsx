@@ -284,7 +284,7 @@ export function DogForm({
       {formError ? <div className="ui-error">{formError}</div> : null}
 
       {submitNotice ? (
-        <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.55)] bg-[rgba(255,130,0,0.14)] p-3">
+        <div className="ui-alertWarn">
           <p className="ui-body">{submitNotice}</p>
         </div>
       ) : null}
@@ -303,7 +303,7 @@ export function DogForm({
           <div className="flex items-start gap-3">
             <button
               type="button"
-              className="rounded-[var(--radius)] bg-[var(--surface-2)] overflow-hidden flex items-center justify-center border border-[var(--border)] shrink-0"
+              className="ui-clickable ui-clickableMedia shrink-0"
               style={{ width: 72, height: 72 }}
               title="Carica o cambia foto"
               disabled={photoUploading}
@@ -333,7 +333,7 @@ export function DogForm({
               <div className="grid gap-2 sm:grid-cols-2">
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="primary"
                   fullWidth
                   disabled={photoUploading}
                   onClick={() => photoInputRef.current?.click()}
@@ -358,7 +358,6 @@ export function DogForm({
                     type="button"
                     variant="secondary"
                     fullWidth
-                    className="border-[rgba(255,80,80,0.45)] text-[rgba(255,80,80,0.95)]"
                     disabled={photoUploading}
                     onClick={() => void onPhotoRemove()}
                   >
@@ -425,7 +424,7 @@ export function DogForm({
           <Field
             label={
               <>
-                Taglia <span className="text-red-500">*</span>
+                Taglia <span className="ui-required">*</span>
               </>
             }
             hint="Preimpostata dalla razza, modificabile."
@@ -454,7 +453,7 @@ export function DogForm({
           <Field
             label={
               <>
-                Data di nascita <span className="text-red-500">*</span>
+                Data di nascita <span className="ui-required">*</span>
               </>
             }
             hint="Anno obbligatorio. Mese/Giorno facoltativi."
@@ -580,10 +579,8 @@ export function DogForm({
                     type="button"
                     onClick={() => toggleTemperament(opt)}
                     className={[
-                      'rounded-full border px-4 py-2 ui-body',
-                      active
-                        ? 'bg-[var(--brand-accent)] text-black border-[rgba(0,0,0,0.2)]'
-                        : 'bg-[var(--surface-2)] text-[var(--text)] border-[var(--border)]',
+                      'rounded-full px-4 py-2 ui-body ui-clickable',
+                      active ? 'ui-clickable--selected' : '',
                     ].join(' ')}
                   >
                     {label}
@@ -611,10 +608,11 @@ export function DogForm({
         </CardContent>
       </Card> 
 
-      <div className="sticky bottom-0 -mx-4 mt-6 border-t border-[var(--border)] bg-[var(--brand-bg)]/95 px-4 py-3 backdrop-blur">
+      <div className="sticky bottom-0 -mx-4 mt-6 ui-stickyFooter px-4 py-3">
         <div className="grid gap-2 sm:grid-cols-2">
           <Button
             type="submit"
+            variant="primary"
             disabled={submitting || photoUploading}
             fullWidth
           >
@@ -632,11 +630,10 @@ export function DogForm({
       {isEdit && onDelete && (
         <Button
           type="button"
-          variant="secondary"
+          variant="danger"
           fullWidth
           disabled={deleting}
           onClick={() => onDelete()}
-          className="border-[rgba(255,80,80,0.5)] text-[rgba(255,80,80,0.95)]"
         >
           {deleting ? 'Eliminazione…' : 'Elimina cane'}
         </Button>

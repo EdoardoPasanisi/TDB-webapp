@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/Button';
 
 export default function SupabaseTestPage() {
   const [result, setResult] = useState<string | null>(null);
@@ -24,24 +25,21 @@ export default function SupabaseTestPage() {
   };
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-4">
-      <h1 className="text-2xl font-bold">Test connessione Supabase</h1>
+    <main className="ui-page min-h-screen flex flex-col items-center justify-center gap-4 p-4">
+      <h1 className="ui-title">Test connessione Supabase</h1>
 
-      <button
-        onClick={handleTest}
-        className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-      >
+      <Button type="button" variant="primary" onClick={handleTest} className="h-11 px-4">
         Testa Supabase
-      </button>
+      </Button>
 
       {result && (
-        <pre className="bg-gray-100 p-4 rounded text-sm max-w-xl overflow-x-auto">
+        <pre className="ui-codeBlock">
           {result}
         </pre>
       )}
 
       {error && (
-        <p className="text-red-600">
+        <p className="ui-dangerText">
           Errore: {error}
         </p>
       )}

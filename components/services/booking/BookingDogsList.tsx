@@ -26,7 +26,7 @@ function extrasToLines(extras: BookingDogExtras | null | undefined): string[] {
 
 function InfoTile({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+    <div className="ui-panelInset p-3">
       <div className="ui-muted">{label}</div>
       <div className="ui-body font-[var(--font-weight-semibold)] mt-1 leading-tight">{value}</div>
     </div>
@@ -49,18 +49,18 @@ export function BookingDogsList({
           const therapyNotes = d.extras?.therapyNotes?.trim() ?? '';
 
           return (
-            <article key={d.id} className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] p-3">
+            <article key={d.id} className="ui-panel p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="ui-minw0">
                   <p className="ui-body font-[var(--font-weight-semibold)] break-words">{d.dogName}</p>
                   {d.dogBreed ? (
                     <div className="mt-1 ui-muted">
-                      Razza: <span className="text-[var(--text)]">{d.dogBreed}</span>
+                      Razza: <span className="ui-body">{d.dogBreed}</span>
                     </div>
                   ) : null}
                 </div>
 
-                <div className="shrink-0 rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.14)] px-3 py-2 text-right">
+                <div className="shrink-0 ui-accentBox px-3 py-2 text-right">
                   <p className="ui-muted">Totale cane</p>
                   <p className="ui-body font-[var(--font-weight-semibold)]">{euro(d.per_dog_total)}</p>
                 </div>
@@ -77,7 +77,7 @@ export function BookingDogsList({
               </div>
 
               {extrasLines.length > 0 ? (
-                <div className="mt-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="mt-3 ui-panelInset p-3">
                   <p className="ui-body font-[var(--font-weight-semibold)]">Extra selezionati</p>
                   <ul className="mt-2 list-disc pl-5 space-y-1 ui-body">
                     {extrasLines.map((l) => (
@@ -86,19 +86,19 @@ export function BookingDogsList({
                   </ul>
                 </div>
               ) : (
-                <div className="mt-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3 ui-muted">
+                <div className="mt-3 ui-panelInset p-3 ui-muted">
                   Nessun extra selezionato
                 </div>
               )}
 
               {therapyActive || therapyNotes ? (
-                <div className="mt-3 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="mt-3 ui-panelInset p-3">
                   <p className="ui-body font-[var(--font-weight-semibold)]">Terapia</p>
                   <div className="mt-2 space-y-1">
                     {therapyActive ? <p className="ui-body">Terapia attiva</p> : null}
                     {therapyNotes ? (
                       <p className="ui-muted">
-                        Note: <span className="text-[var(--text)]">{therapyNotes}</span>
+                        Note: <span className="ui-body">{therapyNotes}</span>
                       </p>
                     ) : null}
                   </div>

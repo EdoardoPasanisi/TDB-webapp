@@ -119,8 +119,8 @@ export default function AccountWaiverPage() {
 
   if (authLoading || loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
-        <p className="ui-body text-[var(--muted)]">Caricamento...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }
@@ -128,7 +128,7 @@ export default function AccountWaiverPage() {
   if (!user) return null;
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+    <main className="ui-page min-h-screen">
       <style>{`
         @page { size: A4; margin: 3mm; }
 
@@ -292,7 +292,7 @@ export default function AccountWaiverPage() {
               }
             />
             {error ? (
-              <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 ui-body text-red-700">
+              <div className="ui-error">
                 {error}
               </div>
             ) : null}
@@ -302,14 +302,14 @@ export default function AccountWaiverPage() {
         {!canRender ? (
           <Card>
             <CardContent className="space-y-2">
-              <h2 className="ui-h2 text-gray-900">Dati mancanti</h2>
-              <p className="ui-body text-gray-700">Per generare la liberatoria mancano:</p>
-              <ul className="list-disc pl-5 ui-body text-gray-700">
+              <h2 className="ui-h2">Dati mancanti</h2>
+              <p className="ui-body">Per generare la liberatoria mancano:</p>
+              <ul className="list-disc pl-5 ui-body">
                 {missing.map((m) => (
                   <li key={m}>{m}</li>
                 ))}
               </ul>
-              <p className="ui-muted text-gray-500">
+              <p className="ui-muted">
                 Torna su “Dati proprietario” e inserisci/salva i dati richiesti.
               </p>
               <div className="pt-2 no-print">
@@ -320,7 +320,7 @@ export default function AccountWaiverPage() {
             </CardContent>
           </Card>
         ) : (
-          <Card className="waiver-paper bg-white">
+          <Card className="waiver-paper">
             <CardContent className="p-6 print:p-0">
               <article className="waiver-page">
                 <header className="waiver-print-head print-only">
@@ -334,7 +334,7 @@ export default function AccountWaiverPage() {
                   <img src="/tenuta-logo-print.png" alt="Tenuta del Barone" className="waiver-print-logo" />
                 </header>
 
-                <h1 className="waiver-title text-[var(--font-size-xl)] font-[var(--font-weight-bold)]">Liberatoria</h1>
+                <h1 className="waiver-title ui-title">Liberatoria</h1>
 
                 {/* Body */}
                 <section className="waiver-body text-[17px] leading-7 space-y-3">

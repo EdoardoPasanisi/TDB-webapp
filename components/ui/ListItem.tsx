@@ -30,14 +30,14 @@ export function ListItem({
   const interactive = Boolean(onClick) && !disabled;
 
   const content = (
-    <Card className={cx(interactive && 'hover:bg-[var(--surface-2)]', className)}>
+    <Card className={cx(interactive && 'ui-cardHover', className)}>
       <CardContent className="flex items-center gap-3">
         {leading ? <div className="shrink-0">{leading}</div> : null}
 
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold text-[var(--text)] truncate">{title}</div>
+          <div className="ui-body font-[var(--font-weight-semibold)] truncate">{title}</div>
           {subtitle ? (
-            <div className="mt-0.5 text-xs text-[var(--muted)] truncate">{subtitle}</div>
+            <div className="mt-0.5 ui-muted truncate">{subtitle}</div>
           ) : null}
         </div>
 

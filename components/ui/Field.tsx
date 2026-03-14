@@ -30,9 +30,9 @@ export function Field({
       {/* ✅ label più grande e leggibile (usa i token global) */}
       <label
         htmlFor={id}
-        className="ui-body font-[var(--font-weight-semibold)]"
+        className="ui-label"
       >
-        {label} {required ? <span className="text-[var(--brand-accent)]">*</span> : null}
+        {label} {required ? <span className="ui-required">*</span> : null}
       </label>
 
       <div className="mt-2">{children}</div>
@@ -45,7 +45,7 @@ export function Field({
       ) : null}
 
       {error ? (
-        <p id={errorId} className="mt-2 ui-body text-[rgba(255,0,0,0.85)]">
+        <p id={errorId} className="mt-2 ui-fieldError">
           {error}
         </p>
       ) : null}

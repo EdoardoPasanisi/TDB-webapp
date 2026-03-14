@@ -102,7 +102,7 @@ export function BookingCard({ booking }: { booking: UnifiedBookingListItem }) {
 
           {booking.kind === 'PENSIONE' ? (
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <div className="ui-muted">Arrivo</div>
                 <div className="ui-body font-[var(--font-weight-semibold)] mt-1 whitespace-nowrap">
                   {formatDateKeyVerbose(booking.start_date)}
@@ -110,7 +110,7 @@ export function BookingCard({ booking }: { booking: UnifiedBookingListItem }) {
                 <div className="ui-muted mt-1 whitespace-nowrap">Ore {formatClock(booking.arrival_time)}</div>
               </div>
 
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <div className="ui-muted">Partenza</div>
                 <div className="ui-body font-[var(--font-weight-semibold)] mt-1 whitespace-nowrap">
                   {formatDateKeyVerbose(booking.end_date ?? booking.start_date)}
@@ -120,19 +120,19 @@ export function BookingCard({ booking }: { booking: UnifiedBookingListItem }) {
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2">
-              <div className="col-span-2 rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="col-span-2 ui-panelInset p-3">
                 <div className="ui-muted">Giorno</div>
                 <div className="ui-body font-[var(--font-weight-semibold)] mt-1 whitespace-nowrap">
                   {formatIsoDayRange(booking.start_at, booking.end_at)}
                 </div>
               </div>
 
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <div className="ui-muted">Inizio</div>
                 <div className="ui-body font-[var(--font-weight-semibold)] mt-1 whitespace-nowrap">Ore {formatIsoTime(booking.start_at)}</div>
               </div>
 
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <div className="ui-muted">Fine</div>
                 <div className="ui-body font-[var(--font-weight-semibold)] mt-1 whitespace-nowrap">Ore {booking.end_at ? formatIsoTime(booking.end_at) : '—'}</div>
               </div>
@@ -142,20 +142,20 @@ export function BookingCard({ booking }: { booking: UnifiedBookingListItem }) {
           <div className="space-y-1">
             {showDogsLine ? (
               <div className="ui-muted">
-                <span className="text-[var(--text)] font-[var(--font-weight-semibold)]">Cani:</span> {dogsLine}
+                <span className="ui-body font-[var(--font-weight-semibold)]">Cani:</span> {dogsLine}
               </div>
             ) : null}
 
             {booking.kind === 'PENSIONE' && booking.extrasSummary && booking.extrasSummary !== 'Nessun extra' ? (
               <div className="ui-muted">
-                <span className="text-[var(--text)] font-[var(--font-weight-semibold)]">Extra:</span>{' '}
+                <span className="ui-body font-[var(--font-weight-semibold)]">Extra:</span>{' '}
                 {booking.extrasSummary}
               </div>
             ) : null}
 
             {taxi && taxi !== 'No taxi dog' ? (
               <div className="ui-muted">
-                <span className="text-[var(--text)] font-[var(--font-weight-semibold)]">Taxi:</span> {taxi}
+                <span className="ui-body font-[var(--font-weight-semibold)]">Taxi:</span> {taxi}
               </div>
             ) : null}
           </div>

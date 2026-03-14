@@ -63,12 +63,12 @@ export function BookingActions({ bookingId }: Props) {
 
   return (
     <>
-      <section className="bg-white rounded-lg shadow p-4 flex flex-col sm:flex-row gap-2 justify-end">
+      <section className="ui-panel p-4 flex flex-col sm:flex-row gap-2 justify-end">
         <Button type="button" variant="primary" onClick={handleEdit}>
           Modifica
         </Button>
 
-        <Button type="button" variant="secondary" onClick={() => setConfirmOpen(true)}>
+        <Button type="button" variant="danger" onClick={() => setConfirmOpen(true)}>
           Elimina
         </Button>
       </section>
@@ -83,12 +83,12 @@ export function BookingActions({ bookingId }: Props) {
         }}
       >
         <div className="space-y-4">
-          <p className="text-sm text-[var(--text)]">
+          <p className="ui-body">
             Vuoi eliminare questa prenotazione? L’operazione non può essere annullata.
           </p>
 
           {deleteError ? (
-            <div className="rounded-[var(--radius)] border border-[rgba(255,80,80,0.35)] bg-[rgba(255,0,0,0.08)] p-3 text-sm text-[var(--text)]">
+            <div className="ui-error">
               {deleteError}
             </div>
           ) : null}
@@ -105,7 +105,7 @@ export function BookingActions({ bookingId }: Props) {
             >
               Annulla
             </Button>
-            <Button type="button" variant="primary" onClick={handleDelete} disabled={deleting}>
+            <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting}>
               {deleting ? 'Eliminazione…' : 'Conferma eliminazione'}
             </Button>
           </div>

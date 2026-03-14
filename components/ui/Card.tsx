@@ -12,7 +12,7 @@ export function Card({
   return (
     <div
       className={cx(
-        'rounded-[var(--radius)] bg-[var(--surface)] shadow-[var(--shadow)] border border-[var(--border)]',
+        'ui-panel',
         className
       )}
       {...props}
@@ -24,5 +24,5 @@ export function CardContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cx('p-4', className)} {...props} />;
+  return <div className={cx('ui-cardContent', className)} {...props} />;
 }

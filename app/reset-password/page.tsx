@@ -64,10 +64,10 @@ export default function ResetPasswordPage() {
 
   if (checking) {
     return (
-      <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)] flex items-center justify-center px-4">
+      <main className="ui-page min-h-screen flex items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardContent>
-            <p className="ui-body text-[var(--muted)]">Verifica link in corso…</p>
+            <p className="ui-muted">Verifica link in corso…</p>
           </CardContent>
         </Card>
       </main>
@@ -76,7 +76,7 @@ export default function ResetPasswordPage() {
 
   if (!hasSession) {
     return (
-      <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)] flex items-center justify-center px-4">
+      <main className="ui-page min-h-screen flex items-center justify-center px-4">
         <Card className="w-full max-w-md">
           <CardContent className="space-y-4">
             <div className="space-y-1">
@@ -101,7 +101,7 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+    <main className="ui-page min-h-screen">
       <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
         <Card>
           <CardContent className="space-y-4">
@@ -111,7 +111,7 @@ export default function ResetPasswordPage() {
             </div>
 
             {doneMessage ? (
-              <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.12)] p-3 ui-body">
+              <div className="ui-alertWarn">
                 {doneMessage}
               </div>
             ) : null}

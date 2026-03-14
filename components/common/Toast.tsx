@@ -24,34 +24,34 @@ export function Toast({
   const title =
     kind === 'success' ? 'Operazione riuscita' : kind === 'error' ? 'Errore' : 'Avviso';
 
-  const border =
+  const toneClass =
     kind === 'success'
-      ? 'border-green-200'
+      ? 'ui-toastCard--success'
       : kind === 'error'
-      ? 'border-red-200'
-      : 'border-gray-200';
+      ? 'ui-toastCard--error'
+      : 'ui-toastCard--info';
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center">
       {/* backdrop */}
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="ui-overlayBackdrop" onClick={onClose} />
 
       {/* modal */}
       <div
-        className={`relative mx-4 w-full max-w-md rounded-xl border ${border} bg-white p-5 shadow-xl`}
+        className={`relative mx-4 w-full max-w-md ui-toastCard ${toneClass}`}
         role="dialog"
         aria-live="polite"
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold text-gray-900">{title}</p>
-            <p className="mt-1 text-sm text-gray-700">{message}</p>
+            <p className="ui-toastTitle">{title}</p>
+            <p className="ui-toastMessage">{message}</p>
           </div>
 
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border px-2 py-1 text-xs font-semibold hover:bg-gray-50"
+            className="ui-btn ui-btnTone-secondary ui-btnCompact ui-btnIcon"
             aria-label="Chiudi"
           >
             ✕

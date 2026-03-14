@@ -42,7 +42,7 @@ export default function AsiloPage() {
           <Link className="underline" href="/services">
             Servizi
           </Link>{' '}
-          tramite <span className="font-semibold text-[var(--text)]">“Fissa data”</span>.
+          tramite <span className="ui-body font-[var(--font-weight-semibold)]">“Fissa data”</span>.
         </>
       }
       postPurchaseMessage={

@@ -22,33 +22,33 @@ const SERVICES: ServiceCard[] = [
 ];
 
 function TileIcon({ k }: { k: ServiceKey }) {
-  const base = "h-10 w-10";
+  const base = 'h-10 w-10';
   switch (k) {
-    case "PENSIONE":
+    case 'PENSIONE':
       return <Image src="/icon-pensione.png" alt="" width={40} height={40} className={base} draggable={false} />;
-    case "ASILO":
+    case 'ASILO':
       return <Image src="/icon-asilo.png" alt="" width={40} height={40} className={base} draggable={false} />;
-    case "ADDESTRAMENTO":
+    case 'ADDESTRAMENTO':
       return <Image src="/icon-addestramento.png" alt="" width={40} height={40} className={base} draggable={false} />;
-    case "CONSULENZA":
+    case 'CONSULENZA':
       return <Image src="/icon-consulenza.png" alt="" width={40} height={40} className={base} draggable={false} />;
     default:
       return null;
   }
 }
 
-function tileStyle(k: ServiceKey) {
+function tileToneClass(k: ServiceKey) {
   switch (k) {
     case 'PENSIONE':
-      return { bg: 'rgba(146, 238, 179, 0.16)', fg: 'rgb(67, 201, 128)' };
+      return 'ui-serviceTone-pensione';
     case 'ASILO':
-      return { bg: 'rgba(171, 150, 255, 0.16)', fg: 'rgb(150, 120, 255)' };
+      return 'ui-serviceTone-asilo';
     case 'ADDESTRAMENTO':
-      return { bg: 'rgba(120, 210, 255, 0.16)', fg: 'rgb(120, 210, 255)' };
+      return 'ui-serviceTone-addestramento';
     case 'CONSULENZA':
-      return { bg: 'rgba(255, 198, 120, 0.16)', fg: 'rgb(255, 178, 80)' };
+      return 'ui-serviceTone-consulenza';
     default:
-      return { bg: 'rgba(255,255,255,0.06)', fg: 'var(--text)' };
+      return 'ui-serviceTone-default';
   }
 }
 
@@ -62,7 +62,7 @@ export function ServiceCards() {
       {/* ✅ Mobile: 2 colonne quadrate */}
       <div className="grid grid-cols-2 gap-3">
         {SERVICES.map((s) => {
-          const st = tileStyle(s.key);
+          const toneClass = tileToneClass(s.key);
           return (
             <button
               key={s.key}
@@ -71,19 +71,18 @@ export function ServiceCards() {
               className="w-full text-left"
               aria-label={`Apri servizio ${s.title}`}
             >
-              <Card className="hover:bg-[var(--surface-2)]">
+              <Card className="ui-cardHover">
                 <CardContent className="p-0">
                   <div className="aspect-square flex flex-col items-center justify-center gap-3 px-3">
                     <div
-                      className="h-16 w-16 rounded-2xl flex items-center justify-center"
-                      style={{ background: st.bg, color: st.fg }}
+                      className={`h-16 w-16 rounded-2xl flex items-center justify-center ${toneClass}`}
                     >
                       <TileIcon k={s.key} />
                     </div>
 
                     {/* ✅ Nome visibile */}
                     <div className="text-center">
-                      <div className="text-sm font-semibold text-[var(--text)] leading-tight">
+                      <div className="ui-body font-[var(--font-weight-semibold)] leading-tight">
                         {s.title}
                       </div>
                     </div>

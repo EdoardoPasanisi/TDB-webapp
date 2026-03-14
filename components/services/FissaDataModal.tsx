@@ -19,6 +19,7 @@ import { addToWalletDueEur } from '@/lib/wallet/walletApi';
 import { supabase } from '@/lib/supabaseClient';
 import { DogAvatar } from '@/components/dogs/DogAvatar';
 import { Button } from '@/components/ui/Button';
+import { TaxiQuote } from '@/components/services/common/TaxiQuote';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -680,25 +681,15 @@ export function FissaDataModal({
                     </div>
 
                     {taxiEnabled ? (
-                      <div className="mt-3 ui-muted">
+                      <div className="mt-3">
                         {taxiDistance.loading ? (
-                          'Calcolo distanza…'
+                          <div className="ui-muted">Calcolo distanza…</div>
                         ) : taxiDistance.error ? (
-                          <span className="ui-body" style={{ color: 'rgba(255,0,0,0.85)' }}>
-                            {taxiDistance.error}
-                          </span>
+                          <div className="ui-dangerText">{taxiDistance.error}</div>
                         ) : taxiDistance.km !== null && taxiComputed.price !== null ? (
-                          <>
-                            <div>
-                              Distanza: <span className="font-[var(--font-weight-bold)]">{taxiDistance.km.toFixed(1)} km</span>
-                            </div>
-                            <div>
-                              Prezzo: <span className="font-[var(--font-weight-bold)]">{taxiComputed.price.toFixed(2)} €</span>{' '}
-                              <span className="ui-muted">({taxiComputed.band})</span>
-                            </div>
-                          </>
+                          <TaxiQuote km={taxiDistance.km} priceEur={taxiComputed.price} />
                         ) : (
-                          '—'
+                          <div className="ui-muted">—</div>
                         )}
                       </div>
                     ) : null}

@@ -117,10 +117,20 @@ export function MonthCalendar({ monthDate, items, selectedDayKey, onSelectDay, o
         </div>
 
         <div className="flex items-center gap-2">
-          <button type="button" onClick={onPrevMonth} className="ui-selectCard ui-minw0" style={{ width: 56, textAlign: 'center' }}>
+          <button
+            type="button"
+            onClick={onPrevMonth}
+            className="ui-btn ui-clickableDay ui-minw0 h-[52px] w-[56px] px-0"
+            style={{ textAlign: 'center' }}
+          >
             ←
           </button>
-          <button type="button" onClick={onNextMonth} className="ui-selectCard ui-minw0" style={{ width: 56, textAlign: 'center' }}>
+          <button
+            type="button"
+            onClick={onNextMonth}
+            className="ui-btn ui-clickableDay ui-minw0 h-[52px] w-[56px] px-0"
+            style={{ textAlign: 'center' }}
+          >
             →
           </button>
         </div>
@@ -150,17 +160,16 @@ export function MonthCalendar({ monthDate, items, selectedDayKey, onSelectDay, o
               onClick={() => (k ? onSelectDay(k) : null)}
               className={[
                 'ui-minw0',
-                'rounded-[var(--radius)] border',
+                'ui-clickableDay ui-clickableDayCell',
                 'h-[52px] w-full',
                 'flex items-center justify-center',
-                isEmpty ? 'border-transparent bg-transparent' : 'bg-[var(--surface)]',
-                hasEvents ? 'border-[rgba(255,130,0,0.55)] bg-[rgba(255,130,0,0.08)]' : 'border-[var(--border)]',
-                isSelected ? 'ring-2 ring-[rgba(255,130,0,0.35)]' : '',
+                isEmpty ? 'border-transparent bg-transparent' : '',
+                isSelected ? 'ui-clickableDay--selected' : '',
               ].join(' ')}
               style={{ WebkitTapHighlightColor: 'transparent' }}
             >
               <div className="flex flex-col items-center justify-center leading-none">
-                <div className={['ui-body', 'font-[var(--font-weight-bold)]', hasEvents ? 'text-[var(--text)]' : 'text-[var(--text)]'].join(' ')}>
+                <div className="text-sm font-[var(--font-weight-bold)]">
                   {c.day ?? ''}
                 </div>
 
@@ -172,7 +181,9 @@ export function MonthCalendar({ monthDate, items, selectedDayKey, onSelectDay, o
                       height: 4,
                       width: 18,
                       borderRadius: 999,
-                      background: hasEvents ? 'var(--brand-accent)' : 'transparent',
+                      background: hasEvents
+                        ? (isSelected ? 'var(--btn-primary-text)' : 'var(--brand-accent)')
+                        : 'transparent',
                       opacity: hasEvents ? 0.95 : 0,
                     }}
                     aria-hidden="true"

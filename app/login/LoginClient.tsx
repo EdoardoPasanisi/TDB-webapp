@@ -58,7 +58,7 @@ export default function LoginClient() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+    <main className="ui-page min-h-screen">
       <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
         <Card>
           <CardContent className="space-y-4">
@@ -68,7 +68,7 @@ export default function LoginClient() {
             </div>
 
             {message ? (
-              <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.12)] p-3 ui-body">
+              <div className="ui-alertWarn">
                 {message}
               </div>
             ) : null}
@@ -103,13 +103,13 @@ export default function LoginClient() {
               </Button>
             </form>
 
-            <div className="grid grid-cols-1 gap-2">
+            <div className="ui-authLinks">
               <Button type="button" variant="secondary" fullWidth onClick={() => router.push('/signup')}>
                 Crea account
               </Button>
-              <Button type="button" variant="ghost" fullWidth onClick={() => router.push('/forgot-password')}>
+              <button type="button" className="ui-authLinkSecondary" onClick={() => router.push('/forgot-password')}>
                 Password dimenticata?
-              </Button>
+              </button>
             </div>
           </CardContent>
         </Card>

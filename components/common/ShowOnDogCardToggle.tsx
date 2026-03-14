@@ -33,20 +33,20 @@ export function ShowOnDogCardToggle({
   onCheckedChange,
 }: ShowOnDogCardToggleProps) {
   return (
-    <div className="border border-gray-200 rounded-lg p-3 space-y-2">
+    <div className="ui-toggleCard space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="text-xs font-medium text-gray-800">{label}</p>
+          <p className="ui-body font-[var(--font-weight-semibold)]">{label}</p>
           {description && (
-            <p className="text-[11px] text-gray-500 mt-0.5">
+            <p className="ui-note mt-0.5">
               {description}
             </p>
           )}
         </div>
-        <label className="flex items-center gap-1 text-[11px] text-gray-700 select-none">
+        <label className="ui-checkboxLabel">
           <input
             type="checkbox"
-            className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            className="ui-checkbox"
             checked={checked}
             onChange={(e) => onCheckedChange(e.target.checked)}
           />

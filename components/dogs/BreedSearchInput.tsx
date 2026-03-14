@@ -92,9 +92,9 @@ export function BreedSearchInput({
       </div>
 
       {open && (
-        <div className="absolute z-20 mt-2 w-full rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow)] max-h-72 overflow-auto">
+        <div className="ui-comboboxMenu mt-2 max-h-72">
           {filtered.length === 0 ? (
-            <div className="p-3 ui-muted">
+            <div className="ui-comboboxEmpty">
               Nessuna razza trovata. Prova con un nome alternativo (es. “German Shepherd”).
             </div>
           ) : (
@@ -108,7 +108,7 @@ export function BreedSearchInput({
                       setQuery(b.name); // ✅ mostra solo nome principale nel campo
                       setOpen(false);
                     }}
-                    className="w-full text-left px-3 py-2 md:hover:bg-[var(--surface-2)]"
+                    className="ui-comboboxOption"
                   >
                     <div className="ui-body font-[var(--font-weight-semibold)]">{b.name}</div>
                     {b.aliases && b.aliases.length > 0 ? (

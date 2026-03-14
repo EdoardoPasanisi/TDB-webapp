@@ -38,8 +38,8 @@ export default function PensioneClient() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-700">Caricamento...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }

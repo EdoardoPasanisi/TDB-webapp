@@ -2,6 +2,7 @@ import type { FormEvent } from 'react';
 import type { Dog as DogRow } from '@/types/dog';
 import type { DogFormState, DogSize } from '@/types/forms';
 import { BreedCombobox } from '@/components/dogs/BreedCombobox';
+import { Button } from '@/components/ui/Button';
 import type { DogBreed } from '@/data/dogBreeds';
 
 interface DogsSectionProps {
@@ -58,20 +59,21 @@ export function DogsSection({
   ];
 
   return (
-    <section className="bg-white rounded-lg shadow p-4">
+    <section className="ui-panel p-4">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-xl font-semibold">I miei cani</h2>
-        <button
+        <h2 className="ui-h2">I miei cani</h2>
+        <Button
           type="button"
+          variant="secondary"
           onClick={onStartNewDog}
-          className="text-xs px-3 py-1 rounded border border-gray-300 hover:bg-gray-50"
+          className="ui-btnCompact"
         >
           Aggiungi cane
-        </button>
+        </Button>
       </div>
 
       {dogs.length === 0 && !isEditing && (
-        <div className="border border-dashed border-gray-300 rounded p-4 text-sm text-gray-700 text-center">
+        <div className="ui-emptyState ui-muted">
           <p>Non hai ancora registrato nessun cane.</p>
           <p className="mt-1">
             Clicca su &quot;Aggiungi cane&quot; per inserire il primo.
@@ -83,40 +85,34 @@ export function DogsSection({
         <form onSubmit={onSubmit} className="mt-3 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Nome
-              </label>
+              <label className="block ui-label mb-1">Nome</label>
               <input
                 type="text"
                 value={dogForm.name}
                 onChange={(e) => onChange('name', e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+                className="ui-control ui-input"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-700 mb-1">
-                Razza
-              </label>
+              <label className="block ui-label mb-1">Razza</label>
               <BreedCombobox
                 value={dogForm.breed}
                 onChange={(next, meta) => onBreedSelected(next, meta)}
                 placeholder="Cerca razza..."
               />
-              <p className="mt-1 text-[11px] text-gray-500">
+              <p className="mt-1 ui-note">
                 Suggerimento: scegli una razza dalla lista per auto-impostare la taglia.
               </p>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Taglia
-            </label>
+            <label className="block ui-label mb-1">Taglia</label>
             <select
               value={dogForm.size}
               onChange={(e) => onChange('size', e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm bg-white"
+              className="ui-control ui-select"
             >
               {sizeOptions.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -127,55 +123,51 @@ export function DogsSection({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Microchip
-            </label>
+            <label className="block ui-label mb-1">Microchip</label>
             <input
               type="text"
               value={dogForm.microchip}
               onChange={(e) => onChange('microchip', e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              className="ui-control ui-input"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Data di nascita
-            </label>
+            <label className="block ui-label mb-1">Data di nascita</label>
             <input
               type="date"
               value={dogForm.birth_date}
               onChange={(e) => onChange('birth_date', e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
+              className="ui-control ui-input"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1">
-              Note
-            </label>
+            <label className="block ui-label mb-1">Note</label>
             <textarea
               value={dogForm.notes}
               onChange={(e) => onChange('notes', e.target.value)}
-              className="w-full rounded border border-gray-300 px-3 py-2 text-sm min-h-[80px]"
+              className="ui-control ui-textarea min-h-[80px]"
             />
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="submit"
+              variant="primary"
               disabled={savingDog}
-              className="px-4 py-2 rounded bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+              className="ui-btnCompact"
             >
               {savingDog ? 'Salvataggio...' : 'Salva cane'}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="secondary"
               onClick={onCancelEdit}
-              className="text-xs px-3 py-1 rounded border border-gray-300 hover:bg-gray-50"
+              className="ui-btnCompact"
             >
               Annulla
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -185,37 +177,39 @@ export function DogsSection({
           {dogs.map((dog) => (
             <li
               key={dog.id}
-              className="border border-gray-200 rounded p-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+              className="ui-listRow flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
             >
-              <div className="text-sm">
-                <p className="font-medium">{dog.name}</p>
-                <p className="text-xs text-gray-700">
+              <div className="ui-body">
+                <p className="font-[var(--font-weight-semibold)]">{dog.name}</p>
+                <p className="ui-muted">
                   {(dog.breed || 'Razza non specificata') + (dog.size_category ? ` • ${dog.size_category}` : '')}
                 </p>
                 {dog.birth_date && (
-                  <p className="text-xs text-gray-700">Nato il: {dog.birth_date}</p>
+                  <p className="ui-muted">Nato il: {dog.birth_date}</p>
                 )}
                 {dog.microchip && (
-                  <p className="text-xs text-gray-700">Microchip: {dog.microchip}</p>
+                  <p className="ui-muted">Microchip: {dog.microchip}</p>
                 )}
-                {dog.notes && <p className="text-xs text-gray-700">Note: {dog.notes}</p>}
+                {dog.notes && <p className="ui-muted">Note: {dog.notes}</p>}
               </div>
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
                   onClick={() => onStartEditDog(dog)}
-                  className="text-xs px-3 py-1 rounded border border-gray-300 hover:bg-gray-50"
+                  className="ui-btnCompact"
                 >
                   Modifica
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="danger"
                   onClick={() => onDeleteDog(dog.id)}
                   disabled={deletingDogId === dog.id}
-                  className="text-xs px-3 py-1 rounded border border-red-500 text-red-600 hover:bg-red-50 disabled:opacity-60"
+                  className="ui-btnCompact"
                 >
                   {deletingDogId === dog.id ? 'Eliminazione...' : 'Elimina'}
-                </button>
+                </Button>
               </div>
             </li>
           ))}

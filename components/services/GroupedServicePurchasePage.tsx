@@ -182,7 +182,7 @@ export function GroupedServicePurchasePage({
     return (
       <div className="mx-auto w-full max-w-xl space-y-3">
         <Card>
-          <CardContent className="text-sm text-[var(--muted)]">Verifica autenticazione…</CardContent>
+          <CardContent className="ui-muted">Verifica autenticazione…</CardContent>
         </Card>
       </div>
     );
@@ -193,21 +193,17 @@ export function GroupedServicePurchasePage({
       {toastMsg ? <Toast message={toastMsg} onClose={() => setToastMsg(null)} kind="success" /> : null}
 
       <div className="space-y-2">
-        <h1 className="text-lg font-semibold text-[var(--text)]">{title}</h1>
-        <p className="text-sm text-[var(--muted)]">{description}</p>
+        <h1 className="ui-h2">{title}</h1>
+        <p className="ui-muted">{description}</p>
       </div>
 
       {state === 'loading' ? (
         <Card>
-          <CardContent className="text-sm text-[var(--muted)]">Caricamento prodotti…</CardContent>
+          <CardContent className="ui-muted">Caricamento prodotti…</CardContent>
         </Card>
       ) : null}
 
-      {state === 'error' ? (
-        <div className="rounded-[var(--radius)] border border-[rgba(255,80,80,0.35)] bg-[rgba(255,0,0,0.08)] p-4 text-sm text-[var(--text)]">
-          {error}
-        </div>
-      ) : null}
+      {state === 'error' ? <div className="ui-error">{error}</div> : null}
 
       {state === 'ready' ? (
         <Card>
@@ -215,14 +211,14 @@ export function GroupedServicePurchasePage({
             <SectionHeader title="Scegli pacchetto" subtitle={null} />
 
             {totalChoices === 0 ? (
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm text-[var(--muted)]">
+              <div className="ui-panelInset p-3 ui-muted">
                 Nessun prodotto disponibile.
               </div>
             ) : (
               <div className="space-y-4">
                 {sortedSections.map((section) => (
                   <div key={section.key} className="space-y-2">
-                    <div className="text-xs font-semibold text-[var(--muted)]">{section.label}</div>
+                    <div className="ui-muted font-[var(--font-weight-semibold)]">{section.label}</div>
                     <div className="space-y-2">
                       {section.products.map((product) => {
                         const choiceKey = `${section.key}:${product.id}`;
@@ -234,10 +230,8 @@ export function GroupedServicePurchasePage({
                             type="button"
                             onClick={() => setSelectedKey(choiceKey)}
                             className={[
-                              'w-full rounded-[var(--radius)] border px-3 py-3 text-left transition',
-                              checked
-                                ? 'border-[var(--brand-accent)] bg-[rgba(255,130,0,0.14)] ring-2 ring-[rgba(255,130,0,0.35)]'
-                                : 'border-[var(--border)] bg-[var(--surface-2)] hover:opacity-95',
+                              'w-full px-3 py-3 text-left transition ui-clickable rounded-[var(--radius)]',
+                              checked ? 'ui-clickable--selected' : '',
                             ].join(' ')}
                             aria-pressed={checked}
                           >
@@ -260,7 +254,7 @@ export function GroupedServicePurchasePage({
                       })}
 
                       {section.products.length === 0 ? (
-                        <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3 text-sm text-[var(--muted)]">
+                        <div className="ui-panelInset p-3 ui-muted">
                           {section.emptyMessage}
                         </div>
                       ) : null}
@@ -280,16 +274,12 @@ export function GroupedServicePurchasePage({
             </Button>
 
             {purchaseOk ? (
-              <div className="rounded-[var(--radius)] border border-[rgba(80,255,160,0.25)] bg-[rgba(80,255,160,0.08)] p-3 text-sm text-[var(--text)]">
+              <div className="ui-success">
                 {postPurchaseMessage}
               </div>
             ) : null}
 
-            {error ? (
-              <div className="rounded-[var(--radius)] border border-[rgba(255,80,80,0.35)] bg-[rgba(255,0,0,0.08)] p-3 text-sm text-[var(--text)]">
-                {error}
-              </div>
-            ) : null}
+            {error ? <div className="ui-error">{error}</div> : null}
           </CardContent>
         </Card>
       ) : null}
@@ -303,19 +293,19 @@ export function GroupedServicePurchasePage({
         }}
       >
         {!selectedChoice ? (
-          <div className="text-sm text-[var(--muted)]">Seleziona un pacchetto prima di procedere.</div>
+          <div className="ui-muted">Seleziona un pacchetto prima di procedere.</div>
         ) : (
           <div className="space-y-4">
             <Card>
-              <CardContent className="text-sm">
-                <div className="font-semibold text-[var(--text)]">{selectedChoice.sectionLabel}</div>
-                <div className="mt-1 text-[var(--text)]">{selectedChoice.product.name}</div>
-                <div className="mt-2 text-xs text-[var(--muted)]">
-                  Crediti: <span className="font-semibold text-[var(--text)]">{selectedChoice.product.credits}</span>
+              <CardContent className="ui-body">
+                <div className="ui-body font-[var(--font-weight-semibold)]">{selectedChoice.sectionLabel}</div>
+                <div className="mt-1 ui-body">{selectedChoice.product.name}</div>
+                <div className="mt-2 ui-muted">
+                  Crediti: <span className="ui-body font-[var(--font-weight-semibold)]">{selectedChoice.product.credits}</span>
                 </div>
-                <div className="mt-1 text-xs text-[var(--muted)]">
+                <div className="mt-1 ui-muted">
                   Prezzo:{' '}
-                  <span className="font-semibold text-[var(--text)]">{Number(selectedChoice.product.price_eur).toFixed(0)}€</span>
+                  <span className="ui-body font-[var(--font-weight-semibold)]">{Number(selectedChoice.product.price_eur).toFixed(0)}€</span>
                 </div>
               </CardContent>
             </Card>

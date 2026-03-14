@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
@@ -55,7 +56,7 @@ export default function SignupPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+    <main className="ui-page min-h-screen">
       <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
         <Card>
           <CardContent className="space-y-4">
@@ -98,16 +99,16 @@ export default function SignupPage() {
               Hai già un account? Accedi
             </Button>
 
-            <div className="grid grid-cols-3 gap-2 pt-1">
-              <Button type="button" variant="ghost" fullWidth onClick={() => router.push('/privacy')}>
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1">
+              <Link href="/privacy" className="ui-legalLink">
                 Privacy
-              </Button>
-              <Button type="button" variant="ghost" fullWidth onClick={() => router.push('/terms')}>
+              </Link>
+              <Link href="/terms" className="ui-legalLink">
                 Termini
-              </Button>
-              <Button type="button" variant="ghost" fullWidth onClick={() => router.push('/cookies')}>
+              </Link>
+              <Link href="/cookies" className="ui-legalLink">
                 Cookie
-              </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>

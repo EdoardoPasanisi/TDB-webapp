@@ -244,20 +244,20 @@ export default function DogTagPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)] p-4">
-        <p className="ui-body text-[var(--muted)]">Generazione QR code...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center p-4">
+        <p className="ui-muted">Generazione QR code...</p>
       </main>
     );
   }
 
   if (error) {
     return (
-      <main className="min-h-screen bg-[var(--brand-bg)] p-4">
+      <main className="ui-page min-h-screen p-4">
         <div className="mx-auto w-full max-w-xl pt-8">
           <Card>
             <CardContent className="space-y-3 text-center">
               <h1 className="ui-h2">Errore</h1>
-              <p className="ui-body text-[rgba(255,0,0,0.85)]">{error}</p>
+              <p className="ui-dangerText">{error}</p>
               <Button type="button" variant="secondary" fullWidth onClick={() => router.back()}>
                 Indietro
               </Button>
@@ -270,14 +270,14 @@ export default function DogTagPage() {
 
   if (!publicId || !publicUrl) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)] p-4">
-        <p className="ui-body text-[var(--muted)]">QR code non disponibile.</p>
+      <main className="ui-page min-h-screen flex items-center justify-center p-4">
+        <p className="ui-muted">QR code non disponibile.</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] p-4 text-[var(--text)] print:bg-white">
+    <main className="ui-page min-h-screen p-4 print:bg-white">
       <div className="mx-auto w-full max-w-xl space-y-4">
         <Card className="print:hidden">
           <CardContent className="space-y-3">
@@ -291,7 +291,7 @@ export default function DogTagPage() {
         <Card className="print:shadow-none print:border-none print:bg-white">
           <CardContent className="p-6 space-y-4">
             <div className="flex justify-center">
-              <div ref={qrWrapperRef} className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3">
+              <div ref={qrWrapperRef} className="ui-qrFrame">
                 <QRCode value={publicUrl} size={svgSize} />
               </div>
             </div>
@@ -309,8 +309,8 @@ export default function DogTagPage() {
             </div>
 
             {toast ? (
-              <div className="print:hidden rounded-[var(--radius)] border border-[rgba(114,221,139,0.55)] bg-[rgba(114,221,139,0.15)] p-3">
-                <p className="ui-body text-[rgb(154,244,174)]">{toast}</p>
+              <div className="print:hidden ui-success">
+                <p className="ui-body">{toast}</p>
               </div>
             ) : null}
           </CardContent>

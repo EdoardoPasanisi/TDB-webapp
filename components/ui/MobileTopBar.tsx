@@ -28,20 +28,13 @@ export function MobileTopBar() {
 
   return (
     <header data-app-chrome="mobile-top" className="md:hidden fixed top-0 inset-x-0 z-40">
-      <div
-        className="h-[var(--topbar-h)] px-4 flex items-center justify-between"
-        style={{
-          background: 'var(--brand-accent)',
-          backdropFilter: 'none',
-          borderBottom: '1px solid rgba(0,0,0,0.12)',
-        }}
-      >
+      <div className="ui-topbarShell">
         {/* SINISTRA: settings sulle main pages, altrimenti bottone indietro */}
         {isMainMobilePage ? (
           <button
             type="button"
             onClick={() => router.push('/settings')}
-            className="h-11 w-11 rounded-[var(--radius)] flex items-center justify-center text-black hover:bg-black/10"
+            className="ui-topbarIconBtn"
             aria-label="Impostazioni"
           >
             <Image src="/icon-settings.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />
@@ -50,18 +43,18 @@ export function MobileTopBar() {
           <Button
             variant="ghost"
             onClick={handleBack}
-            className="px-3 text-black hover:bg-black/10"
+            className="ui-topbarBackBtn ui-btnTone-ghostOnAccent"
           >
             ← Indietro
           </Button>
         )}
 
-        <div className="text-sm font-semibold text-black">Tenuta del Barone</div>
+        <div className="ui-topbarTitle">Tenuta del Barone</div>
 
         <button
           type="button"
           onClick={() => router.push('/profile')}
-          className="h-11 w-11 rounded-[var(--radius)] flex items-center justify-center text-black hover:bg-black/10"
+          className="ui-topbarIconBtn"
           aria-label="Profilo"
         >
           <Image src="/icon-user.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />

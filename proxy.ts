@@ -34,6 +34,8 @@ function isPublicPath(pathname: string) {
 
   // Pagina pubblica tag cane (QR)
   if (pathname.startsWith('/dogs/tag/')) return true;
+  // Scheda cane pubblica
+  if (pathname.startsWith('/dogs/card/')) return true;
 
   return false;
 }

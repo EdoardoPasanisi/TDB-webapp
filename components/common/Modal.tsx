@@ -39,7 +39,7 @@ export function Modal({ open, title, onClose, children }: Props) {
       <button
         type="button"
         aria-label="Close modal"
-        className="absolute inset-0 z-0 bg-black/60"
+        className="ui-modalOverlay"
         onClick={onClose}
       />
 
@@ -47,24 +47,18 @@ export function Modal({ open, title, onClose, children }: Props) {
       <div
         role="dialog"
         aria-modal="true"
-        className={[
-          'relative z-10 w-full md:max-w-3xl',
-          'bg-[var(--surface)] text-[var(--text)]',
-          'border border-[var(--border)] shadow-[var(--shadow)]',
-          'rounded-t-2xl md:rounded-2xl',
-          'max-h-[85vh] flex flex-col',
-        ].join(' ')}
+        className="ui-modalPanel"
       >
         {/* header */}
-        <div className="flex items-center justify-between gap-3 border-b border-[var(--border)] px-4 py-3 shrink-0">
-          <div className="min-w-0 text-sm font-semibold truncate">{title}</div>
-          <Button variant="ghost" onClick={onClose}>
+        <div className="ui-modalHeader">
+          <div className="ui-modalTitle">{title}</div>
+          <Button variant="secondary" className="ui-btnCompact" onClick={onClose}>
             Chiudi
           </Button>
         </div>
 
         {/* body scrollable */}
-        <div className="p-4 overflow-y-auto">{children}</div>
+        <div className="ui-modalBody">{children}</div>
       </div>
     </div>
   );

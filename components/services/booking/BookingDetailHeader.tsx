@@ -9,8 +9,8 @@ type Props = {
 export function BookingDetailHeader({ title, subtitle }: Props) {
   return (
     <header className="space-y-1">
-      <h1 className="text-2xl font-bold">{title}</h1>
-      {subtitle ? <p className="text-sm text-gray-700">{subtitle}</p> : null}
+      <h1 className="ui-title">{title}</h1>
+      {subtitle ? <p className="ui-muted">{subtitle}</p> : null}
     </header>
   );
 }

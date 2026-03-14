@@ -41,7 +41,7 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+    <main className="ui-page min-h-screen">
       <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
         <Card>
           <CardContent className="space-y-4">
@@ -53,7 +53,7 @@ export default function ForgotPasswordPage() {
             </div>
 
             {doneMessage ? (
-              <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.45)] bg-[rgba(255,130,0,0.12)] p-3 ui-body">
+              <div className="ui-alertWarn">
                 {doneMessage}
               </div>
             ) : null}

@@ -1,12 +1,12 @@
 // FILE: app/layout.tsx
-import type { Metadata } from "next";
-import "./globals.css";
-import Navbar from "@/components/Navbar";
-import { AuthProvider } from "@/lib/auth/AuthProvider";
+import type { Metadata } from 'next';
+import './globals.css';
+import Navbar from '@/components/Navbar';
+import { AuthProvider } from '@/lib/auth/AuthProvider';
 
 export const metadata: Metadata = {
-  title: "Tenuta del Barone",
-  description: "Gestione clienti, cani e prenotazioni",
+  title: 'Tenuta del Barone',
+  description: 'Gestione clienti, cani e prenotazioni',
 };
 
 export default function RootLayout({
@@ -16,13 +16,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="it">
-      <body
-        className="antialiased min-h-screen bg-[var(--brand-bg)] text-[var(--text)]"
-        style={{
-          fontFamily:
-            'system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji"',
-        }}
-      >
+      <body className="antialiased ui-page">
         <AuthProvider>
           <Navbar />
 
@@ -33,9 +27,7 @@ export default function RootLayout({
             Desktop:
             - topbar/bottomnav non mostrati, padding più classico
           */}
-          <main className="px-4 pt-[calc(var(--topbar-h)+12px)] pb-[calc(var(--bottom-nav-h)+var(--safe-bottom)+12px)] md:pt-6 md:pb-8">
-            {children}
-          </main>
+          <main className="ui-appMain">{children}</main>
         </AuthProvider>
       </body>
     </html>

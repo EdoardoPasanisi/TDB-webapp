@@ -17,6 +17,8 @@ import {
 } from '@/lib/services/serviceCalendarApi';
 import { getPensioneBookingsForUserInRange } from '@/lib/services/bookingsApi';
 import { getServiceLabel, type ServiceType, type ServiceVariant } from '@/types/services';
+import { getWalletDueEur } from '@/lib/wallet/walletApi';
+import { euro } from '@/lib/services/formatters';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -41,16 +43,24 @@ function toDayKeyFromIso(iso: string): string {
 
 function colorForServiceType(serviceType: string): string {
   // usato solo per dare una “tag” coerente nell’elenco sotto
-  if (serviceType === 'PENSIONE') return 'bg-green-600';
-  if (serviceType === 'ADDESTRAMENTO') return 'bg-blue-600';
-  if (serviceType === 'ASILO') return 'bg-yellow-500';
-  if (serviceType === 'CONSULENZA') return 'bg-orange-600';
-  return 'bg-gray-600';
+  if (serviceType === 'PENSIONE') return 'ui-serviceTone-pensione';
+  if (serviceType === 'ADDESTRAMENTO') return 'ui-serviceTone-addestramento';
+  if (serviceType === 'ASILO') return 'ui-serviceTone-asilo';
+  if (serviceType === 'CONSULENZA') return 'ui-serviceTone-consulenza';
+  return 'ui-serviceTone-default';
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
+}
+
+function SaldoPill({ amount }: { amount: number }) {
+  return (
+    <div className="ui-accentPill ui-accentPill--saldo">
+      Saldo: {euro(amount)}
+    </div>
+  );
 }
 
 type SelectedItem = CalendarBookingItem & {
@@ -100,6 +110,9 @@ export default function CalendarPage() {
   const [calendarItems, setCalendarItems] = useState<SelectedItem[]>([]);
 
   const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
+  const [walletState, setWalletState] = useState<LoadState>('idle');
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [walletDue, setWalletDue] = useState<number>(0);
 
   // Carica items del mese
   useEffect(() => {
@@ -204,6 +217,36 @@ export default function CalendarPage() {
     };
   }, [monthDate, user?.id]);
 
+  // Saldo wallet
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const userId = user.id;
+    let cancelled = false;
+
+    async function run() {
+      setWalletState('loading');
+      setWalletError(null);
+
+      try {
+        const due = await getWalletDueEur(userId);
+        if (cancelled) return;
+        setWalletDue(due);
+        setWalletState('ready');
+      } catch (error) {
+        console.error(error);
+        if (cancelled) return;
+        setWalletError(getErrorMessage(error, 'Errore caricamento wallet.'));
+        setWalletState('error');
+      }
+    }
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
   // Items del giorno selezionato
   const selectedItems = useMemo(() => {
     if (!selectedDayKey) return [];
@@ -236,12 +279,12 @@ export default function CalendarPage() {
     return sortedItems;
   }, [calendarItems, selectedDayKey]);
 
-  const anyError = authError?.message ?? futureError ?? calendarError;
+  const anyError = authError?.message ?? futureError ?? calendarError ?? walletError;
 
   if (authLoading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="text-sm text-gray-700">Caricamento...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }
@@ -249,9 +292,9 @@ export default function CalendarPage() {
   if (!user) return null;
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4 text-gray-900">
+    <main className="ui-page min-h-screen p-4">
       <div className="max-w-4xl mx-auto space-y-6">
-        {anyError ? <p className="text-sm text-red-600">{anyError}</p> : null}
+        {anyError ? <div className="ui-error">{anyError}</div> : null}
 
         <MonthCalendar
           monthDate={monthDate}
@@ -262,7 +305,7 @@ export default function CalendarPage() {
           onNextMonth={() => setMonthDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
         />
 
-        {calendarState === 'loading' ? <div className="mt-2 text-sm text-gray-600">Aggiornamento calendario…</div> : null}
+        {calendarState === 'loading' ? <div className="mt-2 ui-muted">Aggiornamento calendario…</div> : null}
 
         {/* Eventi del giorno selezionato */}
         <section className="ui-card ui-cardContent">
@@ -341,6 +384,12 @@ export default function CalendarPage() {
         </section>
 
         <FutureBookingsList loading={futureLoading} error={futureError} bookings={bookings} />
+
+        {walletState !== 'loading' && walletDue > 0 ? (
+          <section className="pt-1">
+            <SaldoPill amount={walletDue} />
+          </section>
+        ) : null}
       </div>
     </main>
   );

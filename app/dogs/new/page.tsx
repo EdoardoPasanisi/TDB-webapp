@@ -31,8 +31,8 @@ export default function NewDogPage() {
 
   if (authLoading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
-        <p className="ui-body text-[var(--muted)]">Caricamento...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }
@@ -87,7 +87,7 @@ export default function NewDogPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+    <main className="ui-page min-h-screen">
       <div className="mx-auto w-full max-w-xl px-4 pb-10 pt-4 space-y-4">
         <Card>
           <CardContent className="space-y-3">

@@ -47,7 +47,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)]">
+    <main className="ui-page min-h-screen">
       <div className="mx-auto w-full max-w-xl px-4 pb-10 pt-4 space-y-4">
         <header className="space-y-1">
           <h1 className="ui-title">Impostazioni</h1>
@@ -89,8 +89,6 @@ export default function SettingsPage() {
                 Cookie
               </Button>
             </div>
-
-            <p className="ui-muted">Tenuta del Barone Srls – Via Davide Passigli 60, Fiumicino – P.IVA 16378301002</p>
           </CardContent>
         </Card>
 

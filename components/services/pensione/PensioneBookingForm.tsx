@@ -9,6 +9,7 @@ import { DogAvatar } from '@/components/dogs/DogAvatar';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
+import { TaxiQuote } from '@/components/services/common/TaxiQuote';
 
 type Props = {
   title: string;
@@ -150,7 +151,6 @@ export function PensioneBookingForm(props: Props) {
     arrivalTime,
     departureTime,
     taxiOption,
-    taxiDistanceBand,
     taxiDistance,
     notes,
     perDogForm,
@@ -220,7 +220,7 @@ export function PensioneBookingForm(props: Props) {
             </div>
 
             {selectedDogIds.length === 0 ? (
-              <div className="ui-body font-[var(--font-weight-semibold)] text-[var(--brand-accent)]">
+              <div className="ui-body font-[var(--font-weight-semibold)] ui-accentText">
                 Seleziona almeno un cane per continuare.
               </div>
             ) : null}
@@ -299,20 +299,9 @@ export function PensioneBookingForm(props: Props) {
               ) : taxiDistance.loading ? (
                 <div className="ui-muted">Calcolo distanza in corso…</div>
               ) : taxiDistance.error ? (
-                <div className="ui-body text-[rgba(255,0,0,0.85)]">{taxiDistance.error}</div>
+                <div className="ui-dangerText">{taxiDistance.error}</div>
               ) : (
-                <div className="space-y-1 ui-body">
-                  <div>
-                    Distanza stimata:{' '}
-                    <span className="font-[var(--font-weight-semibold)]">{taxiDistance.km?.toFixed(1)} km</span>
-                  </div>
-                  <div>
-                    Fascia prezzo:{' '}
-                    <span className="font-[var(--font-weight-semibold)]">
-                      {taxiDistanceBand === 'ENTRO_40' ? 'Entro 40 km' : 'Oltre 40 km'}
-                    </span>
-                  </div>
-                </div>
+                taxiDistance.km !== null ? <TaxiQuote km={taxiDistance.km} priceEur={pricing.taxiPrice} /> : <div className="ui-muted">—</div>
               )}
             </Field>
           </div>
@@ -418,7 +407,7 @@ export function PensioneBookingForm(props: Props) {
                     <div className="flex items-center justify-between gap-3 ui-minw0">
                       <div className="ui-body font-[var(--font-weight-semibold)]">Terapia in corso *</div>
                       {therapyMissing ? (
-                        <div className="ui-body font-[var(--font-weight-semibold)] text-[rgba(255,0,0,0.85)]">
+                        <div className="ui-body font-[var(--font-weight-semibold)] ui-dangerText">
                           Seleziona Sì o No
                         </div>
                       ) : null}
@@ -450,7 +439,7 @@ export function PensioneBookingForm(props: Props) {
                           />
                         </Field>
                         {!form.therapyNotes.trim() ? (
-                          <div className="ui-muted text-[rgba(255,0,0,0.85)]">
+                          <div className="ui-dangerText">
                             Se hai selezionato “Sì”, inserisci i dettagli della terapia.
                           </div>
                         ) : null}
@@ -501,7 +490,7 @@ export function PensioneBookingForm(props: Props) {
             </div>
             <div className="pt-2 ui-h2">
               Totale preventivo:{' '}
-              <span className="text-[var(--brand-accent)] font-[var(--font-weight-bold)]">
+              <span className="ui-accentText font-[var(--font-weight-bold)]">
                 {pricing.totalPrice.toFixed(2)}€
               </span>
             </div>

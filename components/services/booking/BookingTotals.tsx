@@ -26,10 +26,10 @@ export function BookingTotals({ booking }: { booking: BookingRow }) {
   ];
 
   return (
-    <section className="bg-white rounded-lg shadow p-4 space-y-2">
-      <h2 className="text-lg font-semibold">Riepilogo</h2>
+    <section className="ui-panel p-4 space-y-2">
+      <h2 className="ui-h2">Riepilogo</h2>
 
-      <div className="text-sm space-y-1">
+      <div className="ui-body space-y-1">
         {rows.map((r) => {
           // non mostrare righe vuote
           if (r.value === null || r.value === undefined) return null;
@@ -37,7 +37,7 @@ export function BookingTotals({ booking }: { booking: BookingRow }) {
           if (r.label === 'Sconto (%)') {
             return (
               <p key={r.label} className="flex items-center justify-between">
-                <span className="text-gray-700">{r.label}</span>
+                <span className="ui-muted">{r.label}</span>
                 <span className="font-medium">{r.value}%</span>
               </p>
             );
@@ -45,7 +45,7 @@ export function BookingTotals({ booking }: { booking: BookingRow }) {
 
           return (
             <p key={r.label} className="flex items-center justify-between">
-              <span className="text-gray-700">{r.label}</span>
+              <span className="ui-muted">{r.label}</span>
               <span className={r.label === 'Totale' ? 'font-semibold' : 'font-medium'}>
                 {euro(r.value as number)}
               </span>

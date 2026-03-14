@@ -65,8 +65,8 @@ export default function DogDetailPage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
-          <p className="ui-body text-[var(--muted)]">Caricamento...</p>
+        <main className="ui-page min-h-screen flex items-center justify-center">
+          <p className="ui-muted">Caricamento...</p>
         </main>
       }
     >
@@ -181,8 +181,8 @@ function DogDetailInner() {
 
   if (authLoading || loadingDog) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
-        <p className="ui-body text-[var(--muted)]">Caricamento cane...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento cane...</p>
       </main>
     );
   }
@@ -191,7 +191,7 @@ function DogDetailInner() {
 
   if (!dog) {
     return (
-      <main className="min-h-screen bg-[var(--brand-bg)] p-4">
+      <main className="ui-page min-h-screen p-4">
         <div className="mx-auto w-full max-w-xl pt-8">
           <Card>
             <CardContent className="space-y-3 text-center">
@@ -368,13 +368,13 @@ function DogDetailInner() {
   const dogForCard = dog as unknown as PublicDogCardDog;
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] p-4 text-[var(--text)]">
+    <main className="ui-page min-h-screen p-4">
       <div className="mx-auto w-full max-w-xl space-y-4">
         <Card>
           <CardContent className="space-y-3">
             <div className="flex items-center gap-3">
               <div
-                className="rounded-[var(--radius)] bg-[var(--surface-2)] overflow-hidden border border-[var(--border)] flex items-center justify-center shrink-0"
+                className="ui-mediaFrame ui-mediaFrame--rounded overflow-hidden flex items-center justify-center shrink-0"
                 style={{ width: 72, height: 72 }}
               >
                 {photoUrl ? (
@@ -408,7 +408,7 @@ function DogDetailInner() {
         </Card>
 
         {createdBanner ? (
-          <div className="rounded-[var(--radius)] border border-[rgba(100,220,140,0.45)] bg-[rgba(100,220,140,0.12)] p-3">
+          <div className="ui-success">
             <p className="ui-body">Cane creato correttamente.</p>
           </div>
         ) : null}
@@ -441,56 +441,56 @@ function DogDetailInner() {
 
                 <div className="space-y-2">
                   {dog.breed ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="ui-panelInset p-3">
                       <p className="ui-muted">Razza</p>
                       <p className="ui-body mt-1">{dog.breed}</p>
                     </div>
                   ) : null}
 
                   {dog.sex ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="ui-panelInset p-3">
                       <p className="ui-muted">Sesso</p>
                       <p className="ui-body mt-1">{sexLabel(dog.sex)}</p>
                     </div>
                   ) : null}
 
                   {dog.size_category ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="ui-panelInset p-3">
                       <p className="ui-muted">Taglia</p>
                       <p className="ui-body mt-1">{sizeLabel(dog.size_category)}</p>
                     </div>
                   ) : null}
 
                   {dog.birth_date ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="ui-panelInset p-3">
                       <p className="ui-muted">Data di nascita</p>
                       <p className="ui-body mt-1">{formatDDMMYYYY(dog.birth_date)}</p>
                     </div>
                   ) : null}
 
                   {dog.microchip ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="ui-panelInset p-3">
                       <p className="ui-muted">Microchip</p>
                       <p className="ui-body mt-1 break-all">{dog.microchip}</p>
                     </div>
                   ) : null}
 
                   {dog.coat_color ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="ui-panelInset p-3">
                       <p className="ui-muted">Colore mantello</p>
                       <p className="ui-body mt-1">{dog.coat_color}</p>
                     </div>
                   ) : null}
 
                   {infoTemperaments ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="ui-panelInset p-3">
                       <p className="ui-muted">Carattere</p>
                       <p className="ui-body mt-1">{infoTemperaments}</p>
                     </div>
                   ) : null}
 
                   {dog.notes ? (
-                    <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                    <div className="ui-panelInset p-3">
                       <p className="ui-muted">Note</p>
                       <p className="ui-body mt-1 whitespace-pre-line">{dog.notes}</p>
                     </div>

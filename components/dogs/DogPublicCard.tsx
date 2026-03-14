@@ -1,8 +1,6 @@
 // components/dogs/DogPublicCard.tsx
 'use client';
 
-import { useMemo } from 'react';
-import { supabase } from '@/lib/supabaseClient';
 import { formatTemperamentsForDisplay, getAgeLabel } from '@/lib/dogs/dogDisplay';
 import type { DogSex } from '@/types/dog';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -97,6 +95,23 @@ function formatAddress(line: string | null, city: string | null, zip: string | n
   return parts.filter(Boolean).join(', ');
 }
 
+function buildDogPhotoPublicUrl(photoPath: string, updatedAt?: string | null): string | null {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return null;
+
+  const normalizedPath = photoPath
+    .split('/')
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+
+  if (!normalizedPath) return null;
+
+  const base = `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/public/dog-images/${normalizedPath}`;
+  const version = updatedAt ? encodeURIComponent(updatedAt) : null;
+  return version ? `${base}?v=${version}` : base;
+}
+
 export function DogPublicCard({
   dog,
   owner,
@@ -106,14 +121,7 @@ export function DogPublicCard({
   owner?: PublicDogCardOwner | null;
   showFooter?: boolean;
 }) {
-  const photoUrl = useMemo(() => {
-    if (!dog.photo_path) return null;
-    const { data } = supabase.storage.from('dog-images').getPublicUrl(dog.photo_path);
-    const base = data?.publicUrl ?? null;
-    if (!base) return null;
-    const version = dog.updated_at ? encodeURIComponent(dog.updated_at) : null;
-    return version ? `${base}?v=${version}` : base;
-  }, [dog.photo_path, dog.updated_at]);
+  const photoUrl = dog.photo_path ? buildDogPhotoPublicUrl(dog.photo_path, dog.updated_at) : null;
 
   const subtitleParts: string[] = [];
   if (dog.show_breed !== false && dog.breed) subtitleParts.push(dog.breed);
@@ -208,81 +216,78 @@ export function DogPublicCard({
   return (
     <Card className="w-full">
       <CardContent className="space-y-4">
-        <header className="border-b border-[var(--border)] pb-4">
-          <div className="flex items-center gap-3">
-            {photoUrl ? (
+        <header className="ui-dividerBottom pb-4">
+          {photoUrl ? (
+            <div className="flex items-center gap-3">
               <div
-                className="rounded-[var(--radius)] overflow-hidden border border-[var(--border)] bg-[var(--surface-2)] shrink-0"
+                className="ui-mediaFrame ui-mediaFrame--rounded overflow-hidden shrink-0"
                 style={{ width: 72, height: 72 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={photoUrl} alt="Foto cane" className="block h-full w-full max-h-full max-w-full object-cover" />
               </div>
-            ) : (
-              <div
-                className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] flex items-center justify-center shrink-0"
-                style={{ width: 72, height: 72 }}
-              >
-                <span className="ui-muted">Nessuna foto</span>
+              <div className="min-w-0">
+                <h1 className="ui-h2 truncate">{dog.name}</h1>
+                {subtitleParts.length > 0 ? <p className="mt-1 ui-muted">{subtitleParts.join(' • ')}</p> : null}
               </div>
-            )}
-
+            </div>
+          ) : (
             <div className="min-w-0">
               <h1 className="ui-h2 truncate">{dog.name}</h1>
               {subtitleParts.length > 0 ? <p className="mt-1 ui-muted">{subtitleParts.join(' • ')}</p> : null}
             </div>
-          </div>
+          )}
         </header>
 
         {lines.length > 0 ? (
           <section className="space-y-2">
             {lines.map((line) => (
-              <div key={line.key} className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div key={line.key} className="ui-panelInset p-3">
                 <p className="ui-muted">{line.label}</p>
                 <p className="ui-body mt-1 whitespace-pre-line break-words">{line.value}</p>
               </div>
             ))}
           </section>
         ) : (
-          <section className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+          <section className="ui-panelInset p-3">
             <p className="ui-muted">Nessun dettaglio visibile nella scheda.</p>
           </section>
         )}
 
         {ownerBlock?.anyOwnerInfoVisible && owner ? (
-          <section className="border-t border-[var(--border)] pt-4 space-y-2">
+          <section className="ui-dividerTop pt-4 space-y-2">
             <h2 className="ui-body font-[var(--font-weight-semibold)]">Contatti proprietario</h2>
 
             {ownerBlock.ownerNameVisible ? (
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <p className="ui-muted">Nome</p>
                 <p className="ui-body mt-1">{ownerBlock.ownerName}</p>
               </div>
             ) : null}
 
             {ownerBlock.ownerPhoneVisible && owner.phone ? (
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <p className="ui-muted">Telefono</p>
                 <p className="ui-body mt-1">{owner.phone}</p>
               </div>
             ) : null}
 
             {ownerBlock.ownerEmailVisible && owner.email ? (
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <p className="ui-muted">Email</p>
                 <p className="ui-body mt-1 break-all">{owner.email}</p>
               </div>
             ) : null}
 
             {ownerBlock.ownerHomeAddressVisible && ownerBlock.homeAddress ? (
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <p className="ui-muted">Indirizzo</p>
                 <p className="ui-body mt-1">{ownerBlock.homeAddress}</p>
               </div>
             ) : null}
 
             {ownerBlock.ownerDogAddressVisible && ownerBlock.dogAddress ? (
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-2)] p-3">
+              <div className="ui-panelInset p-3">
                 <p className="ui-muted">Indirizzo cane</p>
                 <p className="ui-body mt-1">{ownerBlock.dogAddress}</p>
               </div>

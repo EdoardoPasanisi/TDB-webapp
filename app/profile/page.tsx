@@ -22,7 +22,7 @@ function initials(first?: string | null, last?: string | null) {
 }
 
 function ChevronMuted() {
-  return <span className="text-xs text-[var(--muted)]">›</span>;
+  return <span className="ui-muted">›</span>;
 }
 
 export default function ProfileOverviewPage() {
@@ -103,8 +103,8 @@ export default function ProfileOverviewPage() {
 
   if (authLoading || loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-[var(--brand-bg)]">
-        <p className="text-sm text-[var(--muted)]">Caricamento...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }
@@ -112,7 +112,7 @@ export default function ProfileOverviewPage() {
   if (!user) return null;
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] text-[var(--text)] -mt-[calc(var(--topbar-h)+12px)] md:mt-0">
+    <main className="ui-page min-h-screen -mt-[calc(var(--topbar-h)+12px)] md:mt-0">
       {/*
         Banner attaccato in alto:
         - mobile: compensiamo lo spazio della topbar del layout (che su /profile dovrebbe essere nascosta)
@@ -126,23 +126,23 @@ export default function ProfileOverviewPage() {
           className="relative block w-full text-left"
           aria-label="Apri dati personali"
         >
-          <div className="relative bg-[var(--brand-accent)] text-black">
-            <div className="mx-auto w-full max-w-xl px-4 pt-5 pb-10">
+          <div className="relative ui-profileHero">
+            <div className="mx-auto w-full max-w-xl px-4 pt-5 pb-6">
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-black/10 border border-black/10 flex items-center justify-center text-sm font-extrabold">
+                <div className="ui-profileHeroAvatar">
                   {ownerInitials}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-lg font-extrabold truncate">
                     {ownerFullName || 'Dati personali'}
                   </div>
-                  <div className="text-xs text-black/70 truncate">{ownerEmail || '—'}</div>
-                  <div className="mt-1 text-[11px] text-black/70">
+                  <div className="ui-note ui-profileHeroMuted truncate">{ownerEmail || '—'}</div>
+                  <div className="mt-1 ui-fine ui-profileHeroMuted">
                     Tocca qui per gestire dati, documenti e liberatoria
                   </div>
                 </div>
                 <div className="shrink-0 pl-1" aria-hidden="true">
-                  <span className="text-4xl leading-none font-black text-black/80">›</span>
+                  <span className="ui-profileHeroChevron">›</span>
                 </div>
               </div>
             </div>
@@ -151,14 +151,12 @@ export default function ProfileOverviewPage() {
       </section>
 
       {/* Spacer: altezza banner (mobile) */}
-      <div className="md:hidden h-[140px]" />
+      <div className="md:hidden h-[120px]" />
 
       {/* contenuto */}
       <div className="mx-auto w-full max-w-xl px-4 pb-8 pt-4 space-y-6">
         {error ? (
-          <Card className="border border-red-500/30">
-            <CardContent className="text-sm text-red-300">{error}</CardContent>
-          </Card>
+          <div className="ui-error">{error}</div>
         ) : null}
 
         <section className="space-y-3">
@@ -174,7 +172,7 @@ export default function ProfileOverviewPage() {
 
           {dogs.length === 0 ? (
             <Card>
-              <CardContent className="text-sm text-[var(--muted)]">
+              <CardContent className="ui-muted">
                 Non hai ancora creato nessun cane.
               </CardContent>
             </Card>

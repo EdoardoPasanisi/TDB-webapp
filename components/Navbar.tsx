@@ -1,11 +1,13 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuthContext } from '@/lib/auth/AuthProvider';
 import { MobileTopBar } from '@/components/ui/MobileTopBar';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { BackButton } from '@/components/common/BackButton';
+import { Button } from '@/components/ui/Button';
 
 function isMainRoute(pathname: string) {
   return (
@@ -16,10 +18,35 @@ function isMainRoute(pathname: string) {
   );
 }
 
+function isAuthRoute(pathname: string) {
+  return (
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname.startsWith('/signup/') ||
+    pathname === '/forgot-password' ||
+    pathname === '/reset-password' ||
+    pathname.startsWith('/auth/')
+  );
+}
+
 export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuthContext();
+  const hideNavbarForRoute = pathname.startsWith('/dogs/card/') || isAuthRoute(pathname);
+  const showMobileChrome = !loading && !!user && !hideNavbarForRoute;
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    document.body.dataset.mobileChrome = showMobileChrome ? 'on' : 'off';
+  }, [showMobileChrome]);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    return () => {
+      document.body.dataset.mobileChrome = 'off';
+    };
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -37,8 +64,8 @@ export default function Navbar() {
   };
 
   if (loading) return null;
+  if (hideNavbarForRoute) return null;
   if (!user) return null;
-  if (pathname.startsWith('/dogs/card/')) return null;
 
   const isServicesActive = pathname === '/services' || pathname.startsWith('/services/');
   const isSettingsActive = pathname === '/settings' || pathname.startsWith('/settings/');
@@ -52,17 +79,17 @@ export default function Navbar() {
 
       {/* DESKTOP */}
       <header data-app-chrome="desktop-top" className="hidden md:block">
-        <div className="bg-[var(--brand-bg)] text-[var(--text)] border-b border-[var(--border)]">
+        <div className="ui-desktopTopShell">
           <nav className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
-            <button onClick={() => router.push('/profile')} className="text-lg font-bold">
+            <button onClick={() => router.push('/profile')} className="text-lg font-black">
               Tenuta del Barone
             </button>
 
             <div className="flex items-center gap-3 text-sm">
               <button
                 onClick={() => router.push('/profile')}
-                className={`px-3 py-2 rounded-[var(--radius)] hover:bg-[rgba(255,255,255,0.06)] ${
-                  pathname === '/profile' ? 'bg-[rgba(255,255,255,0.06)]' : ''
+                className={`ui-navLinkBtn ${
+                  pathname === '/profile' ? 'ui-navLinkBtn--active' : ''
                 }`}
               >
                 Profilo
@@ -70,8 +97,8 @@ export default function Navbar() {
 
               <button
                 onClick={() => router.push('/services')}
-                className={`px-3 py-2 rounded-[var(--radius)] hover:bg-[rgba(255,255,255,0.06)] ${
-                  isServicesActive ? 'bg-[rgba(255,255,255,0.06)]' : ''
+                className={`ui-navLinkBtn ${
+                  isServicesActive ? 'ui-navLinkBtn--active' : ''
                 }`}
               >
                 Servizi
@@ -79,19 +106,21 @@ export default function Navbar() {
 
               <button
                 onClick={() => router.push('/settings')}
-                className={`px-3 py-2 rounded-[var(--radius)] hover:bg-[rgba(255,255,255,0.06)] ${
-                  isSettingsActive ? 'bg-[rgba(255,255,255,0.06)]' : ''
+                className={`ui-navLinkBtn ${
+                  isSettingsActive ? 'ui-navLinkBtn--active' : ''
                 }`}
               >
                 Impostazioni
               </button>
 
-              <button
+              <Button
+                type="button"
+                variant="primary"
                 onClick={handleLogout}
-                className="px-4 h-11 rounded-[var(--radius)] bg-[var(--brand-accent)] text-black font-semibold hover:opacity-90"
+                className="h-11 px-4"
               >
                 Logout
-              </button>
+              </Button>
             </div>
           </nav>
         </div>

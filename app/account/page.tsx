@@ -18,7 +18,7 @@ const PROFILE_SELECT =
   'user_id, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOC_ACTION_WIDTH_CLASS = 'w-[132px]';
 const DOC_DOWNLOAD_LINK_CLASS =
-  'inline-flex items-center justify-center rounded-[var(--btn-radius)] h-[var(--btn-h)] px-[var(--btn-px)] text-[length:var(--btn-font-size)] font-[var(--btn-font-weight)] leading-none bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] w-[132px]';
+  'ui-btn ui-btnTone-secondary w-[132px]';
 
 type UserDocumentKind = 'ID_DOCUMENT' | 'WAIVER_SIGNED';
 type UserDocumentStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
@@ -526,8 +526,8 @@ export default function AccountPage() {
 
   if (authLoading || loadingData) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-gray-100">
-        <p className="ui-body text-gray-700">Caricamento...</p>
+      <main className="ui-page min-h-screen flex items-center justify-center">
+        <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }
@@ -557,16 +557,16 @@ export default function AccountPage() {
   const topError = error ?? authError?.message ?? null;
 
   return (
-    <main className="min-h-screen bg-gray-100 text-[var(--text)]">
+    <main className="ui-page min-h-screen">
       <div className="mx-auto w-full max-w-xl px-4 pb-10 pt-4 space-y-4">
         {topError ? (
-          <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 ui-body text-red-700">
+          <div className="ui-error">
             {topError}
           </div>
         ) : null}
 
         {fiscalCodeWarning ? (
-          <div className="rounded-[var(--radius)] border border-amber-200 bg-amber-50 p-3 ui-body text-amber-900">
+          <div className="ui-alertWarn">
             {fiscalCodeWarning}
           </div>
         ) : null}
@@ -617,7 +617,7 @@ export default function AccountPage() {
             {showIdDocumentSection ? (
               <div className="space-y-3">
                 {idDocError ? (
-                  <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 ui-body text-red-700">
+                  <div className="ui-error">
                     {idDocError}
                   </div>
                 ) : null}
@@ -635,7 +635,7 @@ export default function AccountPage() {
                   }}
                 />
 
-                <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
+                <div className="ui-panelInset p-3 space-y-2">
                   <p className="ui-body">
                     <span className="font-medium">Stato:</span> {idDocStatusLabel}
                   </p>
@@ -718,10 +718,10 @@ export default function AccountPage() {
             {showWaiverSection ? (
               <div className="space-y-4">
                 {/* Parte 1: generazione */}
-                <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
+                <div className="ui-panelInset p-3 space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="ui-body font-[var(--font-weight-semibold)] text-gray-900">Liberatoria da firmare</p>
+                      <p className="ui-body font-[var(--font-weight-semibold)]">Liberatoria da firmare</p>
                       <p className="ui-muted mt-1">
                         Genera la liberatoria precompilata, scaricala e firmala.
                       </p>
@@ -739,16 +739,16 @@ export default function AccountPage() {
                   </div>
 
                   {!canGenerateWaiver ? (
-                    <div className="rounded-[var(--radius)] border border-amber-200 bg-amber-50 p-3">
-                      <p className="ui-body text-amber-900 font-medium">
+                    <div className="ui-alertWarn">
+                      <p className="ui-body font-medium">
                         Per generare la liberatoria mancano:
                       </p>
-                      <ul className="list-disc pl-5 ui-body text-amber-900 mt-1">
+                      <ul className="list-disc pl-5 ui-body mt-1">
                         {waiverMissingFields.map((f) => (
                           <li key={f}>{f}</li>
                         ))}
                       </ul>
-                      <p className="ui-muted text-amber-800 mt-2">
+                      <p className="ui-muted mt-2">
                         Compila e salva i dati del profilo qui sopra.
                       </p>
                     </div>
@@ -758,7 +758,7 @@ export default function AccountPage() {
                 {/* Parte 2: liberatoria firmata */}
                 <div className="space-y-3">
                   {waiverError ? (
-                    <div className="rounded-[var(--radius)] border border-red-200 bg-red-50 p-3 ui-body text-red-700">
+                    <div className="ui-error">
                       {waiverError}
                     </div>
                   ) : null}
@@ -776,7 +776,7 @@ export default function AccountPage() {
                     }}
                   />
 
-                  <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
+                  <div className="ui-panelInset p-3 space-y-2">
                     <p className="ui-body">
                       <span className="font-medium">Stato:</span> {waiverStatusLabel}
                     </p>

@@ -34,9 +34,7 @@ function formatAddressLine(
   return parts.join(', ');
 }
 
-const inputBase =
-  'w-full h-11 rounded-[var(--radius)] border border-[var(--border)] bg-white px-3 text-[length:var(--font-size-md)] text-[var(--text)] ' +
-  'focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)]/30';
+const inputBase = 'ui-control ui-input';
 
 const labelBase = 'block ui-label';
 
@@ -95,7 +93,7 @@ export function ProfileDetails({
         {!profileEditing ? (
           <div className="space-y-3">
             {profile ? (
-              <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white divide-y divide-[var(--border)] overflow-hidden">
+              <div className="ui-panelInset divide-y divide-[var(--border)] overflow-hidden">
                 <div className="p-3 space-y-2">
                   <p className="ui-body font-[var(--font-weight-semibold)]">Contatti</p>
                   <DetailRow label="Nome e cognome" value={ownerNamePreview || '—'} />
@@ -220,7 +218,7 @@ export function ProfileDetails({
                     type="checkbox"
                     checked={profileForm.dog_address_same_as_home}
                     onChange={(e) => onToggle('dog_address_same_as_home', e.target.checked)}
-                    className="h-4 w-4 accent-[var(--brand-accent)]"
+                    className="ui-checkbox"
                   />
                   Usa l&apos;indirizzo di casa
                 </label>
@@ -233,7 +231,7 @@ export function ProfileDetails({
                       value={profileForm.dog_address_line}
                       onChange={(e) => onChangeText('dog_address_line', e.target.value)}
                       disabled={profileForm.dog_address_same_as_home}
-                      className={`${inputBase} disabled:bg-gray-100`}
+                      className={inputBase}
                     />
                   </div>
 
@@ -244,7 +242,7 @@ export function ProfileDetails({
                       value={profileForm.dog_city}
                       onChange={(e) => onChangeText('dog_city', e.target.value)}
                       disabled={profileForm.dog_address_same_as_home}
-                      className={`${inputBase} disabled:bg-gray-100`}
+                      className={inputBase}
                     />
                   </div>
 
@@ -255,7 +253,7 @@ export function ProfileDetails({
                       value={profileForm.dog_zip_code}
                       onChange={(e) => onChangeText('dog_zip_code', e.target.value)}
                       disabled={profileForm.dog_address_same_as_home}
-                      className={`${inputBase} disabled:bg-gray-100`}
+                      className={inputBase}
                     />
                   </div>
 
@@ -266,7 +264,7 @@ export function ProfileDetails({
                       value={profileForm.dog_province}
                       onChange={(e) => onChangeText('dog_province', e.target.value)}
                       disabled={profileForm.dog_address_same_as_home}
-                      className={`${inputBase} disabled:bg-gray-100`}
+                      className={inputBase}
                     />
                   </div>
                 </div>
@@ -274,7 +272,7 @@ export function ProfileDetails({
 
               {/* CF */}
               <div className="sm:col-span-2">
-                <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
+                <div className="ui-panelInset p-3 space-y-2">
                   <p className="ui-body font-[var(--font-weight-semibold)]">Codice fiscale</p>
                   <input
                     type="text"
@@ -291,7 +289,7 @@ export function ProfileDetails({
 
               {/* Birth date */}
               <div className="sm:col-span-2">
-                <div className="rounded-[var(--radius)] border border-[var(--border)] bg-white p-3 space-y-2">
+                <div className="ui-panelInset p-3 space-y-2">
                   <p className="ui-body font-[var(--font-weight-semibold)]">Data di nascita</p>
                   <input
                     type="date"

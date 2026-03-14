@@ -2,12 +2,12 @@
 'use client';
 
 import { FormEvent, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { Button } from '@/components/ui/Button';
+import { Card, CardContent } from '@/components/ui/Card';
+import { SectionHeader } from '@/components/ui/SectionHeader';
 
 export default function ChangePasswordPage() {
-  const router = useRouter();
-
   const [currentPassword, setCurrentPassword] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -86,82 +86,84 @@ export default function ChangePasswordPage() {
   };
 
   return (
-    <main className="min-h-screen bg-gray-100 p-4">
-      <div className="max-w-md mx-auto space-y-4">
-        <header className="flex items-center justify-between">
-          <h1 className="text-xl font-bold">Cambia password</h1>
-          <button
-            type="button"
-            onClick={() => router.push('/account')}
-            className="text-sm px-3 py-2 rounded border border-gray-300 hover:bg-gray-50"
-          >
-            Indietro
-          </button>
+    <main className="ui-page min-h-screen">
+      <div className="mx-auto w-full max-w-xl px-4 pb-10 pt-4 space-y-4">
+        <header className="space-y-1">
+          <h1 className="ui-title">Modifica password</h1>
+          <p className="ui-muted">Inserisci la password attuale e poi quella nuova (minimo 8 caratteri).</p>
         </header>
 
-        <section className="bg-white rounded-lg shadow p-4 space-y-3">
-          <p className="text-sm text-gray-700">
-            Inserisci la password attuale e poi la nuova password (minimo 8 caratteri).
-          </p>
+        <Card>
+          <CardContent className="space-y-4">
+            <SectionHeader title="Sicurezza account" subtitle="Aggiorna la password di accesso." />
 
-          {doneMessage && (
-            <div className="rounded border border-green-200 bg-green-50 p-3">
-              <p className="text-sm text-green-800">{doneMessage}</p>
-            </div>
-          )}
+            {doneMessage ? (
+              <div className="ui-success">
+                Password aggiornata correttamente.
+              </div>
+            ) : null}
 
-          {errorMessage && (
-            <div className="rounded border border-red-200 bg-red-50 p-3">
-              <p className="text-sm text-red-700">{errorMessage}</p>
-            </div>
-          )}
+            {errorMessage ? (
+              <div className="ui-error">{errorMessage}</div>
+            ) : null}
 
-          <form onSubmit={handleSubmit} className="space-y-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password attuale</label>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                required
-              />
-            </div>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <div>
+                <label htmlFor="current-password" className="ui-body font-[var(--font-weight-semibold)]">
+                  Password attuale
+                </label>
+                <input
+                  id="current-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="ui-control ui-input mt-2"
+                  required
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nuova password</label>
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                required
-              />
-            </div>
+              <div>
+                <label htmlFor="new-password" className="ui-body font-[var(--font-weight-semibold)]">
+                  Nuova password
+                </label>
+                <input
+                  id="new-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="ui-control ui-input mt-2"
+                  required
+                />
+              </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Conferma password</label>
-              <input
-                type="password"
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                required
-              />
-            </div>
+              <div>
+                <label htmlFor="confirm-password" className="ui-body font-[var(--font-weight-semibold)]">
+                  Conferma password
+                </label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  className="ui-control ui-input mt-2"
+                  required
+                />
+              </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full px-4 py-2 rounded bg-black text-white text-sm font-medium hover:opacity-90 disabled:opacity-60"
-            >
-              {loading ? 'Salvataggio...' : 'Aggiorna password'}
-            </button>
-          </form>
-        </section>
+              <Button
+                type="submit"
+                variant="primary"
+                fullWidth
+                disabled={loading}
+              >
+                {loading ? 'Salvataggio...' : 'Aggiorna password'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
       </div>
     </main>
   );
