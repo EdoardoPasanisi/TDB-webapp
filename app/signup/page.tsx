@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { getAuthRedirectBase } from '@/lib/auth/getAuthRedirectBase';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
@@ -31,7 +32,9 @@ export default function SignupPage() {
     setError(null);
     setLoading(true);
 
-    const emailRedirectTo = `${window.location.origin}/auth/callback`;
+    const redirectBase = getAuthRedirectBase();
+    const confirmNext = encodeURIComponent('/login?verified=1');
+    const emailRedirectTo = `${redirectBase}/auth/callback?next=${confirmNext}`;
 
     const { data, error: signupError } = await supabase.auth.signUp({
       email,
@@ -41,6 +44,14 @@ export default function SignupPage() {
 
     if (signupError || !data.user) {
       setError(signupError?.message ?? 'Errore nella registrazione.');
+      setLoading(false);
+      return;
+    }
+
+    // Supabase può restituire utente "offuscato" senza errore per email già registrate.
+    const isExistingUser = Array.isArray(data.user.identities) && data.user.identities.length === 0;
+    if (isExistingUser) {
+      setError('Email già registrata. Accedi oppure usa "Password dimenticata?".');
       setLoading(false);
       return;
     }

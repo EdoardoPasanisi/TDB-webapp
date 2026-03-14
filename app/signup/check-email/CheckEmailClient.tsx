@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { getAuthRedirectBase } from '@/lib/auth/getAuthRedirectBase';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 
@@ -26,10 +27,19 @@ export default function CheckEmailClient() {
     }
 
     setSending(true);
-    const { error: resendError } = await supabase.auth.resend({
-      type: 'signup',
-      email,
-    });
+    const redirectBase = getAuthRedirectBase();
+    const confirmNext = encodeURIComponent('/login?verified=1');
+    const emailRedirectTo = redirectBase ? `${redirectBase}/auth/callback?next=${confirmNext}` : undefined;
+    const { error: resendError } = emailRedirectTo
+      ? await supabase.auth.resend({
+          type: 'signup',
+          email,
+          options: { emailRedirectTo },
+        })
+      : await supabase.auth.resend({
+          type: 'signup',
+          email,
+        });
     setSending(false);
 
     if (resendError) {

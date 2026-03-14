@@ -1,8 +1,9 @@
 'use client';
 
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { getAuthRedirectBase } from '@/lib/auth/getAuthRedirectBase';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
@@ -15,11 +16,6 @@ export default function ForgotPasswordPage() {
   const [doneMessage, setDoneMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const origin = useMemo(() => {
-    if (typeof window === 'undefined') return '';
-    return window.location.origin;
-  }, []);
-
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setDoneMessage(null);
@@ -27,8 +23,14 @@ export default function ForgotPasswordPage() {
     setLoading(true);
 
     try {
-      const redirectTo = origin ? `${origin}/reset-password` : undefined;
-      await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      const redirectBase = getAuthRedirectBase();
+      const redirectTo = redirectBase ? `${redirectBase}/reset-password` : undefined;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+
+      if (error) {
+        setErrorMessage(error.message || 'Non siamo riusciti a inviare l’email di recupero. Riprova tra poco.');
+        return;
+      }
 
       setDoneMessage(
         'Se l’indirizzo è registrato, riceverai un’email con le istruzioni per reimpostare la password.'
