@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { fetchAdminJson } from '@/lib/admin/client';
+import type { AdminStaffAccess } from '@/lib/admin/types';
 
 function SettingActionCard({
   title,
@@ -29,6 +31,25 @@ function SettingActionCard({
 export default function SettingsPage() {
   const router = useRouter();
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [staffAccess, setStaffAccess] = useState<AdminStaffAccess | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStaffAccess() {
+      try {
+        const data = await fetchAdminJson<AdminStaffAccess>('/api/admin/me');
+        if (!cancelled) setStaffAccess(data);
+      } catch {
+        if (!cancelled) setStaffAccess(null);
+      }
+    }
+
+    void loadStaffAccess();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleLogout = async () => {
     setLogoutLoading(true);
@@ -73,6 +94,27 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {staffAccess ? (
+          <Card>
+            <CardContent className="space-y-3">
+              <SectionHeader
+                title="Gestionale"
+                subtitle={
+                  staffAccess.canManage
+                    ? 'Accesso completo al backoffice.'
+                    : 'Accesso in sola lettura al backoffice.'
+                }
+              />
+
+              <SettingActionCard
+                title="Apri gestionale"
+                subtitle="Clienti, cani, prenotazioni, documenti, slot e configurazione."
+                onClick={() => router.push('/admin')}
+              />
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card>
           <CardContent className="space-y-3">

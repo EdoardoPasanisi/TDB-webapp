@@ -559,6 +559,88 @@ button {
     line-height: 1;
     font-weight: var(--font-weight-bold);
   }
+  .admin-heroCard {
+    background:
+      radial-gradient(circle at top right, rgba(255, 130, 0, 0.16), transparent 38%),
+      linear-gradient(180deg, rgba(255, 130, 0, 0.06), transparent 55%),
+      var(--surface);
+  }
+  .admin-tabBar {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .admin-tabButton {
+    border: 1px solid rgba(255, 130, 0, 0.22);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    padding: 10px 14px;
+    font-size: 14px;
+    font-weight: var(--font-weight-semibold);
+    white-space: nowrap;
+    transition: background-color 140ms ease, border-color 140ms ease;
+  }
+  .admin-tabButton--active {
+    background: rgba(255, 130, 0, 0.14);
+    border-color: rgba(255, 130, 0, 0.64);
+  }
+  .admin-metricCard {
+    min-height: 112px;
+  }
+  .admin-metricValue {
+    font-size: 28px;
+    font-weight: var(--font-weight-bold);
+    line-height: 1;
+  }
+  .admin-listCard {
+    transition: border-color 140ms ease, background-color 140ms ease;
+  }
+  .admin-selectedCard .admin-listCard,
+  .admin-listCard:hover {
+    border-color: rgba(255, 130, 0, 0.58);
+    background: linear-gradient(180deg, rgba(255, 130, 0, 0.06), transparent 60%), var(--surface);
+  }
+  .admin-status {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: var(--font-weight-semibold);
+    line-height: 1.2;
+  }
+  .admin-status--pending {
+    border-color: rgba(255, 184, 0, 0.5);
+    background: rgba(255, 184, 0, 0.12);
+  }
+  .admin-status--confirmed {
+    border-color: rgba(59, 130, 246, 0.54);
+    background: rgba(59, 130, 246, 0.14);
+  }
+  .admin-status--paid,
+  .admin-status--accepted {
+    border-color: rgba(34, 197, 94, 0.54);
+    background: rgba(34, 197, 94, 0.14);
+  }
+  .admin-status--completed {
+    border-color: rgba(168, 85, 247, 0.5);
+    background: rgba(168, 85, 247, 0.14);
+  }
+  .admin-status--danger {
+    border-color: rgba(248, 113, 113, 0.58);
+    background: rgba(248, 113, 113, 0.14);
+  }
+  .admin-inlineControls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
   .ui-topbarShell {
     height: var(--topbar-h);
     padding-left: 16px;

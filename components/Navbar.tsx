@@ -33,7 +33,10 @@ export default function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuthContext();
-  const hideNavbarForRoute = pathname.startsWith('/dogs/card/') || isAuthRoute(pathname);
+  const hideNavbarForRoute =
+    pathname.startsWith('/dogs/card/') ||
+    pathname.startsWith('/admin') ||
+    isAuthRoute(pathname);
   const showMobileChrome = !loading && !!user && !hideNavbarForRoute;
 
   useEffect(() => {

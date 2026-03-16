@@ -91,6 +91,7 @@ interface DogFormProps {
   initialPhotoUrl?: string | null;
   onPhotoSelected?: (file: File | null) => void;
   photoUploading?: boolean;
+  photoEnabled?: boolean;
 }
 
 export function DogForm({
@@ -106,6 +107,7 @@ export function DogForm({
   initialPhotoUrl = null,
   onPhotoSelected,
   photoUploading = false,
+  photoEnabled = true,
 }: DogFormProps) {
   const isEdit = mode === 'edit';
   const editableDog = isEdit ? initialDog ?? null : null;
@@ -289,88 +291,89 @@ export function DogForm({
         </div>
       ) : null}
 
-      {/* ✅ Foto cane */}
-      <Card>
-        <CardContent className="space-y-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="ui-body font-[var(--font-weight-semibold)]">Foto</p>
-              <p className="ui-muted mt-1">Facoltativa. JPG, PNG o WebP.</p>
-            </div>
-            {photoUploading ? <span className="ui-muted">Caricamento…</span> : null}
-          </div>
-
-          <div className="flex items-start gap-3">
-            <button
-              type="button"
-              className="ui-clickable ui-clickableMedia shrink-0"
-              style={{ width: 72, height: 72 }}
-              title="Carica o cambia foto"
-              disabled={photoUploading}
-              onClick={() => photoInputRef.current?.click()}
-            >
-              {effectivePhotoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={effectivePhotoUrl} alt="Foto cane" className="block h-full w-full max-h-full max-w-full object-cover" />
-              ) : (
-                <span className="ui-muted">Foto</span>
-              )}
-            </button>
-
-            <input
-              ref={photoInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              disabled={photoUploading}
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                handlePhotoChange(f);
-              }}
-              className="sr-only"
-            />
-
-            <div className="flex-1 space-y-2">
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Button
-                  type="button"
-                  variant="primary"
-                  fullWidth
-                  disabled={photoUploading}
-                  onClick={() => photoInputRef.current?.click()}
-                >
-                  {hasSavedPhoto ? 'Cambia foto' : 'Carica foto'}
-                </Button>
-
-                {hasLocalSelection ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    fullWidth
-                    disabled={photoUploading}
-                    onClick={() => {
-                      handlePhotoChange(null);
-                    }}
-                  >
-                    Annulla selezione
-                  </Button>
-                ) : hasSavedPhoto && onPhotoRemove ? (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    fullWidth
-                    disabled={photoUploading}
-                    onClick={() => void onPhotoRemove()}
-                  >
-                    Rimuovi foto
-                  </Button>
-                ) : null}
+      {photoEnabled ? (
+        <Card>
+          <CardContent className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="ui-body font-[var(--font-weight-semibold)]">Foto</p>
+                <p className="ui-muted mt-1">Facoltativa. JPG, PNG o WebP.</p>
               </div>
-
-              <p className="ui-muted">Tocca la foto oppure il pulsante per selezionare un’immagine.</p>
+              {photoUploading ? <span className="ui-muted">Caricamento…</span> : null}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+
+            <div className="flex items-start gap-3">
+              <button
+                type="button"
+                className="ui-clickable ui-clickableMedia shrink-0"
+                style={{ width: 72, height: 72 }}
+                title="Carica o cambia foto"
+                disabled={photoUploading}
+                onClick={() => photoInputRef.current?.click()}
+              >
+                {effectivePhotoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={effectivePhotoUrl} alt="Foto cane" className="block h-full w-full max-h-full max-w-full object-cover" />
+                ) : (
+                  <span className="ui-muted">Foto</span>
+                )}
+              </button>
+
+              <input
+                ref={photoInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={photoUploading}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  handlePhotoChange(f);
+                }}
+                className="sr-only"
+              />
+
+              <div className="flex-1 space-y-2">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant="primary"
+                    fullWidth
+                    disabled={photoUploading}
+                    onClick={() => photoInputRef.current?.click()}
+                  >
+                    {hasSavedPhoto ? 'Cambia foto' : 'Carica foto'}
+                  </Button>
+
+                  {hasLocalSelection ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      fullWidth
+                      disabled={photoUploading}
+                      onClick={() => {
+                        handlePhotoChange(null);
+                      }}
+                    >
+                      Annulla selezione
+                    </Button>
+                  ) : hasSavedPhoto && onPhotoRemove ? (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      fullWidth
+                      disabled={photoUploading}
+                      onClick={() => void onPhotoRemove()}
+                    >
+                      Rimuovi foto
+                    </Button>
+                  ) : null}
+                </div>
+
+                <p className="ui-muted">Tocca la foto oppure il pulsante per selezionare un’immagine.</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
 
       {/* Nome (required) */}

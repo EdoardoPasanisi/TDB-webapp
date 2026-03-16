@@ -12,6 +12,7 @@ interface ProfileDetailsProps {
   profileEditing: boolean;
   profileForm: ProfileFormState;
   savingProfile: boolean;
+  canEdit?: boolean;
 
   onChangeText: (field: keyof ProfileFormState, value: string) => void;
   onToggle: (field: keyof ProfileFormState, value: boolean) => void;
@@ -53,6 +54,7 @@ export function ProfileDetails({
   profileEditing,
   profileForm,
   savingProfile,
+  canEdit = true,
   onChangeText,
   onToggle,
   onSubmit,
@@ -82,7 +84,7 @@ export function ProfileDetails({
           title="Dati personali"
           subtitle={profile ? 'Gestisci i tuoi dati per servizi e documenti' : 'Completa i tuoi dati per continuare'}
           action={
-            !profileEditing ? (
+            canEdit && !profileEditing ? (
               <Button variant="secondary" onClick={onStartEdit}>
                 {profile ? 'Modifica' : 'Completa'}
               </Button>

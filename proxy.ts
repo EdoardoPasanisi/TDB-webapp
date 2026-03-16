@@ -44,9 +44,10 @@ function isPublicPath(pathname: string) {
 export async function proxy(request: NextRequest) {
   // Response “prossima”
   const response = NextResponse.next({ request: { headers: request.headers } });
+  const pathname = request.nextUrl.pathname;
 
   // Se è una pagina pubblica → lascia passare
-  if (isPublicPath(request.nextUrl.pathname)) {
+  if (isPublicPath(pathname)) {
     return response;
   }
 
@@ -91,6 +92,21 @@ export async function proxy(request: NextRequest) {
     url.pathname = '/signup/check-email';
     if (user.email) url.searchParams.set('email', user.email);
     return NextResponse.redirect(url);
+  }
+
+  if (pathname.startsWith('/admin')) {
+    const { data: staffAccess, error: staffError } = await supabase
+      .from('staff_accounts')
+      .select('role, is_active')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (staffError || !staffAccess || staffAccess.is_active === false) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/services';
+      url.searchParams.set('admin', 'forbidden');
+      return NextResponse.redirect(url);
+    }
   }
 
   return response;
