@@ -3,6 +3,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import type { BookingStatus, UnifiedBookingListItem } from '@/types/booking';
 import { getPensioneBookingsForUserInRange } from '@/lib/services/bookingsApi';
 import { getUserServiceSlotBookingsInRange } from '@/lib/services/serviceCalendarApi';
@@ -19,8 +20,7 @@ function toSortKey(b: UnifiedBookingListItem) {
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 type SlotBookingListItem = Extract<UnifiedBookingListItem, { kind: 'SERVICE_SLOT' }>;
@@ -129,7 +129,9 @@ export function useFutureBookings(userId: string | undefined) {
         if (!slotId) continue;
 
         const existing = bySlot.get(slotId);
-        const dogName = booking.dogs?.name?.trim() || null;
+        const dogNames = booking.dogs
+          .map((dog) => dog.name?.trim() ?? '')
+          .filter(Boolean);
 
         const status = booking.status ?? null;
         const isPaid = status === 'PAID';
@@ -142,7 +144,7 @@ export function useFutureBookings(userId: string | undefined) {
             status,
             start_at: slot?.start_at ?? '',
             end_at: slot?.end_at ?? '',
-            dogNames: dogName ? [dogName] : [],
+            dogNames,
             total_price_sum: typeof booking.total_price === 'number' ? booking.total_price : 0,
             has_total_price: typeof booking.total_price === 'number',
             taxi_enabled: booking.taxi_enabled,
@@ -152,7 +154,9 @@ export function useFutureBookings(userId: string | undefined) {
           if (existing.service_variant == null && (booking.service_variant ?? slot?.service_variant) != null) {
             existing.service_variant = booking.service_variant ?? slot?.service_variant ?? null;
           }
-          if (dogName && !existing.dogNames.includes(dogName)) existing.dogNames.push(dogName);
+          for (const dogName of dogNames) {
+            if (!existing.dogNames.includes(dogName)) existing.dogNames.push(dogName);
+          }
           if (typeof booking.total_price === 'number') {
             existing.total_price_sum += booking.total_price;
             existing.has_total_price = true;

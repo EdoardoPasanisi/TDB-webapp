@@ -2,10 +2,11 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 
 import { Modal } from '@/components/common/Modal';
 import { SlotMonthPicker } from '@/components/services/calendar/SlotMonthPicker';
+import { RequiredBookingProfileCard } from '@/components/services/common/RequiredBookingProfileCard';
 
 import type { ServicePassGroupSummary } from '@/types/services';
 import { computeTaxiPrice, getServiceLabel, requiresDogs } from '@/types/services';
@@ -20,6 +21,16 @@ import { supabase } from '@/lib/supabaseClient';
 import { DogAvatar } from '@/components/dogs/DogAvatar';
 import { Button } from '@/components/ui/Button';
 import { TaxiQuote } from '@/components/services/common/TaxiQuote';
+import {
+  getMissingRequiredCustomerBookingFields,
+  type CustomerBookingRequirementProfile,
+} from '@/lib/bookings/customerBookingRequirements';
+import {
+  buildSlotBookingDraftKey,
+  clearBookingDraft,
+  readBookingDraft,
+  writeBookingDraft,
+} from '@/lib/bookings/bookingDrafts';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -46,6 +57,7 @@ type ProfileAddressRow = {
 type MissingDataProfileRow = {
   first_name?: string | null;
   last_name?: string | null;
+  phone?: string | null;
   email?: string | null;
   fiscal_code?: string | null;
   birth_date?: string | null;
@@ -68,8 +80,21 @@ type TaxiDistanceApiResponse = {
   km?: number;
 };
 
+type MissingDataWarningState = {
+  items: string[];
+  blocking: boolean;
+};
+
+type SlotBookingDraft = {
+  monthDate: string;
+  selectedDayKey: string | null;
+  selectedSlotId: string | null;
+  selectedDogIds: string[];
+  taxiEnabled: boolean;
+};
+
 function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 function buildAddressFromProfile(profile: ProfileAddressRow | null): string {
@@ -125,7 +150,7 @@ async function fetchUserDogs(userId: string): Promise<DogLite[]> {
     .eq('is_active', true)
     .order('name', { ascending: true });
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(humanizeErrorMessage(error, 'Non siamo riusciti a caricare i cani.'));
   const rows = (data ?? []) as DogLite[];
   return rows.map((d) => ({
     id: d.id,
@@ -139,23 +164,23 @@ async function computeMissingDataWarning(args: {
   userId: string;
   needsDogs: boolean;
   selectedDogIds: string[];
-}): Promise<string[]> {
-  const missing: string[] = [];
+}): Promise<MissingDataWarningState> {
+  const optionalMissing: string[] = [];
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('first_name, last_name, email, fiscal_code, birth_date, address_line, city, zip_code, province, id_document_path')
+    .select('first_name, last_name, phone, email, fiscal_code, birth_date, address_line, city, zip_code, province, id_document_path')
     .eq('user_id', args.userId)
     .maybeSingle();
-  const profileRow = (profile ?? null) as MissingDataProfileRow | null;
+  const profileRow = (profile ?? null) as
+    | (MissingDataProfileRow & CustomerBookingRequirementProfile)
+    | null;
 
   if (profileError) {
     console.error(profileError);
-    return [];
+    return { items: [], blocking: false };
   }
 
-  const fn = (profileRow?.first_name ?? '').trim();
-  const ln = (profileRow?.last_name ?? '').trim();
   const em = (profileRow?.email ?? '').trim();
   const cf = (profileRow?.fiscal_code ?? '').trim();
   const bd = (profileRow?.birth_date ?? '').trim();
@@ -167,20 +192,22 @@ async function computeMissingDataWarning(args: {
 
   const idDoc = (profileRow?.id_document_path ?? '').trim();
 
-  if (!fn) missing.push('Nome');
-  if (!ln) missing.push('Cognome');
-  if (!em) missing.push('Email');
-  if (!cf) missing.push('Codice fiscale');
-  if (!bd) missing.push('Data di nascita');
-  if (!addrLine || !addrCity || !addrZip || !addrProv) missing.push('Indirizzo (completo)');
-  if (!idDoc) missing.push('Documento di identità');
+  const requiredMissing = getMissingRequiredCustomerBookingFields(profileRow);
+
+  if (!em) optionalMissing.push('Email');
+  if (!cf) optionalMissing.push('Codice fiscale');
+  if (!bd) optionalMissing.push('Data di nascita');
+  if (!addrLine || !addrCity || !addrZip || !addrProv) optionalMissing.push('Indirizzo (completo)');
+  if (!idDoc) optionalMissing.push('Documento di identità');
 
   if (args.needsDogs && args.selectedDogIds.length > 0) {
     const { data: dogs, error: dogsError } = await supabase.from('dogs').select('id, name, microchip').in('id', args.selectedDogIds);
 
     if (dogsError) {
       console.error(dogsError);
-      return missing;
+      return requiredMissing.length > 0
+        ? { items: requiredMissing, blocking: true }
+        : { items: optionalMissing, blocking: false };
     }
 
     const dogRows = (dogs ?? []) as DogMicrochipRow[];
@@ -190,15 +217,19 @@ async function computeMissingDataWarning(args: {
       .filter(Boolean);
 
     if (missingDogs.length > 0) {
-      missing.push(`Numero microchip mancante per: ${missingDogs.join(', ')}`);
+      optionalMissing.push(`Numero microchip mancante per: ${missingDogs.join(', ')}`);
     }
   }
 
-  return missing;
+  if (requiredMissing.length > 0) {
+    return { items: requiredMissing, blocking: true };
+  }
+
+  return { items: optionalMissing, blocking: false };
 }
 
 function humanizeBookingError(err: unknown): string {
-  const raw = String(err instanceof Error ? err.message : err ?? '').trim();
+  const raw = humanizeErrorMessage(err, 'Non siamo riusciti a completare la prenotazione.');
   if (!raw) return 'Errore durante la prenotazione.';
 
   const low = raw.toLowerCase();
@@ -227,8 +258,6 @@ export function FissaDataModal({
   pass: ServicePassGroupSummary | null;
   onBooked: () => void;
 }) {
-  const router = useRouter();
-
   const [monthDate, setMonthDate] = useState<Date>(() => new Date());
 
   const [slotsState, setSlotsState] = useState<LoadState>('idle');
@@ -253,10 +282,13 @@ export function FissaDataModal({
   const [bookingError, setBookingError] = useState<string | null>(null);
 
   // ✅ Warning interno (no window.confirm)
-  const [missingWarn, setMissingWarn] = useState<string[] | null>(null);
-  const [forceProceed, setForceProceed] = useState(false);
+  const [missingWarn, setMissingWarn] = useState<MissingDataWarningState | null>(null);
 
   const needsDogs = useMemo(() => (pass ? requiresDogs(pass.serviceType) : false), [pass]);
+  const draftKey = useMemo(
+    () => (pass ? buildSlotBookingDraftKey(userId, pass.groupKey) : null),
+    [pass, userId]
+  );
 
   const taxiAllowed = useMemo(() => {
     if (!pass) return false;
@@ -276,20 +308,30 @@ export function FissaDataModal({
 
   useEffect(() => {
     if (!open) return;
+    const draft = readBookingDraft<SlotBookingDraft>(draftKey);
 
-    setSelectedDayKey(null);
-    setSelectedSlotId(null);
-    setSelectedDogIds([]);
-
-    setTaxiEnabled(false);
+    setMonthDate(draft?.monthDate ? new Date(draft.monthDate) : new Date());
+    setSelectedDayKey(draft?.selectedDayKey ?? null);
+    setSelectedSlotId(draft?.selectedSlotId ?? null);
+    setSelectedDogIds(draft?.selectedDogIds ?? []);
+    setTaxiEnabled(draft?.taxiEnabled ?? false);
     setTaxiDistance({ loading: false, error: null, km: null });
-
     setBookingState('idle');
     setBookingError(null);
-
     setMissingWarn(null);
-    setForceProceed(false);
-  }, [open, pass?.groupKey]);
+  }, [draftKey, open]);
+
+  useEffect(() => {
+    if (!open || !draftKey) return;
+
+    writeBookingDraft(draftKey, {
+      monthDate: monthDate.toISOString(),
+      selectedDayKey,
+      selectedSlotId,
+      selectedDogIds,
+      taxiEnabled,
+    } satisfies SlotBookingDraft);
+  }, [draftKey, monthDate, open, selectedDayKey, selectedDogIds, selectedSlotId, taxiEnabled]);
 
   useEffect(() => {
     if (!open) return;
@@ -357,9 +399,6 @@ export function FissaDataModal({
 
         setSlots(available);
         setSlotsState('ready');
-
-        setSelectedDayKey(null);
-        setSelectedSlotId(null);
       } catch (e) {
         console.error(e);
         if (cancelled) return;
@@ -385,6 +424,12 @@ export function FissaDataModal({
     if (!isAsiloFull) return daySlots;
     return daySlots.length > 0 ? [daySlots[0]] : [];
   }, [daySlots, isAsiloFull]);
+
+  useEffect(() => {
+    if (!selectedSlotId) return;
+    if (daySlotsForUi.some((slot) => slot.id === selectedSlotId)) return;
+    setSelectedSlotId(null);
+  }, [daySlotsForUi, selectedSlotId]);
 
   useEffect(() => {
     if (!open) return;
@@ -418,7 +463,7 @@ export function FissaDataModal({
       if (cancelled) return;
 
       if (error) {
-        setTaxiDistance({ loading: false, error: error.message, km: null });
+        setTaxiDistance({ loading: false, error: humanizeErrorMessage(error, 'Non siamo riusciti a calcolare la distanza taxi.'), km: null });
         return;
       }
 
@@ -432,7 +477,7 @@ export function FissaDataModal({
         const res = await fetch('/api/taxi-distance', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, address }),
+          body: JSON.stringify({ address }),
         });
 
         const json = (await res.json().catch(() => null)) as TaxiDistanceApiResponse | null;
@@ -496,34 +541,36 @@ export function FissaDataModal({
     taxiComputed.price,
   ]);
 
-  async function handleConfirm() {
+  async function handleConfirm(skipOptionalWarning = false) {
     if (!pass) return;
     if (!selectedSlot) return;
+    setBookingError(null);
+    setMissingWarn(null);
 
-    // ✅ warning dati mancanti: NO window.confirm (mobile safe)
-    if (pass.serviceType !== 'CONSULENZA' && !forceProceed) {
-      try {
-        const missing = await computeMissingDataWarning({
-          userId,
-          needsDogs,
-          selectedDogIds,
-        });
+    try {
+      const warning = await computeMissingDataWarning({
+        userId,
+        needsDogs,
+        selectedDogIds,
+      });
 
-        if (missing.length > 0) {
-          setMissingWarn(missing);
-          return;
-        }
-      } catch (e) {
-        console.error(e);
+      if (warning.blocking && warning.items.length > 0) {
+        setMissingWarn(warning);
+        return;
       }
+
+      if (pass.serviceType !== 'CONSULENZA' && !skipOptionalWarning && warning.items.length > 0) {
+        setMissingWarn(warning);
+        return;
+      }
+    } catch (e) {
+      console.error(e);
     }
 
     setBookingState('loading');
-    setBookingError(null);
 
     try {
       await bookServiceSlotAtomic({
-        userId,
         slotId: selectedSlot.id,
         passId: null,
         serviceType: pass.serviceType,
@@ -537,12 +584,12 @@ export function FissaDataModal({
       });
 
       if (taxiEnabled && taxiAllowed && taxiComputed.price != null && taxiComputed.price > 0) {
-        await addToWalletDueEur(userId, taxiComputed.price);
+        await addToWalletDueEur(taxiComputed.price);
       }
 
       setBookingState('ready');
       setMissingWarn(null);
-      setForceProceed(false);
+      clearBookingDraft(draftKey);
 
       onBooked();
       onClose();
@@ -696,39 +743,47 @@ export function FissaDataModal({
                   </button>
                 ) : null}
 
-                {missingWarn && !forceProceed ? (
+                {missingWarn ? (
                   <div className="ui-error">
-                    <div className="ui-body font-[var(--font-weight-bold)]">Mancano alcuni dati</div>
+                    <div className="ui-body font-[var(--font-weight-bold)]">
+                      {missingWarn.blocking ? 'Completa i dati obbligatori' : 'Mancano alcuni dati'}
+                    </div>
                     <ul className="mt-2 space-y-1 ui-muted">
-                      {missingWarn.map((m) => (
+                      {missingWarn.items.map((m) => (
                         <li key={m}>• {m}</li>
                       ))}
                     </ul>
 
                     <div className="mt-3 grid gap-2">
-                      <Button
-                        variant="secondary"
-                        fullWidth
-                        onClick={() => {
-                          onClose();
-                          router.push('/account');
-                        }}
-                      >
-                        Completa dati
-                      </Button>
+                      {!missingWarn.blocking ? (
+                        <Button variant="secondary" fullWidth onClick={() => setMissingWarn(null)}>
+                          Rivedi prenotazione
+                        </Button>
+                      ) : null}
 
-                      <Button
-                        variant="primary"
-                        fullWidth
-                        onClick={() => {
-                          setForceProceed(true);
-                          void handleConfirm();
-                        }}
-                      >
-                        Procedi comunque
-                      </Button>
+                      {!missingWarn.blocking ? (
+                        <Button
+                          variant="primary"
+                          fullWidth
+                          onClick={() => {
+                            void handleConfirm(true);
+                          }}
+                        >
+                          Procedi comunque
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
+                ) : null}
+
+                {missingWarn?.blocking ? (
+                  <RequiredBookingProfileCard
+                    missingFields={missingWarn.items}
+                    onSaved={async () => {
+                      setMissingWarn(null);
+                      await handleConfirm();
+                    }}
+                  />
                 ) : null}
 
                 {bookingError ? <div className="ui-error">{bookingError}</div> : null}

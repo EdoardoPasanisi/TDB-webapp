@@ -4,6 +4,7 @@ import type { BookingDogExtras } from '@/types/booking';
 import type { DogLite, PerDogForm, PensionePricing } from './types';
 import {
   ACCOMMODATION_PRICES,
+  DEFAULT_TIMES,
   EXTRA_PRICES,
   GROOMING_BASE_BY_SIZE,
   GROOMING_MULTIPLIER_BY_DIFFICULTY,
@@ -19,15 +20,48 @@ export function getTodayISO(): string {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export function validateTimeWindow(label: string, value: string): string | null {
+export function isSundayDate(value: string): boolean {
+  if (!value) return false;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getDay() === 0;
+}
+
+function readHour(value: string): number | null {
   if (!value) return null;
   const [hStr] = value.split(':');
-  const h = parseInt(hStr ?? '0', 10);
+  const hour = parseInt(hStr ?? '', 10);
+  return Number.isInteger(hour) ? hour : null;
+}
 
-  const ok = (h >= 9 && h < 13) || (h >= 15 && h < 18);
-  if (!ok) return `${label} deve essere tra 9–13 o 15–18.`;
+function isMorningWindow(hour: number): boolean {
+  return hour >= 9 && hour < 13;
+}
+
+function isAfternoonWindow(hour: number): boolean {
+  return hour >= 15 && hour < 18;
+}
+
+export function validateTimeWindow(label: string, value: string, date?: string | null): string | null {
+  if (!value) return null;
+  const hour = readHour(value);
+  if (hour === null) return `${label} non valido.`;
+
+  const isSunday = isSundayDate(String(date ?? ''));
+  const ok = isMorningWindow(hour) || (!isSunday && isAfternoonWindow(hour));
+  if (!ok) {
+    if (isSunday) return `${label} di domenica deve essere tra 9–13.`;
+    return `${label} deve essere tra 9–13 o 15–18.`;
+  }
 
   return null;
+}
+
+export function normalizeSundayTime(value: string, date?: string | null): string {
+  const hour = readHour(value);
+  if (hour === null) return value;
+  if (!isSundayDate(String(date ?? ''))) return value;
+  return isMorningWindow(hour) ? value : DEFAULT_TIMES.ARRIVAL;
 }
 
 export function computeDaysCount(

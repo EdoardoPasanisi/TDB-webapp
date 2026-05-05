@@ -1,7 +1,8 @@
-import type { User } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type {
+  AdminAnalytics,
   AdminAgendaItem,
+  AdminBookingDetail,
   AdminBookingKind,
   AdminDateViewResponse,
   AdminDocumentRecord,
@@ -9,6 +10,7 @@ import type {
   AdminDogListItem,
   AdminOverview,
   AdminServiceKey,
+  AdminServicesViewResponse,
   AdminSlotRecord,
   AdminStaffMember,
   AdminUserDetail,
@@ -16,7 +18,7 @@ import type {
   StaffRole,
 } from '@/lib/admin/types';
 import {
-  ADMIN_ACTIVE_STATUSES,
+  ADMIN_SERVICE_OPTIONS,
   buildIlikePattern,
   bookingMatchesServiceKey,
   fileNameFromPath,
@@ -27,8 +29,10 @@ import {
 } from '@/lib/admin/utils';
 import type {
   BookingDogExtras,
+  BookingDogRow,
   BookingRow,
   BookingStatus,
+  TaxiOption,
 } from '@/types/booking';
 import type { Dog, DogInput } from '@/types/dog';
 import type { Profile } from '@/types/profile';
@@ -40,10 +44,11 @@ import type {
 } from '@/types/services';
 
 const PROFILE_SELECT =
-  'user_id, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
+  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOG_SELECT =
   'id, owner_id, created_at, updated_at, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament';
 const IDENTITY_BUCKET = 'identity-documents';
+type AdminVisibilityMode = 'full' | 'limited';
 
 type ProfileSummaryRow = Pick<
   Profile,
@@ -67,13 +72,22 @@ type UserDocumentRow = {
   staff_note: string | null;
 };
 
-type DogJoin = { id: string; name: string | null; breed: string | null } | Array<{ id: string; name: string | null; breed: string | null }> | null;
+type DogJoin =
+  | { id: string; name: string | null; breed: string | null; grooming_difficulty?: Dog['grooming_difficulty'] | null }
+  | Array<{ id: string; name: string | null; breed: string | null; grooming_difficulty?: Dog['grooming_difficulty'] | null }>
+  | null;
 
 type BookingDogQueryRow = {
   id: string;
   booking_id: string;
   dog_id: string;
   extras: BookingDogExtras | null;
+  accommodation_type?: BookingDogRow['accommodation_type'] | null;
+  accommodation_price_per_day?: number | null;
+  days_count?: number | null;
+  accommodation_subtotal?: number | null;
+  extras_subtotal?: number | null;
+  per_dog_total?: number | null;
   dogs?: DogJoin;
 };
 
@@ -90,6 +104,11 @@ type PensioneBookingQueryRow = Pick<
   | 'notes'
   | 'total_price'
   | 'taxi_option'
+  | 'taxi_distance_band'
+  | 'taxi_price'
+  | 'taxi_pickup_time'
+  | 'taxi_return_time'
+  | 'created_at'
 > & {
   booking_dogs?: BookingDogQueryRow[] | null;
 };
@@ -116,11 +135,14 @@ type ServiceSlotBookingQueryRow = {
   service_type: ServiceType | null;
   service_variant: ServiceVariant | null;
   slot_id: string;
+  dog_id: string | null;
   dog_ids: string[] | null;
   taxi_enabled: boolean;
   taxi_distance_km: number | null;
   taxi_price_eur: number | null;
   total_price: number | null;
+  pass_id: string | null;
+  credits_spent: number | null;
   status: ServiceStatus;
   notes: string | null;
   created_at: string;
@@ -147,6 +169,9 @@ type StaffAccountRow = {
   updated_at: string;
 };
 
+const ANALYTICS_SERVICE_KEYS = ['PENSIONE', 'ASILO', 'ADDESTRAMENTO', 'CONSULENZA'] as const;
+type AnalyticsServiceKey = typeof ANALYTICS_SERVICE_KEYS[number];
+
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
@@ -154,6 +179,163 @@ function firstRelation<T>(value: T | T[] | null | undefined): T | null {
 
 function unique<T>(items: T[]): T[] {
   return Array.from(new Set(items));
+}
+
+function normalizeSearchTokens(value: string): string[] {
+  return sanitizeSearchTerm(value)
+    .toLowerCase()
+    .split(' ')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function buildTokenSearchOr(fields: string[], tokens: string[]): string {
+  return tokens
+    .flatMap((token) => {
+      const pattern = buildIlikePattern(token);
+      return fields.map((field) => `${field}.ilike.${pattern}`);
+    })
+    .join(',');
+}
+
+function buildProfileSearchHaystack(profile: Profile | ProfileSummaryRow | null | undefined, dogs: DogSummaryRow[] = []): string {
+  const firstName = String(profile?.first_name ?? '').trim();
+  const lastName = String(profile?.last_name ?? '').trim();
+
+  return [
+    firstName,
+    lastName,
+    `${firstName} ${lastName}`.trim(),
+    `${lastName} ${firstName}`.trim(),
+    profile?.email ?? '',
+    profile?.phone ?? '',
+    profile?.city ?? '',
+    dogs.map((dog) => dog.name).join(' '),
+    dogs.map((dog) => dog.breed ?? '').join(' '),
+    dogs.map((dog) => dog.microchip ?? '').join(' '),
+  ]
+    .join(' ')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function buildDogSearchHaystack(dog: DogSummaryRow, owner: Profile | ProfileSummaryRow | null | undefined): string {
+  const firstName = String(owner?.first_name ?? '').trim();
+  const lastName = String(owner?.last_name ?? '').trim();
+
+  return [
+    dog.name,
+    dog.breed ?? '',
+    dog.microchip ?? '',
+    firstName,
+    lastName,
+    `${firstName} ${lastName}`.trim(),
+    `${lastName} ${firstName}`.trim(),
+    owner?.email ?? '',
+    owner?.phone ?? '',
+    owner?.city ?? '',
+  ]
+    .join(' ')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function matchesSearch(haystack: string, search: string, tokens: string[]): boolean {
+  if (!search) return true;
+  if (haystack.includes(search)) return true;
+  return tokens.every((token) => haystack.includes(token));
+}
+
+function slotBookingDogIds(row: Pick<ServiceSlotBookingQueryRow, 'dog_id' | 'dog_ids'>): string[] {
+  return unique(
+    [...(row.dog_ids ?? []), row.dog_id ?? '']
+      .map((dogId) => String(dogId ?? '').trim())
+      .filter(Boolean)
+  );
+}
+
+function completionCutoffEndOfDay(value: string | null | undefined): string | null {
+  if (!value) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return `${value}T23:59:59.999Z`;
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+
+  const yyyy = date.getUTCFullYear();
+  const mm = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(date.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}T23:59:59.999Z`;
+}
+
+function deriveAgendaStatus(
+  status: BookingStatus | ServiceStatus | null | undefined,
+  completionCutoff: string | null | undefined
+): BookingStatus | ServiceStatus | null {
+  if ((status === 'CONFIRMED' || status === 'PAID') && completionCutoff) {
+    const cutoff = Date.parse(completionCutoff);
+    if (!Number.isNaN(cutoff) && Date.now() > cutoff) {
+      return 'COMPLETED';
+    }
+  }
+
+  return status ?? null;
+}
+
+function formatDogCountLabel(count: number): string {
+  return `${count} ${count === 1 ? 'cane' : 'cani'}`;
+}
+
+function sanitizeProfileForViewer(profile: Profile | null): Profile | null {
+  if (!profile) return null;
+
+  return {
+    ...profile,
+    phone: null,
+    email: null,
+    address_line: null,
+    city: null,
+    zip_code: null,
+    province: null,
+    fiscal_code: null,
+    birth_date: null,
+    dog_address_line: null,
+    dog_city: null,
+    dog_zip_code: null,
+    dog_province: null,
+    id_document_path: null,
+    id_document_uploaded_at: null,
+  };
+}
+
+function sanitizeProfileSummaryForViewer(
+  profile: Profile | ProfileSummaryRow | null | undefined
+): Profile | ProfileSummaryRow | null {
+  if (!profile) return null;
+  return {
+    ...profile,
+    email: null,
+    phone: null,
+    city: null,
+  };
+}
+
+function sanitizeProfileMapForVisibility(
+  profileMap: Map<string, Profile | ProfileSummaryRow>,
+  visibility: AdminVisibilityMode
+): Map<string, Profile | ProfileSummaryRow> {
+  if (visibility === 'full') return profileMap;
+
+  const next = new Map<string, Profile | ProfileSummaryRow>();
+  for (const [userId, profile] of profileMap.entries()) {
+    const sanitized = sanitizeProfileSummaryForViewer(profile);
+    if (sanitized) next.set(userId, sanitized);
+  }
+  return next;
 }
 
 function compareAscByStart(a: AdminAgendaItem, b: AdminAgendaItem): number {
@@ -164,10 +346,107 @@ function compareDescByStart(a: AdminAgendaItem, b: AdminAgendaItem): number {
   return b.startAt.localeCompare(a.startAt);
 }
 
+function splitAgendaItems(items: AdminAgendaItem[]): {
+  activeTimeline: AdminAgendaItem[];
+  historyTimeline: AdminAgendaItem[];
+} {
+  return {
+    activeTimeline: items.filter((item) => item.isActive).sort(compareAscByStart),
+    historyTimeline: items.filter((item) => !item.isActive).sort(compareDescByStart),
+  };
+}
+
+function extractIsoDatePrefix(value: string | null | undefined): string | null {
+  const normalized = String(value ?? '').trim();
+  const match = normalized.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match?.[1] ?? null;
+}
+
+function normalizeTimeComponent(value: string | null | undefined): string | null {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return null;
+
+  const match = normalized.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return normalized;
+
+  return `${match[1]}:${match[2]}:${match[3] ?? '00'}`;
+}
+
 function buildDateTime(date: string, time?: string | null, endOfDay = false): string {
   if (!date) return '';
-  if (time) return `${date}T${time}:00`;
+  const normalizedTime = normalizeTimeComponent(time);
+  if (normalizedTime) return `${date}T${normalizedTime}`;
   return `${date}T${endOfDay ? '23:59:59' : '00:00:00'}`;
+}
+
+function agendaItemFallsWithinDateRange(args: {
+  startAt: string;
+  endAt?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+}): boolean {
+  const { startAt, endAt = null, startDate = null, endDate = null } = args;
+  if (!startDate || !endDate) return true;
+
+  const itemStart = Date.parse(startAt);
+  const itemEnd = Date.parse(endAt ?? startAt);
+  const rangeStart = Date.parse(buildDateTime(startDate));
+  const rangeEnd = Date.parse(buildDateTime(endDate, null, true));
+
+  if ([itemStart, itemEnd, rangeStart, rangeEnd].every((value) => !Number.isNaN(value))) {
+    return itemStart <= rangeEnd && itemEnd >= rangeStart;
+  }
+
+  const itemStartDate = extractIsoDatePrefix(startAt);
+  const itemEndDate = extractIsoDatePrefix(endAt ?? startAt);
+  if (!itemStartDate || !itemEndDate) return true;
+
+  return itemStartDate <= endDate && itemEndDate >= startDate;
+}
+
+function filterAgendaItemsByDateRange(
+  items: AdminAgendaItem[],
+  startDate: string,
+  endDate: string
+): AdminAgendaItem[] {
+  return items.filter((item) =>
+    agendaItemFallsWithinDateRange({
+      startAt: item.startAt,
+      endAt: item.endAt,
+      startDate,
+      endDate,
+    })
+  );
+}
+
+function uniqueAgendaItems(items: AdminAgendaItem[]): AdminAgendaItem[] {
+  const map = new Map<string, AdminAgendaItem>();
+  for (const item of items) {
+    if (!map.has(item.itemKey)) map.set(item.itemKey, item);
+  }
+  return Array.from(map.values());
+}
+
+function compareAgendaUrgency(a: AdminAgendaItem, b: AdminAgendaItem, referenceDate: string): number {
+  const aIsToday = agendaItemFallsWithinDateRange({
+    startAt: a.startAt,
+    endAt: a.endAt,
+    startDate: referenceDate,
+    endDate: referenceDate,
+  });
+  const bIsToday = agendaItemFallsWithinDateRange({
+    startAt: b.startAt,
+    endAt: b.endAt,
+    startDate: referenceDate,
+    endDate: referenceDate,
+  });
+
+  if (aIsToday !== bIsToday) return aIsToday ? -1 : 1;
+  return compareAscByStart(a, b);
+}
+
+function isConfirmedRevenueStatus(status: BookingStatus | ServiceStatus | null | undefined): boolean {
+  return status === 'CONFIRMED' || status === 'PAID' || status === 'COMPLETED';
 }
 
 function bookingExtraLabels(extrasList: Array<BookingDogExtras | null | undefined>): string[] {
@@ -186,10 +465,112 @@ function bookingExtraLabels(extrasList: Array<BookingDogExtras | null | undefine
   return Array.from(labels);
 }
 
-function mapDocumentRow(row: UserDocumentRow, signedUrl: string | null): AdminDocumentRecord {
+function countDogLabel(count: number): string {
+  return `${count} cane${count === 1 ? '' : 'i'}`;
+}
+
+function buildPointDateTime(date: string, preferredTime?: string | null, fallbackTime = '12:00'): string {
+  return buildDateTime(date, preferredTime ?? fallbackTime);
+}
+
+function formatWashingDifficultyLabel(value: Dog['grooming_difficulty'] | null | undefined): string | null {
+  if (value === 1) return 'Bassa';
+  if (value === 2) return 'Media';
+  if (value === 3) return 'Alta';
+  return null;
+}
+
+function formatServiceAddress(profile: Profile | ProfileSummaryRow | undefined): string | null {
+  const line = String((profile as Profile | undefined)?.dog_address_line ?? '').trim();
+  const city = String((profile as Profile | undefined)?.dog_city ?? '').trim();
+  const zip = String((profile as Profile | undefined)?.dog_zip_code ?? '').trim();
+  const province = String((profile as Profile | undefined)?.dog_province ?? '').trim();
+
+  const parts = [line, [zip, city].filter(Boolean).join(' '), province].filter(Boolean);
+  return parts.length ? parts.join(', ') : null;
+}
+
+function formatTimeOnly(value: string | null | undefined): string | null {
+  const normalized = String(value ?? '').trim();
+  if (!normalized) return null;
+  const match = normalized.match(/^(\d{2}:\d{2})/);
+  return match?.[1] ?? normalized;
+}
+
+function buildSingleDogServiceSummaryLines(args: {
+  bookingDog: BookingDogQueryRow;
+  serviceKey: AdminServiceKey;
+  profile?: Profile | ProfileSummaryRow;
+  taxiLine?: string | null;
+  taxiTime?: string | null;
+  departureTime?: string | null;
+}): string[] {
+  const { bookingDog, serviceKey, profile, taxiLine = null, taxiTime = null, departureTime = null } = args;
+  const lines: string[] = [];
+  const extras = bookingDog.extras ?? null;
+  const dog = firstRelation(bookingDog.dogs);
+
+  if (serviceKey === 'TRACKING' && (extras?.trackingSessions ?? 0) > 0) {
+    const count = extras?.trackingSessions ?? 0;
+    lines.push(`${count} session${count === 1 ? 'e' : 'i'} tracking`);
+  }
+
+  if (serviceKey === 'FITNESS' && (extras?.fitnessSessions ?? 0) > 0) {
+    const count = extras?.fitnessSessions ?? 0;
+    lines.push(`${count} session${count === 1 ? 'e' : 'i'} fitness`);
+  }
+
+  if (serviceKey === 'PASSEGGIATA' && (extras?.walkSessions ?? 0) > 0) {
+    const count = extras?.walkSessions ?? 0;
+    lines.push(`${count} passeggiat${count === 1 ? 'a' : 'e'}`);
+  }
+
+  if (serviceKey === 'TERAPIA' && extras?.therapyActive) {
+    const therapyNotes = String(extras.therapyNotes ?? '').trim();
+    lines.push(therapyNotes || 'Terapia attiva');
+  }
+
+  if (serviceKey === 'VACCINAZIONE' && extras?.vaccine) {
+    lines.push('Vaccinazione richiesta');
+  }
+
+  if (serviceKey === 'TOELETTATURA' && extras?.grooming) {
+    const normalizedDepartureTime = formatTimeOnly(departureTime);
+    if (normalizedDepartureTime) {
+      lines.push(`Partenza: ${normalizedDepartureTime}`);
+    }
+    const washingDifficulty = formatWashingDifficultyLabel(dog?.grooming_difficulty ?? null);
+    if (washingDifficulty) {
+      lines.push(`Lavaggio: ${washingDifficulty}`);
+    }
+  }
+
+  if (serviceKey === 'TAXI_DOG') {
+    if (taxiLine) {
+      lines.push(taxiLine);
+    }
+    const normalizedTaxiTime = formatTimeOnly(taxiTime);
+    if (normalizedTaxiTime) {
+      lines.push(`Orario: ${normalizedTaxiTime}`);
+    }
+    const address = formatServiceAddress(profile);
+    if (address) {
+      lines.push(address);
+    }
+  }
+
+  return lines;
+}
+
+function mapDocumentRow(
+  row: UserDocumentRow,
+  signedUrl: string | null,
+  ownerName: string | null = null
+): AdminDocumentRecord {
   return {
     id: row.id,
     userId: row.user_id,
+    ownerName,
     kind: row.kind,
     path: row.path,
     fileName: fileNameFromPath(row.path),
@@ -230,6 +611,11 @@ async function loadProfilesByIds(userIds: string[]): Promise<Map<string, Profile
   }
 
   return profileMap;
+}
+
+function formatDocumentOwnerName(profile: Profile | ProfileSummaryRow | null | undefined): string | null {
+  if (!profile) return null;
+  return formatPersonName(profile.first_name ?? null, profile.last_name ?? null, profile.email ?? null);
 }
 
 async function loadStaffRoleMap(userIds: string[]): Promise<Map<string, StaffRole>> {
@@ -303,24 +689,24 @@ async function loadActiveBookingCountsForUsers(userIds: string[]): Promise<Map<s
 
   if (ids.length === 0) return counts;
 
-  const [pensioneRes, slotRes] = await Promise.all([
-    supabaseAdmin
-      .from('bookings')
-      .select('user_id, status')
-      .in('user_id', ids)
-      .in('status', ADMIN_ACTIVE_STATUSES),
-    supabaseAdmin
-      .from('service_slot_bookings')
-      .select('user_id, status')
-      .in('user_id', ids)
-      .in('status', ADMIN_ACTIVE_STATUSES),
+  const [pensioneRows, slotRows] = await Promise.all([
+    fetchPensioneBookingsForUsers(ids),
+    fetchServiceSlotBookingsForUsers(ids),
   ]);
 
-  for (const row of (pensioneRes.data ?? []) as Array<{ user_id: string }>) {
+  for (const row of pensioneRows) {
+    const status = deriveAgendaStatus(row.status ?? null, completionCutoffEndOfDay(row.end_date ?? row.start_date));
+    if (!isActiveBookingStatus(status)) continue;
     counts.set(row.user_id, (counts.get(row.user_id) ?? 0) + 1);
   }
 
-  for (const row of (slotRes.data ?? []) as Array<{ user_id: string }>) {
+  for (const row of slotRows) {
+    const slot = firstRelation(row.service_slots);
+    const status = deriveAgendaStatus(
+      row.status ?? null,
+      completionCutoffEndOfDay(slot?.end_at ?? slot?.start_at ?? null)
+    );
+    if (!isActiveBookingStatus(status)) continue;
     counts.set(row.user_id, (counts.get(row.user_id) ?? 0) + 1);
   }
 
@@ -333,25 +719,55 @@ async function loadActiveBookingCountsForDogs(dogIds: string[]): Promise<Map<str
 
   if (ids.length === 0) return counts;
 
-  const [bookingDogsRes, slotBookingsRes] = await Promise.all([
+  const [bookingDogsRes, slotBookingsRes, legacySlotBookingsRes] = await Promise.all([
     supabaseAdmin
       .from('booking_dogs')
-      .select('dog_id, bookings!inner(status)')
-      .in('dog_id', ids)
-      .in('bookings.status', ADMIN_ACTIVE_STATUSES),
+      .select('dog_id, bookings!inner(status, start_date, end_date)')
+      .in('dog_id', ids),
     supabaseAdmin
       .from('service_slot_bookings')
-      .select('dog_ids, status')
-      .overlaps('dog_ids', ids)
-      .in('status', ADMIN_ACTIVE_STATUSES),
+      .select('id, dog_id, dog_ids, status, service_slots(id, start_at, end_at, capacity, service_type, service_variant)')
+      .overlaps('dog_ids', ids),
+    supabaseAdmin
+      .from('service_slot_bookings')
+      .select('id, dog_id, dog_ids, status, service_slots(id, start_at, end_at, capacity, service_type, service_variant)')
+      .in('dog_id', ids),
   ]);
 
-  for (const row of (bookingDogsRes.data ?? []) as Array<{ dog_id: string }>) {
+  for (const row of (bookingDogsRes.data ?? []) as Array<{
+    dog_id: string;
+    bookings?: { status?: BookingStatus | null; start_date?: string | null; end_date?: string | null } | Array<{
+      status?: BookingStatus | null;
+      start_date?: string | null;
+      end_date?: string | null;
+    }> | null;
+  }>) {
+    const booking = firstRelation(row.bookings);
+    const status = deriveAgendaStatus(
+      booking?.status ?? null,
+      completionCutoffEndOfDay(booking?.end_date ?? booking?.start_date ?? null)
+    );
+    if (!isActiveBookingStatus(status)) continue;
     counts.set(row.dog_id, (counts.get(row.dog_id) ?? 0) + 1);
   }
 
-  for (const row of (slotBookingsRes.data ?? []) as Array<{ dog_ids: string[] | null }>) {
-    for (const dogId of row.dog_ids ?? []) {
+  const slotRowsById = new Map<string, Pick<ServiceSlotBookingQueryRow, 'id' | 'dog_id' | 'dog_ids' | 'status' | 'service_slots'>>();
+  for (const row of (slotBookingsRes.data ?? []) as Array<Pick<ServiceSlotBookingQueryRow, 'id' | 'dog_id' | 'dog_ids' | 'status' | 'service_slots'>>) {
+    slotRowsById.set(row.id, row);
+  }
+  for (const row of (legacySlotBookingsRes.data ?? []) as Array<Pick<ServiceSlotBookingQueryRow, 'id' | 'dog_id' | 'dog_ids' | 'status' | 'service_slots'>>) {
+    slotRowsById.set(row.id, row);
+  }
+
+  for (const row of slotRowsById.values()) {
+    const slot = firstRelation(row.service_slots);
+    const status = deriveAgendaStatus(
+      row.status ?? null,
+      completionCutoffEndOfDay(slot?.end_at ?? slot?.start_at ?? null)
+    );
+    if (!isActiveBookingStatus(status)) continue;
+
+    for (const dogId of slotBookingDogIds(row)) {
       if (!counts.has(dogId)) counts.set(dogId, 0);
       counts.set(dogId, (counts.get(dogId) ?? 0) + 1);
     }
@@ -364,19 +780,22 @@ function buildPensioneAgendaItems(args: {
   rows: PensioneBookingQueryRow[];
   profileMap: Map<string, Profile | ProfileSummaryRow>;
   filterKey?: AdminServiceKey | null;
+  startDate?: string | null;
+  endDate?: string | null;
 }): AdminAgendaItem[] {
-  const { rows, profileMap, filterKey = null } = args;
+  const { rows, profileMap, filterKey = null, startDate = null, endDate = null } = args;
 
   return rows.flatMap((row) => {
     const profile = profileMap.get(row.user_id);
     const serviceType = row.service_type === 'TARGHETTA' ? null : row.service_type;
+    const bookingDogs = row.booking_dogs ?? [];
     const dogNames = unique(
-      (row.booking_dogs ?? [])
+      bookingDogs
         .map((bookingDog) => firstRelation(bookingDog.dogs)?.name ?? '')
         .map((name) => name.trim())
         .filter(Boolean)
     );
-    const extrasList = (row.booking_dogs ?? []).map((bookingDog) => bookingDog.extras ?? null);
+    const extrasList = bookingDogs.map((bookingDog) => bookingDog.extras ?? null);
     const extraLabels = bookingExtraLabels(extrasList);
     const serviceKeys: AdminServiceKey[] = filterKey
       ? [filterKey]
@@ -403,30 +822,236 @@ function buildPensioneAgendaItems(args: {
 
         return matchesExtras || matchesWithoutExtras;
       })
-      .map((serviceKey) => {
-        const meta = [`${dogNames.length} cane${dogNames.length === 1 ? '' : 'i'}`];
-        meta.push(...extraLabels);
-        if (row.taxi_option && row.taxi_option !== 'NONE') meta.push('Taxi dog');
+      .flatMap((serviceKey): AdminAgendaItem[] => {
+        const derivedStatus = deriveAgendaStatus(
+          row.status ?? null,
+          completionCutoffEndOfDay(row.end_date ?? row.start_date)
+        );
+        const defaultStartAt = buildDateTime(row.start_date, row.arrival_time ?? null);
+        const defaultEndAt = row.end_date ? buildDateTime(row.end_date, row.departure_time ?? null, true) : null;
+        const userName = formatPersonName(profile?.first_name ?? null, profile?.last_name ?? null, profile?.email ?? null);
+        const serviceLabel = getAdminServiceLabel(serviceKey, serviceType, null);
 
-        return {
-          kind: 'PENSIONE',
-          id: row.id,
-          userId: row.user_id,
-          userName: formatPersonName(profile?.first_name ?? null, profile?.last_name ?? null, profile?.email ?? null),
-          userEmail: profile?.email ?? null,
-          dogNames,
-          serviceKey,
-          serviceType,
-          serviceVariant: null,
-          serviceLabel: getAdminServiceLabel(serviceKey, serviceType, null),
-          status: row.status ?? null,
-          startAt: buildDateTime(row.start_date, row.arrival_time ?? null),
-          endAt: row.end_date ? buildDateTime(row.end_date, row.departure_time ?? null, true) : null,
-          totalPrice: row.total_price ?? null,
-          notes: row.notes ?? null,
-          isActive: isActiveBookingStatus(row.status ?? null),
-          meta,
-        } satisfies AdminAgendaItem;
+        if (!filterKey || filterKey === 'PENSIONE') {
+          const meta = [countDogLabel(dogNames.length)];
+          meta.push(...extraLabels);
+          if (row.taxi_option && row.taxi_option !== 'NONE') meta.push('Taxi dog');
+
+          return [{
+            itemKey: `PENSIONE:${row.id}:${serviceKey}:default`,
+            kind: 'PENSIONE',
+            id: row.id,
+            userId: row.user_id,
+            userName,
+            userEmail: profile?.email ?? null,
+            dogNames,
+            serviceKey,
+            serviceType,
+            serviceVariant: null,
+            serviceLabel,
+            status: derivedStatus,
+            startAt: defaultStartAt,
+            endAt: defaultEndAt,
+            totalPrice: row.total_price ?? null,
+            notes: row.notes ?? null,
+            isActive: isActiveBookingStatus(derivedStatus),
+            meta,
+            summaryLines: [],
+          } satisfies AdminAgendaItem];
+        }
+
+        if (serviceKey === 'TAXI_DOG') {
+          const taxiItemsByDog = bookingDogs.flatMap((bookingDog) => {
+            const dog = firstRelation(bookingDog.dogs);
+            const dogName = (dog?.name ?? '').trim() || 'Cane';
+            const lastDay = row.end_date ?? row.start_date;
+
+            if (row.taxi_option === 'ONE_WAY') {
+              return [{
+                itemKey: `PENSIONE:${row.id}:TAXI_DOG:${bookingDog.dog_id}:andata`,
+                kind: 'PENSIONE',
+                id: row.id,
+                userId: row.user_id,
+                userName,
+                userEmail: profile?.email ?? null,
+                dogNames: [dogName],
+                serviceKey,
+                serviceType,
+                serviceVariant: null,
+                serviceLabel,
+                status: derivedStatus,
+                startAt: buildPointDateTime(row.start_date, row.taxi_pickup_time ?? row.arrival_time ?? null),
+                endAt: null,
+                totalPrice: row.total_price ?? null,
+                notes: row.notes ?? null,
+                isActive: isActiveBookingStatus(derivedStatus),
+                meta: [],
+                summaryLines: buildSingleDogServiceSummaryLines({
+                  bookingDog,
+                  serviceKey,
+                  profile,
+                  taxiLine: 'Solo andata',
+                  taxiTime: row.taxi_pickup_time ?? row.arrival_time ?? null,
+                }),
+              } satisfies AdminAgendaItem];
+            }
+
+            if (row.taxi_option === 'RETURN_ONLY') {
+              return [{
+                itemKey: `PENSIONE:${row.id}:TAXI_DOG:${bookingDog.dog_id}:ritorno`,
+                kind: 'PENSIONE',
+                id: row.id,
+                userId: row.user_id,
+                userName,
+                userEmail: profile?.email ?? null,
+                dogNames: [dogName],
+                serviceKey,
+                serviceType,
+                serviceVariant: null,
+                serviceLabel,
+                status: derivedStatus,
+                startAt: buildPointDateTime(lastDay, row.taxi_return_time ?? row.departure_time ?? null),
+                endAt: null,
+                totalPrice: row.total_price ?? null,
+                notes: row.notes ?? null,
+                isActive: isActiveBookingStatus(derivedStatus),
+                meta: [],
+                summaryLines: buildSingleDogServiceSummaryLines({
+                  bookingDog,
+                  serviceKey,
+                  profile,
+                  taxiLine: 'Solo ritorno',
+                  taxiTime: row.taxi_return_time ?? row.departure_time ?? null,
+                }),
+              } satisfies AdminAgendaItem];
+            }
+
+            if (row.taxi_option === 'ROUND_TRIP') {
+              return [
+                {
+                  itemKey: `PENSIONE:${row.id}:TAXI_DOG:${bookingDog.dog_id}:andata`,
+                  kind: 'PENSIONE',
+                  id: row.id,
+                  userId: row.user_id,
+                  userName,
+                  userEmail: profile?.email ?? null,
+                  dogNames: [dogName],
+                  serviceKey,
+                  serviceType,
+                  serviceVariant: null,
+                  serviceLabel,
+                  status: derivedStatus,
+                  startAt: buildPointDateTime(row.start_date, row.taxi_pickup_time ?? row.arrival_time ?? null),
+                  endAt: null,
+                  totalPrice: row.total_price ?? null,
+                  notes: row.notes ?? null,
+                  isActive: isActiveBookingStatus(derivedStatus),
+                  meta: [],
+                  summaryLines: buildSingleDogServiceSummaryLines({
+                    bookingDog,
+                    serviceKey,
+                    profile,
+                    taxiLine: 'Andata',
+                    taxiTime: row.taxi_pickup_time ?? row.arrival_time ?? null,
+                  }),
+                } satisfies AdminAgendaItem,
+                {
+                  itemKey: `PENSIONE:${row.id}:TAXI_DOG:${bookingDog.dog_id}:ritorno`,
+                  kind: 'PENSIONE',
+                  id: row.id,
+                  userId: row.user_id,
+                  userName,
+                  userEmail: profile?.email ?? null,
+                  dogNames: [dogName],
+                  serviceKey,
+                  serviceType,
+                  serviceVariant: null,
+                  serviceLabel,
+                  status: derivedStatus,
+                  startAt: buildPointDateTime(lastDay, row.taxi_return_time ?? row.departure_time ?? null),
+                  endAt: null,
+                  totalPrice: row.total_price ?? null,
+                  notes: row.notes ?? null,
+                  isActive: isActiveBookingStatus(derivedStatus),
+                  meta: [],
+                  summaryLines: buildSingleDogServiceSummaryLines({
+                    bookingDog,
+                    serviceKey,
+                    profile,
+                    taxiLine: 'Ritorno',
+                    taxiTime: row.taxi_return_time ?? row.departure_time ?? null,
+                  }),
+                } satisfies AdminAgendaItem,
+              ];
+            }
+
+            return [];
+          });
+
+          return taxiItemsByDog.filter((item) =>
+            agendaItemFallsWithinDateRange({
+              startAt: item.startAt,
+              endAt: item.endAt,
+              startDate,
+              endDate,
+            })
+          );
+        }
+
+        const filteredDogItems = bookingDogs
+          .filter((bookingDog) =>
+            bookingMatchesServiceKey({
+              serviceType,
+              extras: bookingDog.extras ?? null,
+              taxiOption: row.taxi_option ?? null,
+              filterKey: serviceKey,
+            })
+          )
+          .map((bookingDog) => {
+            const dog = firstRelation(bookingDog.dogs);
+            const dogName = (dog?.name ?? '').trim() || 'Cane';
+            const lastDay = row.end_date ?? row.start_date;
+            const startAt =
+              serviceKey === 'TOELETTATURA'
+                ? buildPointDateTime(lastDay, row.departure_time ?? row.arrival_time ?? null)
+                : defaultStartAt;
+            const endAt = serviceKey === 'TOELETTATURA' ? null : defaultEndAt;
+
+            return {
+              itemKey: `PENSIONE:${row.id}:${serviceKey}:${bookingDog.dog_id}`,
+              kind: 'PENSIONE',
+              id: row.id,
+              userId: row.user_id,
+              userName,
+              userEmail: profile?.email ?? null,
+              dogNames: [dogName],
+              serviceKey,
+              serviceType,
+              serviceVariant: null,
+              serviceLabel,
+              status: derivedStatus,
+              startAt,
+              endAt,
+              totalPrice: row.total_price ?? null,
+              notes: row.notes ?? null,
+              isActive: isActiveBookingStatus(derivedStatus),
+              meta: [],
+              summaryLines: buildSingleDogServiceSummaryLines({
+                bookingDog,
+                serviceKey,
+                departureTime: row.departure_time ?? null,
+              }),
+            } satisfies AdminAgendaItem;
+          });
+
+        return filteredDogItems.filter((item) =>
+          agendaItemFallsWithinDateRange({
+            startAt: item.startAt,
+            endAt: item.endAt,
+            startDate,
+            endDate,
+          })
+        );
       });
   });
 }
@@ -443,7 +1068,7 @@ function buildServiceSlotAgendaItems(args: {
     const profile = profileMap.get(row.user_id);
     const slot = firstRelation(row.service_slots);
     const dogNames = unique(
-      (row.dog_ids ?? [])
+      slotBookingDogIds(row)
         .map((dogId) => dogMap.get(dogId)?.name ?? '')
         .map((name) => name.trim())
         .filter(Boolean)
@@ -461,11 +1086,26 @@ function buildServiceSlotAgendaItems(args: {
         })
       )
       .map((serviceKey) => {
-        const meta = [`${dogNames.length} cane${dogNames.length === 1 ? '' : 'i'}`];
+        const meta = [countDogLabel(dogNames.length)];
         if (row.taxi_enabled) meta.push('Taxi dog');
         if (row.taxi_distance_km) meta.push(`${row.taxi_distance_km} km`);
+        const derivedStatus = deriveAgendaStatus(
+          row.status ?? null,
+          completionCutoffEndOfDay(slot?.end_at ?? slot?.start_at ?? null)
+        );
+        const summaryLines =
+          filterKey === 'TAXI_DOG'
+            ? [
+                `Servizio collegato: ${getAdminServiceLabel(
+                  (row.service_type ?? slot?.service_type ?? 'CONSULENZA') as AdminServiceKey,
+                  row.service_type ?? slot?.service_type ?? null,
+                  row.service_variant ?? slot?.service_variant ?? null
+                )}`,
+              ]
+            : [];
 
         return {
+          itemKey: `SERVICE_SLOT:${row.id}:${serviceKey}`,
           kind: 'SERVICE_SLOT',
           id: row.id,
           userId: row.user_id,
@@ -480,13 +1120,14 @@ function buildServiceSlotAgendaItems(args: {
             row.service_type ?? slot?.service_type ?? null,
             row.service_variant ?? slot?.service_variant ?? null
           ),
-          status: row.status ?? null,
+          status: derivedStatus,
           startAt: slot?.start_at ?? row.created_at,
           endAt: slot?.end_at ?? null,
           totalPrice: row.total_price ?? null,
           notes: row.notes ?? null,
-          isActive: isActiveBookingStatus(row.status ?? null),
+          isActive: isActiveBookingStatus(derivedStatus),
           meta,
+          summaryLines,
         } satisfies AdminAgendaItem;
       });
   });
@@ -499,7 +1140,7 @@ async function fetchPensioneBookingsForUsers(userIds: string[]): Promise<Pension
   const { data } = await supabaseAdmin
     .from('bookings')
     .select(
-      'id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, booking_dogs(id, booking_id, dog_id, extras, dogs(id, name, breed))'
+      'id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, taxi_distance_band, taxi_price, taxi_pickup_time, taxi_return_time, booking_dogs(id, booking_id, dog_id, accommodation_type, accommodation_price_per_day, days_count, accommodation_subtotal, extras, extras_subtotal, per_dog_total, dogs(id, name, breed, grooming_difficulty))'
     )
     .in('user_id', ids)
     .order('start_date', { ascending: false });
@@ -514,7 +1155,7 @@ async function fetchServiceSlotBookingsForUsers(userIds: string[]): Promise<Serv
   const { data } = await supabaseAdmin
     .from('service_slot_bookings')
     .select(
-      'id, user_id, service_type, service_variant, slot_id, dog_ids, taxi_enabled, taxi_distance_km, taxi_price_eur, total_price, status, notes, created_at, service_slots(id, start_at, end_at, capacity, service_type, service_variant)'
+      'id, user_id, service_type, service_variant, slot_id, dog_id, dog_ids, taxi_enabled, taxi_distance_km, taxi_price_eur, total_price, pass_id, credits_spent, status, notes, created_at, service_slots(id, start_at, end_at, capacity, service_type, service_variant)'
     )
     .in('user_id', ids)
     .order('created_at', { ascending: false });
@@ -525,35 +1166,29 @@ async function fetchServiceSlotBookingsForUsers(userIds: string[]): Promise<Serv
 async function fetchAgendaDataByRange(args: {
   startDate: string;
   endDate: string;
-  status?: string | null;
 }): Promise<{
   profileMap: Map<string, Profile | ProfileSummaryRow>;
   dogMap: Map<string, Dog>;
   pensioneRows: PensioneBookingQueryRow[];
   slotRows: ServiceSlotBookingQueryRow[];
 }> {
-  const { startDate, endDate, status = null } = args;
+  const { startDate, endDate } = args;
 
-  let pensioneQuery = supabaseAdmin
+  const pensioneQuery = supabaseAdmin
     .from('bookings')
     .select(
-      'id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, booking_dogs(id, booking_id, dog_id, extras, dogs(id, name, breed))'
+      'id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, taxi_distance_band, taxi_price, taxi_pickup_time, taxi_return_time, booking_dogs(id, booking_id, dog_id, accommodation_type, accommodation_price_per_day, days_count, accommodation_subtotal, extras, extras_subtotal, per_dog_total, dogs(id, name, breed, grooming_difficulty))'
     )
     .lte('start_date', endDate)
     .or(`end_date.is.null,end_date.gte.${startDate}`);
 
-  let slotQuery = supabaseAdmin
+  const slotQuery = supabaseAdmin
     .from('service_slot_bookings')
     .select(
-      'id, user_id, service_type, service_variant, slot_id, dog_ids, taxi_enabled, taxi_distance_km, taxi_price_eur, total_price, status, notes, created_at, service_slots!inner(id, start_at, end_at, capacity, service_type, service_variant)'
+      'id, user_id, service_type, service_variant, slot_id, dog_id, dog_ids, taxi_enabled, taxi_distance_km, taxi_price_eur, total_price, pass_id, credits_spent, status, notes, created_at, service_slots!inner(id, start_at, end_at, capacity, service_type, service_variant)'
     )
     .gte('service_slots.start_at', `${startDate}T00:00:00`)
     .lte('service_slots.start_at', `${endDate}T23:59:59`);
-
-  if (status && status !== 'ALL') {
-    pensioneQuery = pensioneQuery.eq('status', status);
-    slotQuery = slotQuery.eq('status', status);
-  }
 
   const [pensioneRes, slotRes] = await Promise.all([
     pensioneQuery.order('start_date', { ascending: true }),
@@ -567,9 +1202,7 @@ async function fetchAgendaDataByRange(args: {
     ...pensioneRows.map((row) => row.user_id),
     ...slotRows.map((row) => row.user_id),
   ]);
-  const dogIds = unique(
-    slotRows.flatMap((row) => row.dog_ids ?? [])
-  );
+  const dogIds = unique(slotRows.flatMap((row) => slotBookingDogIds(row)));
 
   const [profileMap, dogMap] = await Promise.all([
     loadProfilesByIds(userIds),
@@ -579,19 +1212,77 @@ async function fetchAgendaDataByRange(args: {
   return { profileMap, dogMap, pensioneRows, slotRows };
 }
 
-export async function searchAdminUsers(search: string, limit = 40): Promise<AdminUserListItem[]> {
-  const term = sanitizeSearchTerm(search);
-  const pattern = buildIlikePattern(term);
+function filterAgendaByStatus(
+  items: AdminAgendaItem[],
+  status: string | null | undefined
+): AdminAgendaItem[] {
+  if (!status || status === 'ALL') return items;
+  return items.filter((item) => item.status === status);
+}
+
+function slotServiceTypesFromKeys(serviceKeys: AdminServiceKey[]): ServiceType[] | 'ALL' {
+  if (serviceKeys.length === 0) return 'ALL';
+
+  const mapped = Array.from(
+    new Set(
+      serviceKeys
+        .filter(
+          (serviceKey): serviceKey is Extract<AdminServiceKey, 'PENSIONE' | 'ASILO' | 'ADDESTRAMENTO' | 'CONSULENZA'> =>
+            serviceKey === 'PENSIONE' ||
+            serviceKey === 'ASILO' ||
+            serviceKey === 'ADDESTRAMENTO' ||
+            serviceKey === 'CONSULENZA'
+        )
+    )
+  );
+
+  if (mapped.length === 0) return [];
+  if (mapped.length === 4) return 'ALL';
+  return mapped;
+}
+
+function sanitizeUserListItemVisibility(item: AdminUserListItem, visibility: AdminVisibilityMode): AdminUserListItem {
+  if (visibility === 'full') return item;
+  return {
+    ...item,
+    email: null,
+    phone: null,
+    city: null,
+    staffRole: null,
+    pendingDocuments: 0,
+  };
+}
+
+function sanitizeDogListItemVisibility(item: AdminDogListItem, visibility: AdminVisibilityMode): AdminDogListItem {
+  if (visibility === 'full') return item;
+  return {
+    ...item,
+    ownerEmail: null,
+    ownerPhone: null,
+    staffRole: null,
+  };
+}
+
+export async function searchAdminUsers(
+  search: string,
+  limit = 40,
+  visibility: AdminVisibilityMode = 'full'
+): Promise<AdminUserListItem[]> {
+  const term = sanitizeSearchTerm(search).toLowerCase();
+  const tokens = normalizeSearchTokens(term);
+  const profileSearchOr = buildTokenSearchOr(
+    ['first_name', 'last_name', 'email', 'phone', 'city', 'fiscal_code', 'address_line', 'province'],
+    tokens
+  );
+  const dogSearchOr = buildTokenSearchOr(['name', 'breed', 'microchip'], tokens);
 
   const [profileRes, dogRes] = await Promise.all([
     term
       ? supabaseAdmin
           .from('profiles')
           .select('user_id, first_name, last_name, phone, email, city')
-          .or(
-            `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern},city.ilike.${pattern},fiscal_code.ilike.${pattern},address_line.ilike.${pattern},province.ilike.${pattern}`
-          )
-          .limit(limit)
+          .or(profileSearchOr)
+          .limit(limit * 3)
       : supabaseAdmin
           .from('profiles')
           .select('user_id, first_name, last_name, phone, email, city')
@@ -601,9 +1292,9 @@ export async function searchAdminUsers(search: string, limit = 40): Promise<Admi
       ? supabaseAdmin
           .from('dogs')
           .select('id, owner_id, name, breed, microchip, size_category, is_active')
-          .or(`name.ilike.${pattern},breed.ilike.${pattern},microchip.ilike.${pattern}`)
+          .or(dogSearchOr)
           .neq('is_active', false)
-          .limit(limit)
+          .limit(limit * 3)
       : supabaseAdmin
           .from('dogs')
           .select('id, owner_id, name, breed, microchip, size_category, is_active')
@@ -615,10 +1306,12 @@ export async function searchAdminUsers(search: string, limit = 40): Promise<Admi
   const profileRows = (profileRes.data ?? []) as ProfileSummaryRow[];
   const dogRows = ((dogRes.data ?? []) as DogSummaryRow[]).filter((dog) => dog.is_active !== false);
 
-  const userIds = unique([
+  const candidateUserIds = unique([
     ...profileRows.map((row) => row.user_id),
     ...dogRows.map((row) => row.owner_id),
-  ]).slice(0, limit);
+  ]);
+
+  const userIds = candidateUserIds.slice(0, limit * 3);
 
   const [allProfilesMap, allDogs, activeCounts, userDocuments, staffRoles] = await Promise.all([
     loadProfilesByIds(userIds),
@@ -641,32 +1334,50 @@ export async function searchAdminUsers(search: string, limit = 40): Promise<Admi
     dogsByOwner.set(dog.owner_id, rows);
   }
 
-  return userIds.map((userId) => {
-    const profile = allProfilesMap.get(userId);
-    const dogs = dogsByOwner.get(userId) ?? [];
+  return userIds
+    .filter((userId) => {
+      if (!term) return true;
+      const profile = allProfilesMap.get(userId);
+      const dogs = dogsByOwner.get(userId) ?? [];
+      return matchesSearch(buildProfileSearchHaystack(profile, dogs), term, tokens);
+    })
+    .slice(0, limit)
+    .map((userId) => {
+      const profile = allProfilesMap.get(userId);
+      const dogs = dogsByOwner.get(userId) ?? [];
 
-    return {
-      userId,
-      fullName: formatPersonName(profile?.first_name ?? null, profile?.last_name ?? null, profile?.email ?? null),
-      email: profile?.email ?? null,
-      phone: profile?.phone ?? null,
-      city: profile?.city ?? null,
-      dogsCount: dogs.length,
-      activeBookings: activeCounts.get(userId) ?? 0,
-      pendingDocuments: pendingDocumentCounts.get(userId) ?? 0,
-      dogNames: dogs.map((dog) => dog.name).filter(Boolean) as string[],
-      staffRole: staffRoles.get(userId) ?? null,
-    } satisfies AdminUserListItem;
-  });
+      return sanitizeUserListItemVisibility(
+        {
+          userId,
+          fullName: formatPersonName(
+            profile?.first_name ?? null,
+            profile?.last_name ?? null,
+            visibility === 'full' ? profile?.email ?? null : null
+          ),
+          email: profile?.email ?? null,
+          phone: profile?.phone ?? null,
+          city: profile?.city ?? null,
+          dogsCount: dogs.length,
+          activeBookings: activeCounts.get(userId) ?? 0,
+          pendingDocuments: pendingDocumentCounts.get(userId) ?? 0,
+          dogNames: dogs.map((dog) => dog.name).filter(Boolean) as string[],
+          staffRole: staffRoles.get(userId) ?? null,
+        } satisfies AdminUserListItem,
+        visibility
+      );
+    });
 }
 
-export async function getAdminUserDetail(userId: string): Promise<AdminUserDetail | null> {
+export async function getAdminUserDetail(
+  userId: string,
+  visibility: AdminVisibilityMode = 'full'
+): Promise<AdminUserDetail | null> {
   const [profileRes, dogsRes, passesRes, documentsRes, staffRole, pensioneRows, slotRows] = await Promise.all([
     supabaseAdmin.from('profiles').select(PROFILE_SELECT).eq('user_id', userId).maybeSingle(),
     supabaseAdmin.from('dogs').select(DOG_SELECT).eq('owner_id', userId).order('name', { ascending: true }),
     supabaseAdmin
       .from('service_passes')
-      .select('id, user_id, service_type, service_variant, product_id, credits_total, credits_used, status, purchased_at, expires_at')
+      .select('id, user_id, service_type, service_variant, product_id, credits_total, credits_used, status, purchased_at, expires_at, unlocked_at, unlocked_by')
       .eq('user_id', userId)
       .order('purchased_at', { ascending: false }),
     supabaseAdmin
@@ -686,54 +1397,60 @@ export async function getAdminUserDetail(userId: string): Promise<AdminUserDetai
     return null;
   }
 
-  const dogMap = await loadDogsByIds(unique(slotRows.flatMap((row) => row.dog_ids ?? [])));
+  const dogMap = await loadDogsByIds(unique(slotRows.flatMap((row) => slotBookingDogIds(row))));
   const profileMap = new Map<string, Profile | ProfileSummaryRow>();
-  if (profile) profileMap.set(userId, profile);
+  if (profile) {
+    profileMap.set(
+      userId,
+      visibility === 'full' ? profile : (sanitizeProfileSummaryForViewer(profile) as Profile)
+    );
+  }
 
-  const activeTimeline = [
+  const combinedTimeline = [
     ...buildPensioneAgendaItems({ rows: pensioneRows, profileMap }),
     ...buildServiceSlotAgendaItems({ rows: slotRows, profileMap, dogMap }),
-  ]
-    .filter((item) => item.isActive)
-    .sort(compareAscByStart);
+  ];
+  const { activeTimeline, historyTimeline } = splitAgendaItems(combinedTimeline);
 
-  const historyTimeline = [
-    ...buildPensioneAgendaItems({ rows: pensioneRows, profileMap }),
-    ...buildServiceSlotAgendaItems({ rows: slotRows, profileMap, dogMap }),
-  ]
-    .filter((item) => !item.isActive)
-    .sort(compareDescByStart);
-
-  const documents = await Promise.all(
-    ((documentsRes.data ?? []) as UserDocumentRow[]).map(async (row) =>
-      mapDocumentRow(row, await createSignedUrl(row.path))
-    )
-  );
+  const documents =
+    visibility === 'full'
+      ? await Promise.all(
+          ((documentsRes.data ?? []) as UserDocumentRow[]).map(async (row) =>
+            mapDocumentRow(row, await createSignedUrl(row.path), formatDocumentOwnerName(profile))
+          )
+        )
+      : [];
 
   return {
     userId,
-    profile,
-    staffRole,
+    profile: visibility === 'full' ? profile : sanitizeProfileForViewer(profile),
+    staffRole: visibility === 'full' ? staffRole : null,
     dogs,
-    servicePasses: (passesRes.data ?? []) as ServicePassRow[],
+    servicePasses: visibility === 'full' ? ((passesRes.data ?? []) as ServicePassRow[]) : [],
     documents,
     activeTimeline,
     historyTimeline,
   };
 }
 
-export async function searchAdminDogs(search: string, limit = 50): Promise<AdminDogListItem[]> {
-  const term = sanitizeSearchTerm(search);
-  const pattern = buildIlikePattern(term);
+export async function searchAdminDogs(
+  search: string,
+  limit = 50,
+  visibility: AdminVisibilityMode = 'full'
+): Promise<AdminDogListItem[]> {
+  const term = sanitizeSearchTerm(search).toLowerCase();
+  const tokens = normalizeSearchTokens(term);
+  const dogSearchOr = buildTokenSearchOr(['name', 'breed', 'microchip'], tokens);
+  const profileSearchOr = buildTokenSearchOr(['first_name', 'last_name', 'email', 'phone', 'city'], tokens);
 
   const [dogsRes, ownerProfilesRes] = await Promise.all([
     term
       ? supabaseAdmin
           .from('dogs')
           .select('id, owner_id, name, breed, microchip, size_category, is_active')
-          .or(`name.ilike.${pattern},breed.ilike.${pattern},microchip.ilike.${pattern}`)
+          .or(dogSearchOr)
           .neq('is_active', false)
-          .limit(limit)
+          .limit(limit * 3)
       : supabaseAdmin
           .from('dogs')
           .select('id, owner_id, name, breed, microchip, size_category, is_active')
@@ -744,10 +1461,8 @@ export async function searchAdminDogs(search: string, limit = 50): Promise<Admin
       ? supabaseAdmin
           .from('profiles')
           .select('user_id, first_name, last_name, phone, email, city')
-          .or(
-            `first_name.ilike.${pattern},last_name.ilike.${pattern},email.ilike.${pattern},phone.ilike.${pattern},city.ilike.${pattern}`
-          )
-          .limit(limit)
+          .or(profileSearchOr)
+          .limit(limit * 3)
       : Promise.resolve({ data: [] as ProfileSummaryRow[] }),
   ]);
 
@@ -781,25 +1496,42 @@ export async function searchAdminDogs(search: string, limit = 50): Promise<Admin
     loadStaffRoleMap(ownerIds),
   ]);
 
-  return dogs.slice(0, limit).map((dog) => {
-    const owner = profilesMap.get(dog.owner_id);
-    return {
-      dogId: dog.id,
-      name: dog.name,
-      breed: dog.breed ?? null,
-      microchip: dog.microchip ?? null,
-      sizeCategory: dog.size_category ?? null,
-      ownerId: dog.owner_id,
-      ownerName: formatPersonName(owner?.first_name ?? null, owner?.last_name ?? null, owner?.email ?? null),
-      ownerEmail: owner?.email ?? null,
-      ownerPhone: owner?.phone ?? null,
-      activeBookings: activeCounts.get(dog.id) ?? 0,
-      staffRole: staffRoles.get(dog.owner_id) ?? null,
-    } satisfies AdminDogListItem;
-  });
+  return dogs
+    .filter((dog) => {
+      if (!term) return true;
+      const owner = profilesMap.get(dog.owner_id);
+      return matchesSearch(buildDogSearchHaystack(dog, owner), term, tokens);
+    })
+    .slice(0, limit)
+    .map((dog) => {
+      const owner = profilesMap.get(dog.owner_id);
+      return sanitizeDogListItemVisibility(
+        {
+          dogId: dog.id,
+          name: dog.name,
+          breed: dog.breed ?? null,
+          microchip: dog.microchip ?? null,
+          sizeCategory: dog.size_category ?? null,
+          ownerId: dog.owner_id,
+          ownerName: formatPersonName(
+            owner?.first_name ?? null,
+            owner?.last_name ?? null,
+            visibility === 'full' ? owner?.email ?? null : null
+          ),
+          ownerEmail: owner?.email ?? null,
+          ownerPhone: owner?.phone ?? null,
+          activeBookings: activeCounts.get(dog.id) ?? 0,
+          staffRole: staffRoles.get(dog.owner_id) ?? null,
+        } satisfies AdminDogListItem,
+        visibility
+      );
+    });
 }
 
-export async function getAdminDogDetail(dogId: string): Promise<AdminDogDetail | null> {
+export async function getAdminDogDetail(
+  dogId: string,
+  visibility: AdminVisibilityMode = 'full'
+): Promise<AdminDogDetail | null> {
   const dogRes = await supabaseAdmin.from('dogs').select(DOG_SELECT).eq('id', dogId).maybeSingle();
   const dog = (dogRes.data as Dog | null) ?? null;
 
@@ -811,39 +1543,266 @@ export async function getAdminDogDetail(dogId: string): Promise<AdminDogDetail |
     supabaseAdmin
       .from('booking_dogs')
       .select(
-        'dog_id, bookings!inner(id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, booking_dogs(id, booking_id, dog_id, extras, dogs(id, name, breed)))'
+        'dog_id, bookings!inner(id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, taxi_distance_band, taxi_price, taxi_pickup_time, taxi_return_time, booking_dogs(id, booking_id, dog_id, accommodation_type, accommodation_price_per_day, days_count, accommodation_subtotal, extras, extras_subtotal, per_dog_total, dogs(id, name, breed, grooming_difficulty)))'
       )
       .eq('dog_id', dogId),
-    supabaseAdmin
-      .from('service_slot_bookings')
-      .select(
-        'id, user_id, service_type, service_variant, slot_id, dog_ids, taxi_enabled, taxi_distance_km, taxi_price_eur, total_price, status, notes, created_at, service_slots(id, start_at, end_at, capacity, service_type, service_variant)'
-      )
-      .contains('dog_ids', [dogId]),
+    fetchServiceSlotBookingsForUsers([dog.owner_id]),
   ]);
 
   const owner = (ownerRes.data as Profile | null) ?? null;
   const profileMap = new Map<string, Profile | ProfileSummaryRow>();
-  if (owner) profileMap.set(dog.owner_id, owner);
+  if (owner) {
+    profileMap.set(
+      dog.owner_id,
+      visibility === 'full' ? owner : (sanitizeProfileSummaryForViewer(owner) as Profile)
+    );
+  }
 
   const bookingRows = ((bookingDogsRes.data ?? []) as Array<{ bookings?: PensioneBookingQueryRow | PensioneBookingQueryRow[] | null }>)
     .map((row) => firstRelation(row.bookings))
     .filter(Boolean) as PensioneBookingQueryRow[];
 
-  const slotRows = (slotRes.data ?? []) as ServiceSlotBookingQueryRow[];
+  const slotRows = slotRes.filter((row) => slotBookingDogIds(row).includes(dogId));
   const dogMap = new Map<string, Dog>([[dog.id, dog]]);
 
   const combined = [
     ...buildPensioneAgendaItems({ rows: bookingRows, profileMap }),
     ...buildServiceSlotAgendaItems({ rows: slotRows, profileMap, dogMap }),
   ];
+  const { activeTimeline, historyTimeline } = splitAgendaItems(combined);
 
   return {
     dog,
-    owner,
-    ownerStaffRole: staffRole,
-    activeTimeline: combined.filter((item) => item.isActive).sort(compareAscByStart),
-    historyTimeline: combined.filter((item) => !item.isActive).sort(compareDescByStart),
+    owner: visibility === 'full' ? owner : sanitizeProfileForViewer(owner),
+    ownerStaffRole: visibility === 'full' ? staffRole : null,
+    activeTimeline,
+    historyTimeline,
+  };
+}
+
+export async function getAdminBookingDetail(
+  kind: AdminBookingKind,
+  bookingId: string,
+  visibility: AdminVisibilityMode = 'full'
+): Promise<AdminBookingDetail | null> {
+  if (kind === 'PENSIONE') {
+    const bookingRes = await supabaseAdmin
+      .from('bookings')
+      .select(
+        'id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, taxi_distance_band, taxi_price, taxi_pickup_time, taxi_return_time, created_at, booking_dogs(id, booking_id, dog_id, accommodation_type, accommodation_price_per_day, days_count, accommodation_subtotal, extras, extras_subtotal, per_dog_total, dogs(id, name, breed, grooming_difficulty))'
+      )
+      .eq('id', bookingId)
+      .maybeSingle();
+
+    const booking = (bookingRes.data as PensioneBookingQueryRow | null) ?? null;
+    if (!booking) return null;
+
+    const [profileRes, dogMap] = await Promise.all([
+      supabaseAdmin.from('profiles').select(PROFILE_SELECT).eq('user_id', booking.user_id).maybeSingle(),
+      loadDogsByIds(unique((booking.booking_dogs ?? []).map((row) => row.dog_id))),
+    ]);
+
+    const profile = (profileRes.data as Profile | null) ?? null;
+    const extrasList = (booking.booking_dogs ?? []).map((row) => row.extras ?? null);
+    const extraLabels = bookingExtraLabels(extrasList);
+    const taxiEnabled = Boolean(booking.taxi_option && booking.taxi_option !== 'NONE');
+    const canShowContact = visibility === 'full' || taxiEnabled;
+    const status = deriveAgendaStatus(
+      booking.status ?? null,
+      completionCutoffEndOfDay(booking.end_date ?? booking.start_date)
+    );
+    const meta = [formatDogCountLabel(booking.booking_dogs?.length ?? 0)];
+    meta.push(...extraLabels);
+    if (taxiEnabled) meta.push('Taxi dog');
+
+    return {
+      kind,
+      id: booking.id,
+      status,
+      serviceKey: 'PENSIONE',
+      serviceType: booking.service_type === 'TARGHETTA' ? null : booking.service_type,
+      serviceVariant: null,
+      serviceLabel: 'Pensione',
+      startAt: buildDateTime(booking.start_date, booking.arrival_time ?? null),
+      endAt: booking.end_date ? buildDateTime(booking.end_date, booking.departure_time ?? null, true) : null,
+      totalPrice: booking.total_price ?? null,
+      notes: booking.notes ?? null,
+      meta,
+      booking: {
+        createdAt: booking.created_at ?? null,
+        arrivalTime: booking.arrival_time ?? null,
+        departureTime: booking.departure_time ?? null,
+        taxiPickupTime: booking.taxi_pickup_time ?? null,
+        taxiReturnTime: booking.taxi_return_time ?? null,
+        taxiDistanceBand: booking.taxi_distance_band ?? null,
+      },
+      user: {
+        userId: booking.user_id,
+        fullName: formatPersonName(
+          profile?.first_name ?? null,
+          profile?.last_name ?? null,
+          visibility === 'full' ? profile?.email ?? null : null
+        ),
+        email: visibility === 'full' ? profile?.email ?? null : null,
+        phone: canShowContact ? profile?.phone ?? null : null,
+        dogAddressLine: canShowContact ? profile?.dog_address_line ?? null : null,
+        dogCity: canShowContact ? profile?.dog_city ?? null : null,
+        dogZipCode: canShowContact ? profile?.dog_zip_code ?? null : null,
+        dogProvince: canShowContact ? profile?.dog_province ?? null : null,
+        profile: visibility === 'full' ? profile : null,
+      },
+      dogs: unique((booking.booking_dogs ?? []).map((row) => row.dog_id))
+        .map((dogId) => {
+          const dog = dogMap.get(dogId);
+          const bookingDog = (booking.booking_dogs ?? []).find((row) => row.dog_id === dogId);
+          if (!dog) return null;
+
+          return {
+            dogId: dog.id,
+            name: dog.name,
+            breed: dog.breed ?? null,
+            microchip: dog.microchip ?? null,
+            sizeCategory: dog.size_category ?? null,
+            groomingDifficulty: dog.grooming_difficulty ?? null,
+            sex: dog.sex ?? null,
+            birthDate: dog.birth_date ?? null,
+            notes: dog.notes ?? null,
+            coatColor: dog.coat_color ?? null,
+            temperament: dog.temperament ?? null,
+            extras: bookingDog?.extras ?? null,
+            pricing: {
+              accommodationType: bookingDog?.accommodation_type ?? null,
+              accommodationPricePerDay: bookingDog?.accommodation_price_per_day ?? null,
+              daysCount: bookingDog?.days_count ?? null,
+              accommodationSubtotal: bookingDog?.accommodation_subtotal ?? null,
+              extrasSubtotal: bookingDog?.extras_subtotal ?? null,
+              total: bookingDog?.per_dog_total ?? null,
+            },
+          };
+        })
+        .filter(Boolean) as AdminBookingDetail['dogs'],
+      taxi: {
+        enabled: taxiEnabled,
+        option: (booking.taxi_option as TaxiOption | null) ?? null,
+        distanceKm: null,
+        priceEur: booking.taxi_price ?? null,
+      },
+      credits: {
+        passId: null,
+        creditsSpent: null,
+      },
+    };
+  }
+
+  const bookingRes = await supabaseAdmin
+    .from('service_slot_bookings')
+    .select(
+      'id, user_id, service_type, service_variant, slot_id, dog_id, dog_ids, taxi_enabled, taxi_distance_km, taxi_price_eur, total_price, pass_id, credits_spent, status, notes, created_at, service_slots(id, start_at, end_at, capacity, service_type, service_variant)'
+    )
+    .eq('id', bookingId)
+    .maybeSingle();
+
+  const booking = (bookingRes.data as ServiceSlotBookingQueryRow | null) ?? null;
+  if (!booking) return null;
+
+  const [profileRes, dogMap] = await Promise.all([
+    supabaseAdmin.from('profiles').select(PROFILE_SELECT).eq('user_id', booking.user_id).maybeSingle(),
+    loadDogsByIds(slotBookingDogIds(booking)),
+  ]);
+
+  const profile = (profileRes.data as Profile | null) ?? null;
+  const slot = firstRelation(booking.service_slots);
+  const taxiEnabled = Boolean(booking.taxi_enabled);
+  const canShowContact = visibility === 'full' || taxiEnabled;
+  const status = deriveAgendaStatus(
+    booking.status ?? null,
+    completionCutoffEndOfDay(slot?.end_at ?? slot?.start_at ?? null)
+  );
+  const serviceType = booking.service_type ?? slot?.service_type ?? null;
+  const serviceVariant = booking.service_variant ?? slot?.service_variant ?? null;
+  const serviceKey = (serviceType ?? 'CONSULENZA') as AdminServiceKey;
+  const dogIds = slotBookingDogIds(booking);
+  const meta = [formatDogCountLabel(dogIds.length)];
+  if (taxiEnabled) meta.push('Taxi dog');
+  if (booking.credits_spent && booking.credits_spent > 0) {
+    meta.push(`${booking.credits_spent} ${booking.credits_spent === 1 ? 'credito' : 'crediti'}`);
+  }
+
+  return {
+    kind,
+    id: booking.id,
+    status,
+    serviceKey,
+    serviceType,
+    serviceVariant,
+    serviceLabel: getAdminServiceLabel(serviceKey, serviceType, serviceVariant),
+    startAt: slot?.start_at ?? booking.created_at,
+    endAt: slot?.end_at ?? null,
+    totalPrice: booking.total_price ?? null,
+    notes: booking.notes ?? null,
+    meta,
+    booking: {
+      createdAt: booking.created_at ?? null,
+      arrivalTime: null,
+      departureTime: null,
+      taxiPickupTime: null,
+      taxiReturnTime: null,
+      taxiDistanceBand: null,
+    },
+    user: {
+      userId: booking.user_id,
+      fullName: formatPersonName(
+        profile?.first_name ?? null,
+        profile?.last_name ?? null,
+        visibility === 'full' ? profile?.email ?? null : null
+      ),
+      email: visibility === 'full' ? profile?.email ?? null : null,
+      phone: canShowContact ? profile?.phone ?? null : null,
+      dogAddressLine: canShowContact ? profile?.dog_address_line ?? null : null,
+      dogCity: canShowContact ? profile?.dog_city ?? null : null,
+      dogZipCode: canShowContact ? profile?.dog_zip_code ?? null : null,
+      dogProvince: canShowContact ? profile?.dog_province ?? null : null,
+      profile: visibility === 'full' ? profile : null,
+    },
+    dogs: dogIds
+      .map((dogId) => {
+        const dog = dogMap.get(dogId);
+        if (!dog) return null;
+
+        return {
+          dogId: dog.id,
+          name: dog.name,
+          breed: dog.breed ?? null,
+          microchip: dog.microchip ?? null,
+          sizeCategory: dog.size_category ?? null,
+          groomingDifficulty: dog.grooming_difficulty ?? null,
+          sex: dog.sex ?? null,
+          birthDate: dog.birth_date ?? null,
+          notes: dog.notes ?? null,
+          coatColor: dog.coat_color ?? null,
+          temperament: dog.temperament ?? null,
+          extras: null,
+          pricing: {
+            accommodationType: null,
+            accommodationPricePerDay: null,
+            daysCount: null,
+            accommodationSubtotal: null,
+            extrasSubtotal: null,
+            total: null,
+          },
+        };
+      })
+      .filter(Boolean) as AdminBookingDetail['dogs'],
+    taxi: {
+      enabled: taxiEnabled,
+      option: null,
+      distanceKm: booking.taxi_distance_km ?? null,
+      priceEur: booking.taxi_price_eur ?? null,
+    },
+    credits: {
+      passId: booking.pass_id ?? null,
+      creditsSpent: booking.credits_spent ?? null,
+    },
   };
 }
 
@@ -851,61 +1810,151 @@ export async function getAdminDateView(args: {
   startDate: string;
   endDate: string;
   status?: string | null;
+  visibility?: AdminVisibilityMode;
 }): Promise<AdminDateViewResponse> {
-  const { startDate, endDate, status = null } = args;
-  const { profileMap, dogMap, pensioneRows, slotRows } = await fetchAgendaDataByRange({
-    startDate,
-    endDate,
-    status,
-  });
+  const { startDate, endDate, status = null, visibility = 'full' } = args;
+  const { profileMap: rawProfileMap, dogMap, pensioneRows, slotRows } = await fetchAgendaDataByRange({ startDate, endDate });
+  const profileMap = sanitizeProfileMapForVisibility(rawProfileMap, visibility);
 
-  const items = [
+  const items = filterAgendaByStatus([
     ...buildPensioneAgendaItems({ rows: pensioneRows, profileMap }),
     ...buildServiceSlotAgendaItems({ rows: slotRows, profileMap, dogMap }),
-  ].sort(compareAscByStart);
+  ], status).sort(compareAscByStart);
 
-  const slots = await listAdminSlots({ startDate, endDate, serviceType: 'ALL' });
+  const slots = await listAdminSlots({ startDate, endDate, serviceTypes: 'ALL' });
   return { items, slots };
 }
 
 export async function getAdminServiceView(args: {
   startDate: string;
   endDate: string;
-  serviceKey: AdminServiceKey;
+  serviceKeys: AdminServiceKey[];
   status?: string | null;
-}): Promise<AdminAgendaItem[]> {
-  const { startDate, endDate, serviceKey, status = null } = args;
-  const { profileMap, dogMap, pensioneRows, slotRows } = await fetchAgendaDataByRange({
+  visibility?: AdminVisibilityMode;
+}): Promise<AdminServicesViewResponse> {
+  const { startDate, endDate, serviceKeys, status = null, visibility = 'full' } = args;
+  const { profileMap: rawProfileMap, dogMap, pensioneRows, slotRows } = await fetchAgendaDataByRange({ startDate, endDate });
+  const profileMap = sanitizeProfileMapForVisibility(rawProfileMap, visibility);
+  const allServiceKeysSelected =
+    new Set(serviceKeys).size >= ADMIN_SERVICE_OPTIONS.length;
+
+  const items = filterAgendaByStatus(
+    allServiceKeysSelected
+      ? [
+          ...buildPensioneAgendaItems({ rows: pensioneRows, profileMap }),
+          ...buildServiceSlotAgendaItems({ rows: slotRows, profileMap, dogMap }),
+        ]
+      : serviceKeys.flatMap((serviceKey) => [
+          ...buildPensioneAgendaItems({
+            rows: pensioneRows,
+            profileMap,
+            filterKey: serviceKey,
+            startDate,
+            endDate,
+          }),
+          ...buildServiceSlotAgendaItems({ rows: slotRows, profileMap, dogMap, filterKey: serviceKey }),
+        ]),
+    status
+  ).sort(compareAscByStart);
+
+  const slots = await listAdminSlots({
     startDate,
     endDate,
-    status,
+    serviceTypes: slotServiceTypesFromKeys(serviceKeys),
   });
 
-  const items = [
-    ...buildPensioneAgendaItems({ rows: pensioneRows, profileMap, filterKey: serviceKey }),
-    ...buildServiceSlotAgendaItems({ rows: slotRows, profileMap, dogMap, filterKey: serviceKey }),
-  ]
-    .filter((item) => item.serviceKey === serviceKey)
-    .sort(compareAscByStart);
-
-  return items;
+  return { items, slots };
 }
 
-export async function getAdminOverview(): Promise<AdminOverview> {
+export async function getAdminOverview(
+  visibility: AdminVisibilityMode = 'full'
+): Promise<AdminOverview> {
   const now = new Date();
   const startDate = now.toISOString().slice(0, 10);
   const endDate = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 14).toISOString().slice(0, 10);
+  const urgentEndDate = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10);
 
-  const [usersRes, dogsRes, pendingDocsRes, dateView, pendingView] = await Promise.all([
+  const [usersRes, dogsRes, pendingDocsRes, agendaData] = await Promise.all([
     supabaseAdmin.from('profiles').select('user_id', { head: true, count: 'exact' }),
     supabaseAdmin.from('dogs').select('id', { head: true, count: 'exact' }).neq('is_active', false),
     supabaseAdmin
       .from('user_documents')
       .select('id', { head: true, count: 'exact' })
       .eq('status', 'PENDING'),
-    getAdminDateView({ startDate, endDate, status: 'ALL' }),
-    getAdminDateView({ startDate, endDate, status: 'PENDING' }),
+    fetchAgendaDataByRange({ startDate, endDate }),
   ]);
+
+  const profileMap = sanitizeProfileMapForVisibility(agendaData.profileMap, visibility);
+
+  const agendaItems = [
+    ...buildPensioneAgendaItems({
+      rows: agendaData.pensioneRows,
+      profileMap,
+    }),
+    ...buildServiceSlotAgendaItems({
+      rows: agendaData.slotRows,
+      profileMap,
+      dogMap: agendaData.dogMap,
+    }),
+  ].sort(compareAscByStart);
+
+  const activeAgendaItems = agendaItems.filter((item) => item.isActive);
+  const pendingAgendaItems = agendaItems.filter((item) => item.status === 'PENDING');
+  const activePensioneRows = agendaData.pensioneRows.filter((row) =>
+    isActiveBookingStatus(
+      deriveAgendaStatus(
+        row.status ?? null,
+        completionCutoffEndOfDay(row.end_date ?? row.start_date)
+      )
+    )
+  );
+  const activePensioneToday = activePensioneRows.filter((row) => {
+    const bookingEnd = row.end_date ?? row.start_date;
+    return row.start_date <= startDate && bookingEnd >= startDate;
+  });
+  const presentDogIds = unique(
+    activePensioneToday.flatMap((row) => (row.booking_dogs ?? []).map((bookingDog) => bookingDog.dog_id))
+  );
+  const todayServiceKeys = ADMIN_SERVICE_OPTIONS
+    .filter((option) => option.key !== 'PENSIONE')
+    .map((option) => option.key);
+  const todayServices = uniqueAgendaItems(
+    todayServiceKeys.flatMap((serviceKey) => [
+      ...buildPensioneAgendaItems({
+        rows: agendaData.pensioneRows,
+        profileMap,
+        filterKey: serviceKey,
+        startDate,
+        endDate: startDate,
+      }),
+      ...filterAgendaItemsByDateRange(
+        buildServiceSlotAgendaItems({
+          rows: agendaData.slotRows,
+          profileMap,
+          dogMap: agendaData.dogMap,
+          filterKey: serviceKey,
+        }),
+        startDate,
+        startDate
+      ),
+    ])
+  )
+    .filter((item) => item.isActive)
+    .sort(compareAscByStart);
+  const serviceCountsToday = ADMIN_SERVICE_OPTIONS
+    .filter((option) => option.key !== 'PENSIONE')
+    .map((option) => ({
+      serviceKey: option.key,
+      label: option.label,
+      count: todayServices.filter((item) => item.serviceKey === option.key).length,
+    }))
+    .filter((entry) => entry.count > 0);
+  const urgentItems = uniqueAgendaItems([
+    ...todayServices,
+    ...filterAgendaItemsByDateRange(activeAgendaItems, startDate, urgentEndDate),
+  ])
+    .sort((left, right) => compareAgendaUrgency(left, right, startDate))
+    .slice(0, 12);
 
   const pendingDocumentsRaw = await supabaseAdmin
     .from('user_documents')
@@ -914,14 +1963,26 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     .order('created_at', { ascending: false })
     .limit(8);
 
-  const pendingDocuments = await Promise.all(
-    ((pendingDocumentsRaw.data ?? []) as UserDocumentRow[]).map(async (row) =>
-      mapDocumentRow(row, await createSignedUrl(row.path))
-    )
+  const pendingDocumentUserIds = unique(
+    ((pendingDocumentsRaw.data ?? []) as UserDocumentRow[]).map((row) => row.user_id)
   );
+  const pendingDocumentProfiles = await loadProfilesByIds(pendingDocumentUserIds);
 
-  const activeBookings = dateView.items.filter((item) => item.isActive).length;
-  const pendingBookings = pendingView.items.length;
+  const pendingDocuments =
+    visibility === 'full'
+      ? await Promise.all(
+          ((pendingDocumentsRaw.data ?? []) as UserDocumentRow[]).map(async (row) =>
+            mapDocumentRow(
+              row,
+              await createSignedUrl(row.path),
+              formatDocumentOwnerName(pendingDocumentProfiles.get(row.user_id))
+            )
+          )
+        )
+      : [];
+
+  const activeBookings = activeAgendaItems.length;
+  const pendingBookings = pendingAgendaItems.length;
 
   return {
     totals: {
@@ -929,34 +1990,164 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       dogs: dogsRes.count ?? 0,
       activeBookings,
       pendingBookings,
-      pendingDocuments: pendingDocsRes.count ?? 0,
+      pendingDocuments: visibility === 'full' ? pendingDocsRes.count ?? 0 : 0,
+      presentDogs: presentDogIds.length,
+      activePensione: activePensioneToday.length,
+      checkInsToday: activePensioneRows.filter((row) => row.start_date === startDate).length,
+      checkOutsToday: activePensioneRows.filter((row) => (row.end_date ?? row.start_date) === startDate).length,
+      servicesToday: todayServices.length,
     },
-    pendingBookings: pendingView.items.slice(0, 8),
+    serviceCountsToday,
+    todayServices: todayServices.slice(0, 12),
+    pendingBookings: pendingAgendaItems.slice(0, 8),
     pendingDocuments,
-    upcomingServices: dateView.items.slice(0, 10),
+    urgentItems,
+  };
+}
+
+export async function getAdminAnalytics(): Promise<AdminAnalytics> {
+  const thirtyDaysAgo = Date.now() - 1000 * 60 * 60 * 24 * 30;
+
+  const [usersRes, dogsRes, bookingsRes, slotBookingsRes] = await Promise.all([
+    supabaseAdmin.from('profiles').select('user_id', { head: true, count: 'exact' }),
+    supabaseAdmin.from('dogs').select('id', { head: true, count: 'exact' }).neq('is_active', false),
+    supabaseAdmin
+      .from('bookings')
+      .select('user_id, service_type, total_price, status, created_at, booking_dogs(dog_id)'),
+    supabaseAdmin
+      .from('service_slot_bookings')
+      .select('user_id, service_type, total_price, status, created_at, dog_id, dog_ids'),
+  ]);
+
+  const bookingRows = (bookingsRes.data ?? []) as Array<{
+    user_id: string;
+    service_type: BookingRow['service_type'] | null;
+    total_price: number | null;
+    status: BookingStatus | null;
+    created_at?: string | null;
+    booking_dogs?: Array<{ dog_id: string }> | null;
+  }>;
+  const slotRows = (slotBookingsRes.data ?? []) as Array<Pick<
+    ServiceSlotBookingQueryRow,
+    'user_id' | 'service_type' | 'total_price' | 'status' | 'created_at' | 'dog_id' | 'dog_ids'
+  >>;
+
+  const activeUsers = new Set<string>();
+  const activeDogs = new Set<string>();
+  const revenueByService = new Map<AnalyticsServiceKey, { revenue: number; bookings: number }>(
+    ANALYTICS_SERVICE_KEYS.map((serviceKey) => [serviceKey, { revenue: 0, bookings: 0 }])
+  );
+
+  let confirmedRevenue = 0;
+  let confirmedBookings = 0;
+  let last30DaysRevenue = 0;
+  let last30DaysBookings = 0;
+
+  for (const row of bookingRows) {
+    if (row.status && row.status !== 'CANCELLED') {
+      activeUsers.add(row.user_id);
+      for (const bookingDog of row.booking_dogs ?? []) {
+        if (bookingDog.dog_id) activeDogs.add(bookingDog.dog_id);
+      }
+    }
+
+    if (!row.service_type || !ANALYTICS_SERVICE_KEYS.includes(row.service_type as AnalyticsServiceKey)) continue;
+    if (!isConfirmedRevenueStatus(row.status)) continue;
+
+    const serviceKey = row.service_type as AnalyticsServiceKey;
+    const amount = row.total_price ?? 0;
+    const bucket = revenueByService.get(serviceKey);
+    if (bucket) {
+      bucket.revenue += amount;
+      bucket.bookings += 1;
+    }
+    confirmedRevenue += amount;
+    confirmedBookings += 1;
+
+    const createdAt = Date.parse(String(row.created_at ?? ''));
+    if (!Number.isNaN(createdAt) && createdAt >= thirtyDaysAgo) {
+      last30DaysRevenue += amount;
+      last30DaysBookings += 1;
+    }
+  }
+
+  for (const row of slotRows) {
+    if (row.status && row.status !== 'CANCELLED') {
+      activeUsers.add(row.user_id);
+      for (const dogId of slotBookingDogIds(row)) {
+        activeDogs.add(dogId);
+      }
+    }
+
+    if (!row.service_type || !ANALYTICS_SERVICE_KEYS.includes(row.service_type as AnalyticsServiceKey)) continue;
+    if (!isConfirmedRevenueStatus(row.status)) continue;
+
+    const serviceKey = row.service_type as AnalyticsServiceKey;
+    const amount = row.total_price ?? 0;
+    const bucket = revenueByService.get(serviceKey);
+    if (bucket) {
+      bucket.revenue += amount;
+      bucket.bookings += 1;
+    }
+    confirmedRevenue += amount;
+    confirmedBookings += 1;
+
+    const createdAt = Date.parse(String(row.created_at ?? ''));
+    if (!Number.isNaN(createdAt) && createdAt >= thirtyDaysAgo) {
+      last30DaysRevenue += amount;
+      last30DaysBookings += 1;
+    }
+  }
+
+  return {
+    totals: {
+      users: usersRes.count ?? 0,
+      activeUsers: activeUsers.size,
+      dogs: dogsRes.count ?? 0,
+      activeDogs: activeDogs.size,
+      confirmedRevenue,
+      confirmedBookings,
+      last30DaysRevenue,
+      last30DaysBookings,
+    },
+    revenueByService: ANALYTICS_SERVICE_KEYS.map((serviceKey) => {
+      const bucket = revenueByService.get(serviceKey) ?? { revenue: 0, bookings: 0 };
+      return {
+        serviceKey,
+        label: getAdminServiceLabel(serviceKey, serviceKey, null),
+        revenue: bucket.revenue,
+        bookings: bucket.bookings,
+      };
+    }),
   };
 }
 
 export async function listAdminSlots(args: {
   startDate: string;
   endDate: string;
-  serviceType: ServiceType | 'ALL';
+  serviceTypes: ServiceType[] | 'ALL';
 }): Promise<AdminSlotRecord[]> {
-  const { startDate, endDate, serviceType } = args;
+  const { startDate, endDate, serviceTypes } = args;
 
   let slotQuery = supabaseAdmin
     .from('service_slots')
-    .select('id, service_type, service_variant, start_at, end_at, capacity, is_active, notes, created_at')
+    .select('id, service_type, service_variant, start_at, end_at, capacity, notes, created_at')
+    .eq('is_active', true)
     .gte('start_at', `${startDate}T00:00:00`)
     .lte('start_at', `${endDate}T23:59:59`)
     .order('start_at', { ascending: true });
 
-  if (serviceType !== 'ALL') {
-    slotQuery = slotQuery.eq('service_type', serviceType);
+  if (serviceTypes !== 'ALL') {
+    if (serviceTypes.length === 0) return [];
+    slotQuery = slotQuery.in('service_type', serviceTypes);
   }
 
   const slotsRes = await slotQuery;
   const slots = (slotsRes.data ?? []) as ServiceSlotRow[];
+
+  if (slots.length === 0) {
+    return [];
+  }
 
   const bookingCountsRes = await supabaseAdmin
     .from('service_slot_bookings')
@@ -980,7 +2171,6 @@ export async function listAdminSlots(args: {
       capacity: slot.capacity,
       bookedCount,
       remainingCount: Math.max(slot.capacity - bookedCount, 0),
-      isActive: slot.is_active,
       notes: slot.notes ?? null,
     } satisfies AdminSlotRecord;
   });
@@ -998,6 +2188,52 @@ export async function updateAdminUserProfile(userId: string, payload: Partial<Pr
   }
 
   return data as Profile;
+}
+
+export async function unlockAdminServicePass(args: {
+  userId: string;
+  passId: string;
+  staffUserId: string;
+}): Promise<ServicePassRow> {
+  const { userId, passId, staffUserId } = args;
+
+  const { data: existingPass, error: existingPassError } = await supabaseAdmin
+    .from('service_passes')
+    .select('id, user_id, status')
+    .eq('id', passId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (existingPassError) {
+    throw new Error(existingPassError.message);
+  }
+
+  if (!existingPass) {
+    throw new Error('Pacchetto crediti non trovato.');
+  }
+
+  if (existingPass.status !== 'LOCKED') {
+    throw new Error('Questo pacchetto non richiede sblocco.');
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('service_passes')
+    .update({
+      status: 'ACTIVE',
+      unlocked_at: new Date().toISOString(),
+      unlocked_by: staffUserId,
+    })
+    .eq('id', passId)
+    .eq('user_id', userId)
+    .eq('status', 'LOCKED')
+    .select('id, user_id, service_type, service_variant, product_id, credits_total, credits_used, status, purchased_at, expires_at, unlocked_at, unlocked_by')
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? 'Impossibile sbloccare il pacchetto crediti.');
+  }
+
+  return data as ServicePassRow;
 }
 
 export async function updateAdminDog(dogId: string, input: DogInput): Promise<Dog> {
@@ -1038,9 +2274,23 @@ export async function updateAdminDocumentStatus(args: {
   documentId: string;
   status: 'ACCEPTED' | 'REJECTED';
   staffNote?: string | null;
-}): Promise<void> {
+}): Promise<{
+  userId: string;
+  kind: 'ID_DOCUMENT' | 'WAIVER_SIGNED';
+  previousStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED';
+  status: 'ACCEPTED' | 'REJECTED';
+}> {
   const { documentId, status, staffNote = null } = args;
   const now = new Date().toISOString();
+  const { data: current, error: currentError } = await supabaseAdmin
+    .from('user_documents')
+    .select('user_id, kind, status')
+    .eq('id', documentId)
+    .single();
+
+  if (currentError || !current) {
+    throw new Error(currentError?.message ?? 'Documento non trovato.');
+  }
 
   const patch =
     status === 'ACCEPTED'
@@ -1055,15 +2305,37 @@ export async function updateAdminDocumentStatus(args: {
   if (error) {
     throw new Error(error.message);
   }
+
+  return {
+    userId: String(current.user_id),
+    kind: current.kind as 'ID_DOCUMENT' | 'WAIVER_SIGNED',
+    previousStatus: current.status as 'PENDING' | 'ACCEPTED' | 'REJECTED',
+    status,
+  };
 }
 
 export async function updateAdminBookingStatus(args: {
   kind: AdminBookingKind;
   bookingId: string;
   status: BookingStatus | ServiceStatus;
-}): Promise<void> {
+}): Promise<{
+  userId: string;
+  serviceType: string;
+  previousStatus: string | null;
+  status: string;
+  kind: AdminBookingKind;
+}> {
   const { kind, bookingId, status } = args;
   const table = kind === 'PENSIONE' ? 'bookings' : 'service_slot_bookings';
+  const { data: current, error: currentError } = await supabaseAdmin
+    .from(table)
+    .select('user_id, service_type, status')
+    .eq('id', bookingId)
+    .single();
+
+  if (currentError || !current) {
+    throw new Error(currentError?.message ?? 'Prenotazione non trovata.');
+  }
 
   const { error } = await supabaseAdmin
     .from(table)
@@ -1073,6 +2345,14 @@ export async function updateAdminBookingStatus(args: {
   if (error) {
     throw new Error(error.message);
   }
+
+  return {
+    userId: String(current.user_id),
+    serviceType: String(current.service_type ?? ''),
+    previousStatus: current.status ? String(current.status) : null,
+    status: String(status),
+    kind,
+  };
 }
 
 export async function upsertAdminSlot(input: {
@@ -1082,10 +2362,9 @@ export async function upsertAdminSlot(input: {
   startAt: string;
   endAt: string;
   capacity: number;
-  isActive: boolean;
   notes?: string | null;
 }): Promise<AdminSlotRecord> {
-  const { slotId = null, serviceType, serviceVariant, startAt, endAt, capacity, isActive, notes = null } = input;
+  const { slotId = null, serviceType, serviceVariant, startAt, endAt, capacity, notes = null } = input;
 
   const payload = {
     id: slotId ?? undefined,
@@ -1094,7 +2373,7 @@ export async function upsertAdminSlot(input: {
     start_at: startAt,
     end_at: endAt,
     capacity,
-    is_active: isActive,
+    is_active: true,
     notes,
   };
 
@@ -1103,7 +2382,7 @@ export async function upsertAdminSlot(input: {
     : supabaseAdmin.from('service_slots').insert(payload);
 
   const { data, error } = await operation
-    .select('id, service_type, service_variant, start_at, end_at, capacity, is_active, notes, created_at')
+    .select('id, service_type, service_variant, start_at, end_at, capacity, notes, created_at')
     .single();
 
   if (error || !data) {
@@ -1119,9 +2398,32 @@ export async function upsertAdminSlot(input: {
     capacity: data.capacity,
     bookedCount: 0,
     remainingCount: data.capacity,
-    isActive: data.is_active,
     notes: data.notes ?? null,
   };
+}
+
+export async function deleteAdminSlot(slotId: string): Promise<void> {
+  const { count, error: bookingsError } = await supabaseAdmin
+    .from('service_slot_bookings')
+    .select('id', { head: true, count: 'exact' })
+    .eq('slot_id', slotId);
+
+  if (bookingsError) {
+    throw new Error(bookingsError.message);
+  }
+
+  if ((count ?? 0) > 0) {
+    throw new Error('Non puoi eliminare uno slot che ha prenotazioni collegate.');
+  }
+
+  const { error } = await supabaseAdmin
+    .from('service_slots')
+    .delete()
+    .eq('id', slotId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 async function getStaffRoleForUserInternal(userId: string): Promise<StaffRole | null> {
@@ -1133,22 +2435,6 @@ async function getStaffRoleForUserInternal(userId: string): Promise<StaffRole | 
 
   if (!data || data.is_active === false) return null;
   return data.role as StaffRole;
-}
-
-async function findAuthUserByEmail(email: string): Promise<User | null> {
-  const normalizedEmail = String(email ?? '').trim().toLowerCase();
-  if (!normalizedEmail) return null;
-
-  for (let page = 1; page <= 20; page += 1) {
-    const { data, error } = await supabaseAdmin.auth.admin.listUsers({ page, perPage: 200 });
-    if (error) throw new Error(error.message);
-
-    const user = data.users.find((candidate) => (candidate.email ?? '').trim().toLowerCase() === normalizedEmail);
-    if (user) return user;
-    if (data.users.length < 200) break;
-  }
-
-  return null;
 }
 
 async function resolveAuthEmails(userIds: string[]): Promise<Map<string, string | null>> {
@@ -1172,34 +2458,43 @@ async function resolveAuthEmails(userIds: string[]): Promise<Map<string, string 
 export async function listAdminStaffMembers(): Promise<AdminStaffMember[]> {
   const { data, error } = await supabaseAdmin
     .from('staff_accounts')
-    .select('user_id, role, is_active, created_at, updated_at')
+    .select('user_id, role, created_at, updated_at')
+    .eq('is_active', true)
     .order('created_at', { ascending: true });
 
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []) as StaffAccountRow[];
   const emailMap = await resolveAuthEmails(rows.map((row) => row.user_id));
+  const profileMap = await loadProfilesByIds(rows.map((row) => row.user_id));
 
   return rows.map((row) => ({
     userId: row.user_id,
+    fullName: formatPersonName(
+      profileMap.get(row.user_id)?.first_name ?? null,
+      profileMap.get(row.user_id)?.last_name ?? null,
+      emailMap.get(row.user_id) ?? null
+    ),
     email: emailMap.get(row.user_id) ?? null,
     role: row.role,
-    isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }));
 }
 
-export async function upsertAdminStaffMemberByEmail(args: {
-  email: string;
+export async function upsertAdminStaffMember(args: {
+  userId: string;
   role: StaffRole;
-  isActive: boolean;
 }): Promise<AdminStaffMember> {
-  const { email, role, isActive } = args;
-  const user = await findAuthUserByEmail(email);
+  const { userId, role } = args;
+  const [profileMap, emailMap] = await Promise.all([
+    loadProfilesByIds([userId]),
+    resolveAuthEmails([userId]),
+  ]);
 
-  if (!user?.id) {
-    throw new Error('Nessun account trovato per questa email.');
+  const email = emailMap.get(userId) ?? null;
+  if (!email) {
+    throw new Error('Nessun account trovato per questo utente.');
   }
 
   const now = new Date().toISOString();
@@ -1207,14 +2502,14 @@ export async function upsertAdminStaffMemberByEmail(args: {
     .from('staff_accounts')
     .upsert(
       {
-        user_id: user.id,
+        user_id: userId,
         role,
-        is_active: isActive,
+        is_active: true,
         updated_at: now,
       },
       { onConflict: 'user_id' }
     )
-    .select('user_id, role, is_active, created_at, updated_at')
+    .select('user_id, role, created_at, updated_at')
     .single();
 
   if (error || !data) {
@@ -1223,9 +2518,13 @@ export async function upsertAdminStaffMemberByEmail(args: {
 
   return {
     userId: data.user_id,
-    email: user.email ?? null,
+    fullName: formatPersonName(
+      profileMap.get(userId)?.first_name ?? null,
+      profileMap.get(userId)?.last_name ?? null,
+      email
+    ),
+    email,
     role: data.role,
-    isActive: data.is_active,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   };

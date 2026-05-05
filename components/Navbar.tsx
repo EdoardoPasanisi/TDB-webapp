@@ -1,13 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter, usePathname } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import { useAuthContext } from '@/lib/auth/AuthProvider';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { MobileTopBar } from '@/components/ui/MobileTopBar';
 import { BottomNav } from '@/components/ui/BottomNav';
 import { BackButton } from '@/components/common/BackButton';
-import { Button } from '@/components/ui/Button';
 
 function isMainRoute(pathname: string) {
   return (
@@ -42,62 +42,75 @@ export default function Navbar() {
   useEffect(() => {
     if (typeof document === 'undefined') return;
     document.body.dataset.mobileChrome = showMobileChrome ? 'on' : 'off';
-  }, [showMobileChrome]);
+    document.body.dataset.desktopChrome = showMobileChrome ? 'on' : 'off';
+    if (showMobileChrome && pathname === '/profile') {
+      document.body.dataset.profileLayout = 'overview';
+    } else {
+      delete document.body.dataset.profileLayout;
+    }
+  }, [pathname, showMobileChrome]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
     return () => {
       document.body.dataset.mobileChrome = 'off';
+      document.body.dataset.desktopChrome = 'off';
+      delete document.body.dataset.profileLayout;
+      delete document.body.dataset.desktopBack;
     };
   }, []);
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-    } finally {
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem('sb-access-token');
-          localStorage.removeItem('sb-refresh-token');
-        } catch {}
-      }
-      router.push('/login');
-      router.refresh();
+  const isCalendarActive =
+    pathname === '/services/calendar' || pathname.startsWith('/services/calendar/');
+  const isServicesActive =
+    pathname === '/services' ||
+    (pathname.startsWith('/services/') && !isCalendarActive);
+  const isSettingsActive = pathname === '/settings' || pathname.startsWith('/settings/');
+  const isProfileActive = pathname === '/profile';
+  const isChatActive = pathname === '/chat' || pathname.startsWith('/chat/');
+  const showDesktopBack = !isMainRoute(pathname);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (!user || hideNavbarForRoute) {
+      delete document.body.dataset.desktopBack;
+      return;
     }
-  };
+
+    document.body.dataset.desktopBack = showDesktopBack ? 'on' : 'off';
+  }, [hideNavbarForRoute, showDesktopBack, user]);
 
   if (loading) return null;
   if (hideNavbarForRoute) return null;
   if (!user) return null;
 
-  const isServicesActive = pathname === '/services' || pathname.startsWith('/services/');
-  const isSettingsActive = pathname === '/settings' || pathname.startsWith('/settings/');
-  const showDesktopBack = !isMainRoute(pathname);
-
   return (
     <>
       {/* MOBILE */}
       <MobileTopBar />
-      <BottomNav homeHref="/services" calendarHref="/services/calendar" />
+      <BottomNav chatHref="/chat" homeHref="/services" calendarHref="/services/calendar" />
 
       {/* DESKTOP */}
-      <header data-app-chrome="desktop-top" className="hidden md:block">
+      <header data-app-chrome="desktop-top" className="hidden md:fixed md:inset-x-0 md:top-0 md:z-50 md:block">
         <div className="ui-desktopTopShell">
-          <nav className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
-            <button onClick={() => router.push('/profile')} className="text-lg font-black">
-              Tenuta del Barone
+          <nav className="mx-auto grid max-w-[1400px] grid-cols-[auto_1fr_auto] items-center gap-10 px-8 py-7">
+            <button
+              type="button"
+              onClick={() => router.push('/services')}
+              className="ml-8 flex items-center justify-center"
+              aria-label="Vai ai servizi"
+            >
+              <Image
+                src="/tenuta-logo.png"
+                alt="Tenuta del Barone"
+                width={168}
+                height={52}
+                priority
+                className="h-[96px] w-auto"
+              />
             </button>
 
-            <div className="flex items-center gap-3 text-sm">
-              <button
-                onClick={() => router.push('/profile')}
-                className={`ui-navLinkBtn ${
-                  pathname === '/profile' ? 'ui-navLinkBtn--active' : ''
-                }`}
-              >
-                Profilo
-              </button>
-
+            <div className="flex items-center justify-center gap-5 text-sm">
               <button
                 onClick={() => router.push('/services')}
                 className={`ui-navLinkBtn ${
@@ -108,28 +121,57 @@ export default function Navbar() {
               </button>
 
               <button
-                onClick={() => router.push('/settings')}
+                onClick={() => router.push('/services/calendar')}
                 className={`ui-navLinkBtn ${
-                  isSettingsActive ? 'ui-navLinkBtn--active' : ''
+                  isCalendarActive ? 'ui-navLinkBtn--active' : ''
                 }`}
               >
-                Impostazioni
+                Calendario
               </button>
 
-              <Button
+              <button
+                onClick={() => router.push('/chat')}
+                className={`ui-navLinkBtn ${
+                  isChatActive ? 'ui-navLinkBtn--active' : ''
+                }`}
+                >
+                  Chat
+                </button>
+            </div>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
                 type="button"
-                variant="primary"
-                onClick={handleLogout}
-                className="h-11 px-4"
+                onClick={() => router.push('/settings')}
+                className={`ui-desktopTopIconBtn ${
+                  isSettingsActive ? 'ui-desktopTopIconBtn--active' : ''
+                }`}
+                aria-label="Impostazioni"
               >
-                Logout
-              </Button>
+                <Image src="/icon-settings.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />
+              </button>
+
+              <NotificationBell
+                buttonClassName="ui-desktopTopIconBtn"
+                panelClassName="ui-notificationPanel--desktop"
+              />
+
+              <button
+                type="button"
+                onClick={() => router.push('/profile')}
+                className={`ui-desktopTopIconBtn ${
+                  isProfileActive ? 'ui-desktopTopIconBtn--active' : ''
+                }`}
+                aria-label="Profilo"
+              >
+                <Image src="/icon-user.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />
+              </button>
             </div>
           </nav>
         </div>
 
         {showDesktopBack ? (
-          <div className="max-w-6xl mx-auto px-6 pt-4">
+          <div className="mx-auto max-w-[1400px] px-8 pt-4">
             <BackButton hrefFallback="/services" />
           </div>
         ) : null}

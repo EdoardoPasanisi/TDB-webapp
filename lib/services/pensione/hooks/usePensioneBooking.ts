@@ -4,16 +4,25 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { updateProfileForCurrentUser } from '@/lib/account/profileApi';
 
 import type { TaxiDistanceBand, TaxiOption, AccommodationKey, BookingDogExtras } from '@/types/booking';
+import { getMissingRequiredCustomerBookingFields } from '@/lib/bookings/customerBookingRequirements';
+import {
+  buildPensioneBookingDraftKey,
+  clearBookingDraft,
+  readBookingDraft,
+  writeBookingDraft,
+} from '@/lib/bookings/bookingDrafts';
 import { DEFAULT_TAXI, DEFAULT_TIMES } from '../constants';
 import type { DogLite, PerDogForm } from '../types';
+import { savePensioneBooking } from '../api';
 import {
-  buildExtrasPayload,
   computeDaysCount,
-  computePerDogTotals,
   computePricing,
   getTodayISO,
+  normalizeSundayTime,
   validateTimeWindow,
 } from '../utils';
 
@@ -23,12 +32,14 @@ type TaxiDistanceState = {
   km: number | null;
 };
 
-type ProfileAddressRow = {
-  dog_address_line?: string | null;
-  dog_city?: string | null;
-  dog_zip_code?: string | null;
-  dog_province?: string | null;
+type TaxiServiceAddressForm = {
+  dog_address_line: string;
+  dog_city: string;
+  dog_zip_code: string;
+  dog_province: string;
 };
+
+type ProfileAddressRow = Partial<TaxiServiceAddressForm>;
 
 type DogRow = {
   id: string;
@@ -49,6 +60,30 @@ type TaxiDistanceApiResponse = {
   ok?: boolean;
   error?: string;
   km?: number;
+};
+
+type RequiredBookingProfileRow = {
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+};
+
+type PensioneBookingDraft = {
+  startDate: string;
+  endDate: string;
+  arrivalTime: string;
+  departureTime: string;
+  taxiOption: TaxiOption;
+  notes: string;
+  selectedDogIds: string[];
+  perDogForm: Record<string, PerDogForm>;
+};
+
+const EMPTY_TAXI_SERVICE_ADDRESS: TaxiServiceAddressForm = {
+  dog_address_line: '',
+  dog_city: '',
+  dog_zip_code: '',
+  dog_province: '',
 };
 
 function buildAddressFromProfile(profile: ProfileAddressRow | null): string {
@@ -78,6 +113,22 @@ function buildAddressFromProfile(profile: ProfileAddressRow | null): string {
   return address;
 }
 
+function normalizeTaxiServiceAddress(profile: ProfileAddressRow | null): TaxiServiceAddressForm {
+  return {
+    dog_address_line: String(profile?.dog_address_line ?? '').trim(),
+    dog_city: String(profile?.dog_city ?? '').trim(),
+    dog_zip_code: String(profile?.dog_zip_code ?? '').trim(),
+    dog_province: String(profile?.dog_province ?? '').trim(),
+  };
+}
+
+function hasTaxiServiceAddressMinimum(address: ProfileAddressRow | null): boolean {
+  return (
+    String(address?.dog_address_line ?? '').trim().length > 0 &&
+    String(address?.dog_city ?? '').trim().length > 0
+  );
+}
+
 export function usePensioneBooking() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -87,6 +138,8 @@ export function usePensioneBooking() {
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [missingRequiredFields, setMissingRequiredFields] = useState<string[]>([]);
+  const [draftKey, setDraftKey] = useState<string | null>(null);
 
   const [dogs, setDogs] = useState<DogLite[]>([]);
   const [selectedDogIds, setSelectedDogIds] = useState<string[]>([]);
@@ -107,12 +160,43 @@ export function usePensioneBooking() {
     error: null,
     km: null,
   });
+  const [taxiServiceAddress, setTaxiServiceAddress] = useState<TaxiServiceAddressForm>(
+    EMPTY_TAXI_SERVICE_ADDRESS
+  );
+  const [taxiServiceAddressDirty, setTaxiServiceAddressDirty] = useState(false);
 
   const [notes, setNotes] = useState('');
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
 
   // Form per-cane
   const [perDogForm, setPerDogForm] = useState<Record<string, PerDogForm>>({});
+
+  const normalizeSelectedDogIds = useCallback(
+    (candidateIds: string[], dogList: DogLite[]) => {
+      if (dogList.length === 1 && dogList[0]) return [dogList[0].id];
+
+      const validDogIds = new Set(dogList.map((dog) => dog.id));
+      return candidateIds.filter((dogId) => validDogIds.has(dogId));
+    },
+    []
+  );
+
+  const mergeDraftPerDogForm = useCallback(
+    (dogList: DogLite[], baseForm: Record<string, PerDogForm>, draftForm: Record<string, PerDogForm> | null | undefined) => {
+      const nextForm = { ...baseForm };
+
+      if (!draftForm) return nextForm;
+
+      for (const dog of dogList) {
+        const savedForm = draftForm[dog.id];
+        if (!savedForm) continue;
+        nextForm[dog.id] = { ...nextForm[dog.id], ...savedForm };
+      }
+
+      return nextForm;
+    },
+    []
+  );
 
   // Caricamento cani
   useEffect(() => {
@@ -128,18 +212,38 @@ export function usePensioneBooking() {
 
       const userId = userData.user.id;
 
-      const { data: dogsData, error: dogsError } = await supabase
-        .from('dogs')
-        .select('id, name, photo_path, updated_at, size_category, grooming_difficulty')
-        .eq('owner_id', userId)
-        .eq('is_active', true)
-        .order('name', { ascending: true });
+      const [{ data: dogsData, error: dogsError }, { data: profileData, error: profileError }] =
+        await Promise.all([
+          supabase
+            .from('dogs')
+            .select('id, name, photo_path, updated_at, size_category, grooming_difficulty')
+            .eq('owner_id', userId)
+            .eq('is_active', true)
+            .order('name', { ascending: true }),
+          supabase
+            .from('profiles')
+            .select('dog_address_line, dog_city, dog_zip_code, dog_province')
+            .eq('user_id', userId)
+            .maybeSingle(),
+        ]);
 
       if (dogsError) {
-        setError(dogsError.message);
+        setError(humanizeErrorMessage(dogsError, 'Non siamo riusciti a caricare i cani registrati.'));
         setLoading(false);
         return;
       }
+
+      if (profileError) {
+        setError(
+          humanizeErrorMessage(
+            profileError,
+            'Non siamo riusciti a leggere l’indirizzo servizi del profilo.'
+          )
+        );
+      }
+
+      setTaxiServiceAddress(normalizeTaxiServiceAddress((profileData ?? null) as ProfileAddressRow | null));
+      setTaxiServiceAddressDirty(false);
 
       const dogsRows = (dogsData ?? []) as DogRow[];
       const dogList: DogLite[] = dogsRows.map((d) => ({
@@ -150,7 +254,6 @@ export function usePensioneBooking() {
           size_category: d.size_category ?? null,
           grooming_difficulty: d.grooming_difficulty ?? null,
         }));
-
 
       setDogs(dogList);
 
@@ -167,16 +270,34 @@ export function usePensioneBooking() {
           therapyNotes: '',
         };
       }
-      setPerDogForm(initialPerDog);
 
-      if (dogList.length === 1) setSelectedDogIds([dogList[0].id]);
-      else setSelectedDogIds([]);
+      if (editBookingIdFromUrl) {
+        setPerDogForm(initialPerDog);
+        if (dogList.length === 1) setSelectedDogIds([dogList[0].id]);
+        else setSelectedDogIds([]);
+      } else {
+        const nextDraftKey = buildPensioneBookingDraftKey(userId, null);
+        const draft = readBookingDraft<PensioneBookingDraft>(nextDraftKey);
+        const nextPerDogForm = mergeDraftPerDogForm(dogList, initialPerDog, draft?.perDogForm);
+
+        setStartDate(draft?.startDate ?? getTodayISO());
+        setEndDate(draft?.endDate ?? getTodayISO());
+        setArrivalTime(draft?.arrivalTime ?? DEFAULT_TIMES.ARRIVAL);
+        setDepartureTime(draft?.departureTime ?? DEFAULT_TIMES.DEPARTURE);
+        setTaxiOption(draft?.taxiOption ?? DEFAULT_TAXI.option);
+        setNotes(draft?.notes ?? '');
+        setPerDogForm(nextPerDogForm);
+        setSelectedDogIds(
+          normalizeSelectedDogIds(draft?.selectedDogIds ?? [], dogList)
+        );
+        setDraftKey(nextDraftKey);
+      }
 
       setLoading(false);
     };
 
     load();
-  }, [router]);
+  }, [editBookingIdFromUrl, mergeDraftPerDogForm, normalizeSelectedDogIds, router]);
 
   // ✅ Distanza taxi automatica
   useEffect(() => {
@@ -187,50 +308,34 @@ export function usePensioneBooking() {
         return;
       }
 
-      setTaxiDistance((p) => ({ ...p, loading: true, error: null }));
-
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError || !userData.user) {
-        setTaxiDistance({ loading: false, error: 'Sessione scaduta.', km: null });
-        return;
-      }
-
-      const userId = userData.user.id;
-
-      // ✅ Nel tuo DB: profiles.user_id è la FK verso auth.users.id
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('dog_address_line, dog_city, dog_zip_code, dog_province')
-        .eq('user_id', userId)
-        .maybeSingle();
-      const profileRow = (profile ?? null) as ProfileAddressRow | null;
-
-      if (profileError) {
-        setTaxiDistance({ loading: false, error: profileError.message, km: null });
-        return;
-      }
-
-	      const userAddress = buildAddressFromProfile(profileRow);
-
-      if (!userAddress) {
+      if (!hasTaxiServiceAddressMinimum(taxiServiceAddress)) {
         setTaxiDistance({
           loading: false,
-          error: 'Indirizzo taxi dog incompleto nel profilo. Compila almeno via e città.',
+          error: 'Inserisci l’indirizzo servizi per usare il taxi dog.',
           km: null,
         });
         return;
       }
 
-      const url = new URL('/api/taxi-distance', window.location.origin);
-      url.searchParams.set('userAddress', userAddress);
+      setTaxiDistance((p) => ({ ...p, loading: true, error: null }));
 
-      const res = await fetch(url.toString(), { cache: 'no-store' });
+      const userAddress = buildAddressFromProfile(taxiServiceAddress);
+
+      const res = await fetch('/api/taxi-distance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({ address: userAddress }),
+      });
       const json = (await res.json()) as TaxiDistanceApiResponse;
 
       if (!json?.ok) {
         setTaxiDistance({
           loading: false,
-          error: json?.error ?? 'Errore distanza taxi.',
+          error: humanizeErrorMessage(
+            json?.error,
+            'Non siamo riusciti a calcolare la distanza del taxi dog.'
+          ),
           km: null,
         });
         return;
@@ -248,7 +353,7 @@ export function usePensioneBooking() {
     };
 
     run();
-  }, [taxiOption]);
+  }, [taxiOption, taxiServiceAddress]);
 
   // Caricamento prenotazione in modifica
   useEffect(() => {
@@ -275,7 +380,12 @@ export function usePensioneBooking() {
         .maybeSingle();
 
       if (bookingError) {
-        setError(`Errore Supabase (bookings): ${bookingError.message}`);
+        setError(
+          humanizeErrorMessage(
+            bookingError,
+            'Non siamo riusciti a caricare la prenotazione da modificare.'
+          )
+        );
         setLoadingEdit(false);
         return;
       }
@@ -298,7 +408,12 @@ export function usePensioneBooking() {
         .eq('booking_id', editBookingIdFromUrl);
 
       if (bookingDogsError) {
-        setError(`Errore Supabase (booking_dogs): ${bookingDogsError.message}`);
+        setError(
+          humanizeErrorMessage(
+            bookingDogsError,
+            'Non siamo riusciti a caricare i dettagli dei cani nella prenotazione.'
+          )
+        );
         setLoadingEdit(false);
         return;
       }
@@ -318,7 +433,6 @@ export function usePensioneBooking() {
 
       const bookingDogRows = bookingDogs as BookingDogEditRow[];
       const dogIds = bookingDogRows.map((bd) => bd.dog_id);
-      setSelectedDogIds(dogIds);
 
       const newPerDog: Record<string, PerDogForm> = {};
       for (const bd of bookingDogRows) {
@@ -336,13 +450,24 @@ export function usePensioneBooking() {
         };
       }
 
-      setPerDogForm((prev) => ({ ...prev, ...newPerDog }));
+      const nextDraftKey = buildPensioneBookingDraftKey(userId, bookingData.id as string);
+      const draft = readBookingDraft<PensioneBookingDraft>(nextDraftKey);
+
+      setSelectedDogIds(normalizeSelectedDogIds(draft?.selectedDogIds ?? dogIds, dogs));
+      setPerDogForm((prev) => mergeDraftPerDogForm(dogs, { ...prev, ...newPerDog }, draft?.perDogForm));
+      setStartDate(draft?.startDate ?? (bookingData.start_date ?? ''));
+      setEndDate(draft?.endDate ?? (bookingData.end_date ?? ''));
+      setArrivalTime(draft?.arrivalTime ?? (bookingData.arrival_time ?? DEFAULT_TIMES.ARRIVAL));
+      setDepartureTime(draft?.departureTime ?? (bookingData.departure_time ?? DEFAULT_TIMES.DEPARTURE));
+      setNotes(draft?.notes ?? (bookingData.notes ?? ''));
+      setTaxiOption(draft?.taxiOption ?? ((bookingData.taxi_option as TaxiOption) ?? DEFAULT_TAXI.option));
       setEditingBookingId(bookingData.id as string);
+      setDraftKey(nextDraftKey);
       setLoadingEdit(false);
     };
 
     loadBookingToEdit();
-  }, [editBookingIdFromUrl, router]);
+  }, [dogs, editBookingIdFromUrl, mergeDraftPerDogForm, normalizeSelectedDogIds, router]);
 
   const isSingleDog = dogs.length === 1;
   const effectiveSelectedDogIds = useMemo(
@@ -360,6 +485,17 @@ export function usePensioneBooking() {
       });
     },
     [isSingleDog]
+  );
+
+  const updateTaxiServiceAddressField = useCallback(
+    (field: keyof TaxiServiceAddressForm, value: string) => {
+      setTaxiServiceAddress((current) => ({
+        ...current,
+        [field]: value,
+      }));
+      setTaxiServiceAddressDirty(true);
+    },
+    []
   );
 
   const updatePerDogField = useCallback(
@@ -390,6 +526,55 @@ export function usePensioneBooking() {
     });
   }, [effectiveSelectedDogIds, daysCount, dogs, perDogForm, taxiOption, taxiDistanceBand]);
 
+  useEffect(() => {
+    if (!draftKey) return;
+
+    writeBookingDraft(draftKey, {
+      startDate,
+      endDate,
+      arrivalTime,
+      departureTime,
+      taxiOption,
+      notes,
+      selectedDogIds,
+      perDogForm,
+    } satisfies PensioneBookingDraft);
+  }, [
+    arrivalTime,
+    departureTime,
+    draftKey,
+    endDate,
+    notes,
+    perDogForm,
+    selectedDogIds,
+    startDate,
+    taxiOption,
+  ]);
+
+  const loadMissingRequiredProfileFields = useCallback(async () => {
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    if (userError || !userData.user) {
+      router.push('/login');
+      return ['Nome', 'Cognome', 'Numero di telefono'];
+    }
+
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('first_name, last_name, phone')
+      .eq('user_id', userData.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      throw new Error(
+        humanizeErrorMessage(profileError, 'Non siamo riusciti a verificare i dati del profilo.')
+      );
+    }
+
+    return getMissingRequiredCustomerBookingFields(
+      (profile ?? null) as RequiredBookingProfileRow | null
+    );
+  }, [router]);
+
   const handleCancelEdit = useCallback(() => {
     if (editingBookingId) router.push(`/services/booking/${editingBookingId}`);
     else router.push('/services');
@@ -397,6 +582,7 @@ export function usePensioneBooking() {
 
   const submit = useCallback(async () => {
     setError(null);
+    setMissingRequiredFields([]);
 
     if (dogs.length === 0) return setError('Devi prima registrare almeno un cane.');
     if (effectiveSelectedDogIds.length === 0)
@@ -413,10 +599,10 @@ export function usePensioneBooking() {
       );
     }
 
-    const arrivalErr = validateTimeWindow('L’orario di arrivo', arrivalTime);
+    const arrivalErr = validateTimeWindow('L’orario di arrivo', arrivalTime, startDate);
     if (arrivalErr) return setError(arrivalErr);
 
-    const departureErr = validateTimeWindow('L’orario di partenza', departureTime);
+    const departureErr = validateTimeWindow('L’orario di partenza', departureTime, endDate);
     if (departureErr) return setError(departureErr);
 
     for (const dogId of effectiveSelectedDogIds) {
@@ -435,6 +621,11 @@ export function usePensioneBooking() {
     }
 
     if (taxiOption !== 'NONE') {
+      if (!hasTaxiServiceAddressMinimum(taxiServiceAddress)) {
+        return setError(
+          'Per usare il taxi dog inserisci l’indirizzo servizi oppure rimuovi il taxi dog dalla prenotazione.'
+        );
+      }
       if (taxiDistance.loading) return setError('Calcolo distanza taxi in corso...');
       if (taxiDistance.error) return setError(taxiDistance.error);
       if (taxiDistance.km == null) return setError('Impossibile calcolare la distanza taxi.');
@@ -444,9 +635,31 @@ export function usePensioneBooking() {
       return setError('Impossibile calcolare il prezzo. Controlla i dati inseriti.');
     }
 
+    try {
+      const missingProfileFields = await loadMissingRequiredProfileFields();
+      if (missingProfileFields.length > 0) {
+        setMissingRequiredFields(missingProfileFields);
+        return;
+      }
+    } catch (profileError) {
+      return setError(
+        humanizeErrorMessage(profileError, 'Non siamo riusciti a verificare i dati del profilo.')
+      );
+    }
+
     setSaving(true);
 
     try {
+      if (taxiOption !== 'NONE' && taxiServiceAddressDirty) {
+        await updateProfileForCurrentUser({
+          dog_address_line: taxiServiceAddress.dog_address_line || null,
+          dog_city: taxiServiceAddress.dog_city || null,
+          dog_zip_code: taxiServiceAddress.dog_zip_code || null,
+          dog_province: taxiServiceAddress.dog_province || null,
+        });
+        setTaxiServiceAddressDirty(false);
+      }
+
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
         setSaving(false);
@@ -454,115 +667,36 @@ export function usePensioneBooking() {
         return;
       }
 
-      const userId = userData.user.id;
-      const firstDogId = effectiveSelectedDogIds[0];
-      let bookingId: string;
-
-      const taxi_pickup_time =
-        taxiOption === 'ONE_WAY' || taxiOption === 'ROUND_TRIP' ? arrivalTime || null : null;
-      const taxi_return_time =
-        taxiOption === 'RETURN_ONLY' || taxiOption === 'ROUND_TRIP'
-          ? departureTime || null
-          : null;
-
-      const bookingPayload = {
-        dog_id: firstDogId,
-        service_type: 'PENSIONE',
-        start_date: startDate,
-        end_date: endDate,
-        arrival_time: arrivalTime || null,
-        departure_time: departureTime || null,
-        notes: notes || null,
-        dogs_count: pricing.dogsCount,
-        taxi_option: taxiOption,
-        taxi_distance_band: taxiDistanceBand,
-        taxi_price: pricing.taxiPrice,
-        taxi_pickup_time,
-        taxi_return_time,
-        alloggio_total_full: pricing.alloggioTotalFull,
-        alloggio_discount_percent: pricing.discountPercent,
-        alloggio_total_discounted: pricing.alloggioTotalDiscounted,
-        extras_total: pricing.extrasTotal,
-        total_price: pricing.totalPrice,
-      };
-
-      if (editingBookingId) {
-        const { error: bookingUpdateError } = await supabase
-          .from('bookings')
-          .update(bookingPayload)
-          .eq('id', editingBookingId)
-          .eq('user_id', userId);
-
-        if (bookingUpdateError) {
-          setSaving(false);
-          return setError('Errore nel salvataggio della prenotazione (update).');
-        }
-
-        bookingId = editingBookingId;
-
-        const { error: deleteError } = await supabase
-          .from('booking_dogs')
-          .delete()
-          .eq('booking_id', bookingId);
-
-        if (deleteError) {
-          setSaving(false);
-          return setError('Errore durante l’aggiornamento del dettaglio per cane (delete).');
-        }
-      } else {
-        const { data: bookingData, error: bookingError } = await supabase
-          .from('bookings')
-          .insert({ user_id: userId, status: 'PENDING', ...bookingPayload })
-          .select()
-          .single();
-
-        if (bookingError || !bookingData) {
-          setSaving(false);
-          return setError('Errore nel salvataggio della prenotazione.');
-        }
-
-        bookingId = bookingData.id as string;
-        setEditingBookingId(bookingId);
-      }
-
-      const bookingDogsPayload = effectiveSelectedDogIds.map((dogId) => {
-        const form = perDogForm[dogId];
-        const dog = dogs.find((d) => d.id === dogId);
-        if (!dog) throw new Error('Dati cane mancanti.');
-
-        const extras = buildExtrasPayload(form);
-        const totals = computePerDogTotals({ dog, form, daysCount });
-
-        return {
-          booking_id: bookingId,
-          dog_id: dogId,
-          accommodation_type: form.accommodationType,
-          accommodation_price_per_day: totals.accommodation_price_per_day,
-          days_count: daysCount,
-          accommodation_subtotal: totals.accommodation_subtotal,
-          extras,
-          extras_subtotal: totals.extras_subtotal,
-          per_dog_total: totals.per_dog_total,
-        };
+      const result = await savePensioneBooking({
+        bookingId: editingBookingId,
+        startDate,
+        endDate,
+        arrivalTime,
+        departureTime,
+        notes,
+        taxiOption,
+        taxiDistanceBand,
+        selectedDogIds: effectiveSelectedDogIds,
+        perDogForm,
       });
 
-      const { error: bookingDogsError } = await supabase
-        .from('booking_dogs')
-        .insert(bookingDogsPayload);
-
-      if (bookingDogsError) {
-        setSaving(false);
-        return setError(
-          'La prenotazione principale è stata salvata, ma c’è stato un errore sul dettaglio per cane.'
-        );
-      }
-
+      setEditingBookingId(result.bookingId);
+      clearBookingDraft(draftKey);
       setSaving(false);
       router.push('/services');
     } catch (e) {
       console.error(e);
       setSaving(false);
-      setError('Errore inatteso durante il salvataggio.');
+      const message = humanizeErrorMessage(
+        e,
+        'Non siamo riusciti a salvare la prenotazione. Riprova.'
+      );
+      setError(message);
+      if (/devi compilare:/i.test(message)) {
+        try {
+          setMissingRequiredFields(await loadMissingRequiredProfileFields());
+        } catch {}
+      }
     }
   }, [
     dogs,
@@ -574,18 +708,48 @@ export function usePensioneBooking() {
     taxiOption,
     taxiDistanceBand,
     taxiDistance,
+    taxiServiceAddress,
+    taxiServiceAddressDirty,
     pricing,
     perDogForm,
-    daysCount,
     notes,
     editingBookingId,
+    draftKey,
+    loadMissingRequiredProfileFields,
     router,
   ]);
+
+  const handleRequiredProfileSaved = useCallback(async () => {
+    const missing = await loadMissingRequiredProfileFields();
+    setMissingRequiredFields(missing);
+    if (missing.length === 0) {
+      await submit();
+    }
+  }, [loadMissingRequiredProfileFields, submit]);
+
+  const setStartDateChecked = useCallback((value: string) => {
+    setStartDate(value);
+    setArrivalTime((current) => normalizeSundayTime(current, value));
+  }, []);
+
+  const setEndDateChecked = useCallback((value: string) => {
+    setEndDate(value);
+    setDepartureTime((current) => normalizeSundayTime(current, value));
+  }, []);
+
+  const setArrivalTimeChecked = useCallback((value: string) => {
+    setArrivalTime(normalizeSundayTime(value, startDate));
+  }, [startDate]);
+
+  const setDepartureTimeChecked = useCallback((value: string) => {
+    setDepartureTime(normalizeSundayTime(value, endDate));
+  }, [endDate]);
 
   return {
     loading: loading || loadingEdit,
     saving,
     error,
+    missingRequiredFields,
 
     dogs,
     isSingleDog,
@@ -599,6 +763,9 @@ export function usePensioneBooking() {
     taxiOption,
     taxiDistanceBand,
     taxiDistance,
+    taxiServiceAddress,
+    showTaxiServiceAddressEditor:
+      taxiServiceAddressDirty || !hasTaxiServiceAddressMinimum(taxiServiceAddress),
 
     notes,
 
@@ -607,12 +774,13 @@ export function usePensioneBooking() {
     daysCount,
     pricing,
 
-    setStartDate,
-    setEndDate,
-    setArrivalTime,
-    setDepartureTime,
+    setStartDate: setStartDateChecked,
+    setEndDate: setEndDateChecked,
+    setArrivalTime: setArrivalTimeChecked,
+    setDepartureTime: setDepartureTimeChecked,
 
     setTaxiOption,
+    updateTaxiServiceAddressField,
     setNotes,
 
     toggleDogSelection,
@@ -620,6 +788,7 @@ export function usePensioneBooking() {
 
     editingBookingId,
     handleCancelEdit,
+    handleRequiredProfileSaved,
     submit,
     setError,
   };

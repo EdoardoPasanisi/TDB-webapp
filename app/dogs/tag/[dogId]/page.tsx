@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import QRCode from 'react-qr-code';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -103,7 +104,9 @@ export default function DogTagPage() {
       try {
         const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
         if (sessionError) {
-          setError(sessionError.message);
+          setError(
+            humanizeErrorMessage(sessionError, 'La sessione non è valida. Effettua di nuovo il login.')
+          );
           setLoading(false);
           return;
         }
@@ -127,7 +130,9 @@ export default function DogTagPage() {
         const data = (await res.json()) as ApiResponse;
 
         if (!res.ok || !data.publicId) {
-          setError(data.error || 'Impossibile generare il QR code.');
+          setError(
+            humanizeErrorMessage(data.error, 'Non siamo riusciti a generare il QR code del cane.')
+          );
           setLoading(false);
           return;
         }
@@ -141,7 +146,9 @@ export default function DogTagPage() {
         setLoading(false);
       } catch (err: any) {
         console.error('DogTagPage – errore:', err);
-        setError(err?.message || 'Errore inatteso.');
+        setError(
+          humanizeErrorMessage(err, 'Non siamo riusciti a caricare il QR code del cane.')
+        );
         setLoading(false);
       }
     };

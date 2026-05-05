@@ -5,7 +5,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
 import { DogForm } from '@/components/dogs/DogForm';
-import { createDogForOwner, uploadDogPhotoForOwner, setDogPhotoPathForOwner } from '@/lib/dogs/dogApi';
+import { createDogForOwner, uploadDogPhotoForOwner } from '@/lib/dogs/dogApi';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { supabase } from '@/lib/supabaseClient';
 
 import { Button } from '@/components/ui/Button';
@@ -13,7 +14,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Si è verificato un errore nella creazione del cane.';
+  return humanizeErrorMessage(error, 'Non siamo riusciti a creare il profilo del cane. Riprova.');
 }
 
 export default function NewDogPage() {
@@ -50,8 +51,7 @@ export default function NewDogPage() {
       if (photoFile) {
         setPhotoUploading(true);
         try {
-          const photoPath = await uploadDogPhotoForOwner({ ownerId: user.id, dogId: dog.id, file: photoFile });
-          await setDogPhotoPathForOwner({ ownerId: user.id, dogId: dog.id, photoPath });
+          await uploadDogPhotoForOwner({ dogId: dog.id, file: photoFile });
         } finally {
           setPhotoUploading(false);
         }

@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
 import { getAdminServiceView } from '@/lib/admin/data';
 import { adminErrorResponse } from '@/lib/admin/route';
-import type { AdminServiceKey } from '@/lib/admin/types';
+import {
+  sanitizeAdminServiceKeysInput,
+  sanitizeAdminStatusInput,
+  sanitizeDateRangeInput,
+} from '@/lib/admin/validation';
 
 function fallbackDate(offsetDays = 0): string {
   const value = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
@@ -11,16 +15,24 @@ function fallbackDate(offsetDays = 0): string {
 
 export async function GET(request: Request) {
   try {
-    await requireStaffAccess('view');
+    const access = await requireStaffAccess('view');
 
     const { searchParams } = new URL(request.url);
-    const startDate = searchParams.get('start') ?? fallbackDate(0);
-    const endDate = searchParams.get('end') ?? startDate;
-    const status = searchParams.get('status') ?? 'ALL';
-    const serviceKey = (searchParams.get('service') ?? 'PENSIONE') as AdminServiceKey;
+    const { startDate, endDate } = sanitizeDateRangeInput(
+      searchParams.get('start') ?? fallbackDate(0),
+      searchParams.get('end') ?? searchParams.get('start') ?? fallbackDate(0)
+    );
+    const status = sanitizeAdminStatusInput(searchParams.get('status') ?? 'ALL');
+    const serviceKeys = sanitizeAdminServiceKeysInput(searchParams.get('services') ?? 'ALL');
 
-    const items = await getAdminServiceView({ startDate, endDate, status, serviceKey });
-    return NextResponse.json({ items });
+    const payload = await getAdminServiceView({
+      startDate,
+      endDate,
+      status,
+      serviceKeys,
+      visibility: access.canManage ? 'full' : 'limited',
+    });
+    return NextResponse.json(payload);
   } catch (error) {
     return adminErrorResponse(error);
   }

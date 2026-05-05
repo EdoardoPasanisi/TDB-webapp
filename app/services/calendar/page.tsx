@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 
 import { MonthCalendar, type CalendarBookingItem } from '@/components/services/calendar/MonthCalendar';
 import { FutureBookingsList } from '@/components/services/FutureBookingsList';
@@ -51,8 +52,7 @@ function colorForServiceType(serviceType: string): string {
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 function SaldoPill({ amount }: { amount: number }) {
@@ -150,7 +150,9 @@ export default function CalendarPage() {
           const endAtIso = slot?.end_at ?? '';
           const serviceType: ServiceType = booking.service_type;
           const serviceVariant: ServiceVariant | null = booking.service_variant ?? slot?.service_variant ?? null;
-          const dogName = (booking.dogs?.name ?? '').trim();
+          const dogNames = booking.dogs
+            .map((dog) => dog.name?.trim() ?? '')
+            .filter(Boolean);
 
           // ✅ id usato per aprire il riepilogo booking (logica invariata)
           const id = booking.slot_id || slot?.id || booking.id;
@@ -167,7 +169,7 @@ export default function CalendarPage() {
             serviceType,
             label: getServiceLabel(serviceType, serviceVariant),
             colorClass: colorForServiceType(serviceType),
-            dogNames: dogName ? [dogName] : [],
+            dogNames,
           };
         });
 

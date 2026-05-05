@@ -26,8 +26,12 @@
   --radius: 16px;
 
   /* Nav sizing */
-  --bottom-nav-h: 132px;
+  --bottom-nav-h: 118px;
   --topbar-h: 56px;
+  --desktop-topbar-h: 140px;
+  --desktop-main-offset: 156px;
+  --desktop-main-offset-back: 208px;
+  --desktop-chat-composer-lift: 72px;
 
   /* Safe area (iOS) */
   --safe-top: env(safe-area-inset-top);
@@ -230,11 +234,24 @@ button {
     padding-top: calc(var(--topbar-h) + 12px);
     padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 12px);
   }
+  body[data-profile-layout='overview'] .ui-appMain {
+    padding-top: 0;
+  }
+  body[data-chat-layout='immersive'] .ui-appMain {
+    overflow: hidden;
+  }
+  .ui-chatComposerDock {
+    background: var(--brand-bg);
+    padding-left: 16px;
+    padding-right: 16px;
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 90px);
+  }
   .ui-panel {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface);
     box-shadow: var(--shadow);
+    min-width: 0;
   }
   .ui-cardHover {
     transition: background-color 120ms ease;
@@ -538,6 +555,13 @@ button {
     background: var(--brand-accent);
     color: var(--btn-primary-text);
   }
+  .ui-profileHeroTopbar {
+    min-height: 52px;
+    padding: max(8px, var(--safe-top)) 16px 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .ui-profileHeroAvatar {
     height: 48px;
     width: 48px;
@@ -564,43 +588,145 @@ button {
       radial-gradient(circle at top right, rgba(255, 130, 0, 0.16), transparent 38%),
       linear-gradient(180deg, rgba(255, 130, 0, 0.06), transparent 55%),
       var(--surface);
+    backdrop-filter: blur(14px);
   }
   .admin-tabBar {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding-bottom: 4px;
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    overflow: hidden;
+    overscroll-behavior-x: none;
+    padding-bottom: 0;
   }
   .admin-tabButton {
     border: 1px solid rgba(255, 130, 0, 0.22);
     border-radius: 999px;
     background: rgba(255, 255, 255, 0.03);
     color: var(--text);
-    padding: 10px 14px;
+    padding: 12px 12px;
+    width: 100%;
+    min-height: 46px;
     font-size: 14px;
     font-weight: var(--font-weight-semibold);
-    white-space: nowrap;
+    white-space: normal;
+    line-height: 1.15;
+    text-align: center;
     transition: background-color 140ms ease, border-color 140ms ease;
   }
+  .admin-choiceGrid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .admin-choiceButton {
+    flex: 1 1 calc(50% - 4px);
+    width: calc(50% - 4px);
+    min-width: 0;
+  }
   .admin-tabButton--active {
-    background: rgba(255, 130, 0, 0.14);
-    border-color: rgba(255, 130, 0, 0.64);
+    background: #ff8a1f;
+    border-color: #ff8a1f;
+    color: #1b1208;
+    box-shadow: 0 8px 20px rgba(255, 138, 31, 0.22);
+  }
+  @media (min-width: 390px) {
+    .admin-tabBar {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
   .admin-metricCard {
     min-height: 112px;
+  }
+  .admin-metricCard--primary {
+    background:
+      radial-gradient(circle at top right, rgba(255, 130, 0, 0.18), transparent 42%),
+      linear-gradient(180deg, rgba(255, 130, 0, 0.09), transparent 62%),
+      var(--surface);
+    border-color: rgba(255, 130, 0, 0.36);
+  }
+  .admin-metricLabel--primary {
+    color: rgba(255, 255, 255, 0.82);
   }
   .admin-metricValue {
     font-size: 28px;
     font-weight: var(--font-weight-bold);
     line-height: 1;
   }
+  .admin-metricValue--primary {
+    font-size: 34px;
+    color: #ffb061;
+  }
   .admin-listCard {
+    overflow: hidden;
     transition: border-color 140ms ease, background-color 140ms ease;
+  }
+  .admin-overviewCard--services {
+    border-color: rgba(59, 130, 246, 0.34);
+    background:
+      radial-gradient(circle at top right, rgba(59, 130, 246, 0.14), transparent 40%),
+      linear-gradient(180deg, rgba(59, 130, 246, 0.07), transparent 58%),
+      var(--surface);
+  }
+  .admin-overviewCard--pending {
+    border-color: rgba(255, 130, 0, 0.34);
+    background:
+      radial-gradient(circle at top right, rgba(255, 130, 0, 0.14), transparent 40%),
+      linear-gradient(180deg, rgba(255, 130, 0, 0.07), transparent 58%),
+      var(--surface);
+  }
+  .admin-overviewCard--documents {
+    border-color: rgba(248, 113, 113, 0.34);
+    background:
+      radial-gradient(circle at top right, rgba(248, 113, 113, 0.12), transparent 42%),
+      linear-gradient(180deg, rgba(248, 113, 113, 0.06), transparent 58%),
+      var(--surface);
+  }
+  .admin-overviewCard--upcoming {
+    border-color: rgba(34, 197, 94, 0.34);
+    background:
+      radial-gradient(circle at top right, rgba(34, 197, 94, 0.12), transparent 42%),
+      linear-gradient(180deg, rgba(34, 197, 94, 0.06), transparent 58%),
+      var(--surface);
   }
   .admin-selectedCard .admin-listCard,
   .admin-listCard:hover {
     border-color: rgba(255, 130, 0, 0.58);
     background: linear-gradient(180deg, rgba(255, 130, 0, 0.06), transparent 60%), var(--surface);
+  }
+  @media (min-width: 768px) {
+    .admin-tabBar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      overflow: visible;
+    }
+    .admin-tabBar .admin-tabButton {
+      width: 188px !important;
+      min-width: 188px;
+      max-width: 188px;
+      white-space: normal;
+      min-height: 56px;
+      padding-left: 16px;
+      padding-right: 16px;
+      font-size: 18px;
+    }
+    .admin-choiceGrid {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      gap: 12px;
+    }
+    .admin-choiceButton {
+      width: 188px !important;
+      min-width: 188px;
+      max-width: 188px;
+      flex: 0 0 188px;
+      white-space: normal;
+      min-height: 56px;
+      padding-left: 16px;
+      padding-right: 16px;
+    }
   }
   .admin-status {
     display: inline-flex;
@@ -641,7 +767,11 @@ button {
     align-items: center;
     gap: 8px;
   }
+  .admin-inlineControls--heroActions {
+    justify-content: flex-end;
+  }
   .ui-topbarShell {
+    position: relative;
     height: var(--topbar-h);
     padding-left: 16px;
     padding-right: 16px;
@@ -651,7 +781,28 @@ button {
     background: var(--brand-accent);
     border-bottom: 1px solid rgba(0, 0, 0, 0.12);
   }
+  .ui-topbarSide {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 44px;
+  }
+  .ui-topbarSide--right {
+    justify-content: flex-end;
+  }
   .ui-topbarTitle {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(240px, calc(100% - 220px));
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: center;
+    pointer-events: none;
     font-size: var(--font-size-md);
     font-weight: 900;
     line-height: 1;
@@ -659,26 +810,29 @@ button {
     color: var(--btn-primary-text);
   }
   .ui-desktopTopShell {
-    background: var(--brand-bg);
+    background: #000;
     color: var(--text);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 2px solid rgba(255, 130, 0, 0.22);
+    min-height: var(--desktop-topbar-h);
+    box-shadow: 0 16px 34px rgba(0, 0, 0, 0.42);
+    backdrop-filter: blur(16px);
   }
   .ui-bottomNavShell {
     position: relative;
-    padding-bottom: calc(var(--safe-bottom) + 12px);
+    padding-bottom: calc(var(--safe-bottom) + 8px);
     background: var(--brand-accent);
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(12px);
   }
   .ui-bottomNavCenterBtn {
-    height: 86px;
-    width: 86px;
+    height: 82px;
+    width: 82px;
     border-radius: 999px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     background: #000;
-    border: 3px solid var(--brand-accent) !important;
+    border: 2px solid var(--brand-accent) !important;
     border-color: var(--brand-accent) !important;
     box-shadow: 0 8px 14px rgba(0, 0, 0, 0.32);
     transition: transform 90ms ease, box-shadow 120ms ease, filter 120ms ease;
@@ -976,8 +1130,8 @@ button {
     border-color: var(--nav-btn-border-strong);
   }
   .ui-bottomNavActionBtn {
-    width: 96px;
-    min-height: 64px;
+    width: 84px;
+    min-height: 54px;
     border-radius: calc(var(--radius) - 2px);
     display: inline-flex;
     flex-direction: column;
@@ -1017,13 +1171,149 @@ button {
     line-height: 1;
   }
   .ui-navLinkBtn {
-    padding: 8px 12px;
+    padding: 10px 16px;
     border-radius: var(--radius);
-    transition: background-color 120ms ease;
+    border: 1px solid transparent;
+    font-size: 32px;
+    font-weight: 900;
+    color: rgba(243, 244, 246, 0.88);
+    transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
     -webkit-tap-highlight-color: transparent;
   }
   .ui-navLinkBtn--active {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 130, 0, 0.16);
+    border-color: rgba(255, 130, 0, 0.52);
+    color: #ff9d3b;
+    box-shadow: inset 0 0 0 1px rgba(255, 130, 0, 0.16), 0 8px 18px rgba(255, 130, 0, 0.12);
+  }
+  .ui-desktopTopIconBtn {
+    height: 52px;
+    width: 52px;
+    border-radius: var(--radius);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(18, 12, 8, 0.92);
+    border: 1px solid rgba(0, 0, 0, 0.16);
+    background: var(--brand-accent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+    transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  .ui-desktopTopIconBtn:active {
+    transform: translateY(1px) scale(0.985);
+  }
+  .ui-desktopTopIconBtn--active {
+    background: #ffb061;
+    border-color: rgba(0, 0, 0, 0.24);
+  }
+  .ui-notificationBell {
+    position: relative;
+  }
+  .ui-notificationBellBtn--active {
+    box-shadow: 0 0 0 2px rgba(255, 130, 0, 0.22);
+  }
+  .ui-notificationBadge {
+    position: absolute;
+    right: -5px;
+    top: -5px;
+    min-width: 19px;
+    height: 19px;
+    padding: 0 5px;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #0b0f0d;
+    color: var(--brand-accent);
+    border: 1px solid rgba(255, 130, 0, 0.66);
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    pointer-events: none;
+  }
+  .ui-notificationPanel {
+    position: fixed;
+    z-index: 80;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(68vh, 560px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: calc(var(--radius) + 2px);
+    border: 1px solid rgba(255, 130, 0, 0.18);
+    background: linear-gradient(180deg, rgba(20, 24, 23, 0.98), rgba(9, 12, 11, 0.98));
+    box-shadow: 0 22px 46px rgba(0, 0, 0, 0.48);
+    backdrop-filter: blur(18px);
+  }
+  .ui-notificationPanel--mobile {
+    left: 12px;
+    right: 12px;
+    top: calc(var(--safe-top) + var(--topbar-h) + 10px);
+    width: auto;
+  }
+  .ui-notificationPanel--profile {
+    left: 12px;
+    right: 12px;
+    top: calc(var(--safe-top) + var(--topbar-h) + 10px);
+    width: auto;
+  }
+  .ui-notificationPanel--desktop {
+    right: 24px;
+    top: calc(var(--desktop-topbar-h) + 16px);
+  }
+  .ui-notificationPanel__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 14px 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+  .ui-notificationPanel__link {
+    border: 0;
+    background: transparent;
+    color: var(--brand-accent);
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.1;
+    transition: opacity 120ms ease;
+  }
+  .ui-notificationPanel__link:disabled {
+    opacity: 0.45;
+  }
+  .ui-notificationPanel__body {
+    overflow-y: auto;
+    padding: 12px;
+  }
+  .ui-notificationEmpty {
+    padding: 12px;
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--muted);
+  }
+  .ui-notificationItem {
+    width: 100%;
+    text-align: left;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    padding: 12px 13px;
+    background: rgba(255, 255, 255, 0.03);
+    transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease;
+  }
+  .ui-notificationItem:hover,
+  .ui-notificationItem:focus-visible {
+    background: rgba(255, 130, 0, 0.06);
+    border-color: rgba(255, 130, 0, 0.2);
+  }
+  .ui-notificationItem:active {
+    transform: translateY(1px);
+  }
+  .ui-notificationItem--unread {
+    border-color: rgba(255, 130, 0, 0.24);
+    background: rgba(255, 130, 0, 0.08);
   }
     /* Field label / hint / error */
   .ui-label {
@@ -1201,6 +1491,55 @@ button {
   .ui-selectCard--selected .ui-muted {
     color: var(--btn-primary-text);
   }
+  .ui-notificationPrefsList {
+    display: grid;
+    gap: 12px;
+  }
+  .ui-notificationPrefCard {
+    border-radius: var(--radius);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 14px;
+    display: grid;
+    gap: 12px;
+  }
+  .ui-notificationPrefChannels {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .ui-notificationPrefToggle {
+    border-radius: var(--radius);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px 14px;
+    text-align: left;
+    transition: background-color 120ms ease, border-color 120ms ease, transform 80ms ease, opacity 120ms ease;
+  }
+  .ui-notificationPrefToggle:active {
+    transform: scale(0.99);
+  }
+  .ui-notificationPrefToggle:disabled {
+    opacity: 0.6;
+  }
+  .ui-notificationPrefToggle--active {
+    border-color: rgba(255, 130, 0, 0.5);
+    background: rgba(255, 130, 0, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 130, 0, 0.16);
+  }
+  .ui-notificationPrefToggle--inactive {
+    border-color: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.025);
+  }
+  .ui-notificationPrefToggle__state {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.58);
+  }
+  .ui-notificationPrefToggle--active .ui-notificationPrefToggle__state {
+    color: rgba(255, 225, 192, 0.92);
+  }
 
   /* Pills / badges */
   .ui-pill {
@@ -1271,7 +1610,58 @@ button {
     font-size: var(--font-size-md);
   }
 
+  @media (max-width: 767px) {
+    body[data-mobile-chrome='on'] {
+      height: 100dvh;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+    body[data-mobile-chrome='on'] .ui-appMain {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100dvh;
+      min-height: 100dvh;
+      overflow-y: auto;
+      overscroll-behavior-y: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+    body[data-chat-layout='immersive'] {
+      overflow: hidden;
+    }
+    body[data-chat-layout='immersive'] .ui-appMain {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100dvh;
+      min-height: 100dvh;
+      padding-top: var(--topbar-h);
+      padding-right: 0;
+      padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom));
+      padding-left: 0;
+      overflow: hidden;
+    }
+  }
+
   @media (min-width: 768px) {
+    body[data-chat-layout='immersive'] .ui-appMain {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100dvh;
+      min-height: 100dvh;
+      padding-top: var(--desktop-main-offset);
+      padding-right: 24px;
+      padding-bottom: 24px;
+      padding-left: 24px;
+      overflow: hidden;
+    }
+    .ui-chatComposerDock {
+      background: transparent;
+      padding-left: 0;
+      padding-right: 0;
+      padding-bottom: 0;
+    }
     .ui-modalPanel {
       max-width: 48rem;
       border-radius: calc(var(--radius) - 2px);
@@ -1279,6 +1669,12 @@ button {
     .ui-appMain {
       padding-top: 24px;
       padding-bottom: 32px;
+    }
+    body[data-desktop-chrome='on'] .ui-appMain {
+      padding-top: var(--desktop-main-offset);
+    }
+    body[data-desktop-chrome='on'][data-desktop-back='on'] .ui-appMain {
+      padding-top: var(--desktop-main-offset-back);
     }
   }
 }
@@ -1305,6 +1701,7 @@ input[type="time"] {
 .ui-input[type="time"] {
   padding-right: 44px; /* room for native indicator */
   text-align: left;
+  color-scheme: dark;
 }
 
 /* indicator normalization */
@@ -1312,7 +1709,16 @@ input[type="time"] {
 .ui-input[type="time"]::-webkit-calendar-picker-indicator {
   margin: 0;
   padding: 0;
-  opacity: 0.85;
+  opacity: 1;
+  filter: invert(1) brightness(1.45);
+}
+
+.ui-input[type="date"]::-webkit-clear-button,
+.ui-input[type="date"]::-webkit-inner-spin-button,
+.ui-input[type="time"]::-webkit-clear-button,
+.ui-input[type="time"]::-webkit-inner-spin-button {
+  filter: invert(1) brightness(1.45);
+  opacity: 1;
 }
 
 /* DON'T kill select arrow globally.

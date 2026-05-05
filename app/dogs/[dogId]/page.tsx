@@ -14,14 +14,16 @@ import { DogPublicCard, type PublicDogCardDog, type PublicDogCardOwner } from '@
 import { DogCardPreferencesModal } from '@/components/dogs/DogCardPreferencesModal';
 
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import {
   getDogByIdForOwner,
   updateDogForOwner,
+  updateDogVisibilityForOwner,
   softDeleteDogForOwner,
   uploadDogPhotoForOwner,
-  setDogPhotoPathForOwner,
   removeDogPhotoForOwner,
 } from '@/lib/dogs/dogApi';
+import { updateProfileCardPreferencesForCurrentUser } from '@/lib/account/profileApi';
 
 import type { Dog, DogInput, DogSex } from '@/types/dog';
 import { formatTemperamentsForDisplay, getAgeLabel } from '@/lib/dogs/dogDisplay';
@@ -133,7 +135,11 @@ function DogDetailInner() {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (r.error) throw new Error(r.error.message);
+    if (r.error) {
+      throw new Error(
+        humanizeErrorMessage(r.error, 'Non siamo riusciti a caricare i dati del proprietario.')
+      );
+    }
     return (r.data as any) ?? null;
   };
 
@@ -156,7 +162,7 @@ function DogDetailInner() {
       setOwner(profile);
     } catch (err: any) {
       console.error('DogDetailPage – errore caricamento:', err);
-      setError(err?.message || 'Errore nel caricamento.');
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare i dati del cane.'));
     } finally {
       setLoadingDog(false);
     }
@@ -221,8 +227,9 @@ function DogDetailInner() {
       if (photoFile) {
         setPhotoUploading(true);
         try {
-          const photoPath = await uploadDogPhotoForOwner({ ownerId: user.id, dogId, file: photoFile });
-          finalDog = await setDogPhotoPathForOwner({ ownerId: user.id, dogId, photoPath });
+          await uploadDogPhotoForOwner({ dogId, file: photoFile });
+          const refreshed = await getDogByIdForOwner(dogId, user.id);
+          if (refreshed) finalDog = refreshed;
         } finally {
           setPhotoUploading(false);
           setPhotoFile(null);
@@ -233,7 +240,7 @@ function DogDetailInner() {
       setMode('view');
     } catch (err: any) {
       console.error('DogDetailPage – errore aggiornamento cane:', err);
-      setError(err?.message || 'Errore nel salvataggio del cane.');
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a salvare le modifiche del cane.'));
     } finally {
       setSubmitting(false);
     }
@@ -250,7 +257,7 @@ function DogDetailInner() {
       router.replace('/profile');
     } catch (err: any) {
       console.error('DogDetailPage – errore eliminazione cane:', err);
-      setError(err?.message || 'Errore durante l’eliminazione del cane.');
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a eliminare il cane.'));
       setDeleting(false);
     }
   };
@@ -268,7 +275,7 @@ function DogDetailInner() {
       if (refreshed) setDog(refreshed);
     } catch (err: any) {
       console.error('DogDetailPage – errore rimozione foto:', err);
-      setError(err?.message || 'Errore durante la rimozione della foto.');
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a rimuovere la foto del cane.'));
     } finally {
       setPhotoUploading(false);
       setPhotoFile(null);
@@ -301,60 +308,37 @@ function DogDetailInner() {
     setPrefsSaving(true);
 
     try {
-      const dogRes = await supabase
-        .from('dogs')
-        .update({
-          show_breed: nextDogPrefs.show_breed,
-          show_sex: nextDogPrefs.show_sex,
-          show_size: nextDogPrefs.show_size,
-          show_microchip: nextDogPrefs.show_microchip,
-          show_birth_date: nextDogPrefs.show_birth_date,
-          show_notes: nextDogPrefs.show_notes,
-          show_coat_color: nextDogPrefs.show_coat_color,
-          show_temperament: nextDogPrefs.show_temperament,
-        })
-        .eq('id', dogId)
-        .eq('owner_id', user.id)
-        .select('*')
-        .single();
+      const updatedDog = await updateDogVisibilityForOwner(dogId, user.id, {
+        show_breed: nextDogPrefs.show_breed,
+        show_sex: nextDogPrefs.show_sex,
+        show_size: nextDogPrefs.show_size,
+        show_microchip: nextDogPrefs.show_microchip,
+        show_birth_date: nextDogPrefs.show_birth_date,
+        show_notes: nextDogPrefs.show_notes,
+        show_coat_color: nextDogPrefs.show_coat_color,
+        show_temperament: nextDogPrefs.show_temperament,
+      });
+      setDog(updatedDog);
 
-      if (dogRes.error) throw new Error(dogRes.error.message);
-      setDog(dogRes.data as any);
-
-      const profRes = await supabase
-        .from('profiles')
-        .update({
-          show_first_name_on_dog_card: nextOwnerPrefs.show_first_name_on_dog_card,
-          show_last_name_on_dog_card: nextOwnerPrefs.show_last_name_on_dog_card,
-          show_phone_on_dog_card: nextOwnerPrefs.show_phone_on_dog_card,
-          show_email_on_dog_card: nextOwnerPrefs.show_email_on_dog_card,
-          show_address_on_dog_card: nextOwnerPrefs.show_address_on_dog_card,
-          show_dog_address_on_dog_card: nextOwnerPrefs.show_dog_address_on_dog_card,
-        })
-        .eq('user_id', user.id)
-        .select(
-          `
-          user_id,
-          first_name, last_name, phone, email,
-          address_line, city, zip_code, province,
-          dog_address_line, dog_city, dog_zip_code, dog_province,
-          show_first_name_on_dog_card,
-          show_last_name_on_dog_card,
-          show_phone_on_dog_card,
-          show_email_on_dog_card,
-          show_address_on_dog_card,
-          show_dog_address_on_dog_card
-        `
-        )
-        .maybeSingle();
-
-      if (profRes.error) throw new Error(profRes.error.message);
-      setOwner((profRes.data as any) ?? null);
+      const updatedOwner = await updateProfileCardPreferencesForCurrentUser({
+        show_first_name_on_dog_card: nextOwnerPrefs.show_first_name_on_dog_card,
+        show_last_name_on_dog_card: nextOwnerPrefs.show_last_name_on_dog_card,
+        show_phone_on_dog_card: nextOwnerPrefs.show_phone_on_dog_card,
+        show_email_on_dog_card: nextOwnerPrefs.show_email_on_dog_card,
+        show_address_on_dog_card: nextOwnerPrefs.show_address_on_dog_card,
+        show_dog_address_on_dog_card: nextOwnerPrefs.show_dog_address_on_dog_card,
+      });
+      setOwner(updatedOwner as any);
 
       setPrefsOpen(false);
     } catch (err: any) {
       console.error('DogDetailPage – errore salvataggio preferenze scheda:', err);
-      setError(err?.message || 'Errore nel salvataggio delle preferenze della scheda cane.');
+      setError(
+        humanizeErrorMessage(
+          err,
+          'Non siamo riusciti a salvare le impostazioni della scheda pubblica del cane.'
+        )
+      );
     } finally {
       setPrefsSaving(false);
     }

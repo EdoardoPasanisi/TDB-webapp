@@ -1,10 +1,21 @@
 // FILE: components/profile/ProfileDetails.tsx
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
+import type { AddressSuggestion } from '@/lib/address/addressSearch';
 import type { Profile as ProfileRow } from '@/types/profile';
 import type { ProfileFormState } from '@/types/forms';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+
+type AddressAutocompleteConfig = {
+  active: boolean;
+  loading: boolean;
+  error: string | null;
+  suggestions: AddressSuggestion[];
+  onFocus: () => void;
+  onBlur: () => void;
+  onSelectSuggestion: (suggestion: AddressSuggestion) => void;
+};
 
 interface ProfileDetailsProps {
   userEmail: string;
@@ -13,6 +24,8 @@ interface ProfileDetailsProps {
   profileForm: ProfileFormState;
   savingProfile: boolean;
   canEdit?: boolean;
+  residenceAddressAutocomplete?: AddressAutocompleteConfig;
+  serviceAddressAutocomplete?: AddressAutocompleteConfig;
 
   onChangeText: (field: keyof ProfileFormState, value: string) => void;
   onToggle: (field: keyof ProfileFormState, value: boolean) => void;
@@ -48,6 +61,74 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+function DetailsBlock({
+  title,
+  subtitle,
+  toneClass = '',
+  children,
+}: {
+  title: string;
+  subtitle?: string | null;
+  toneClass?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={`ui-panelInset rounded-[var(--radius)] p-4 space-y-3 ${toneClass}`.trim()}>
+      <div className="space-y-1">
+        <div className="ui-body font-[var(--font-weight-bold)]">{title}</div>
+        {subtitle ? <div className="ui-muted">{subtitle}</div> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function AddressSuggestions({
+  config,
+}: {
+  config?: AddressAutocompleteConfig;
+}) {
+  if (!config?.active) return null;
+
+  return (
+    <div className="ui-panelInset overflow-hidden">
+      {config.loading ? (
+        <div className="px-3 py-2 ui-muted">Sto cercando l’indirizzo…</div>
+      ) : config.error ? (
+        <div className="px-3 py-2 ui-dangerText">{config.error}</div>
+      ) : config.suggestions.length > 0 ? (
+        <div className="divide-y divide-[rgba(255,255,255,0.08)]">
+          {config.suggestions.map((suggestion) => (
+            <button
+              key={[
+                suggestion.dog_address_line,
+                suggestion.dog_city,
+                suggestion.dog_zip_code,
+                suggestion.dog_province,
+              ].join('|')}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => config.onSelectSuggestion(suggestion)}
+              className="flex w-full items-start gap-3 px-3 py-2 text-left transition-colors hover:bg-[rgba(255,130,0,0.08)]"
+            >
+              <div className="space-y-1">
+                <div className="ui-body font-[var(--font-weight-semibold)]">
+                  {suggestion.dog_address_line}
+                </div>
+                <div className="ui-muted">{suggestion.label}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="px-3 py-2 ui-muted">
+          Nessun indirizzo trovato. Puoi continuare a compilarlo a mano.
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProfileDetails({
   userEmail,
   profile,
@@ -55,6 +136,8 @@ export function ProfileDetails({
   profileForm,
   savingProfile,
   canEdit = true,
+  residenceAddressAutocomplete,
+  serviceAddressAutocomplete,
   onChangeText,
   onToggle,
   onSubmit,
@@ -95,25 +178,45 @@ export function ProfileDetails({
         {!profileEditing ? (
           <div className="space-y-3">
             {profile ? (
-              <div className="ui-panelInset divide-y divide-[var(--border)] overflow-hidden">
-                <div className="p-3 space-y-2">
-                  <p className="ui-body font-[var(--font-weight-semibold)]">Contatti</p>
-                  <DetailRow label="Nome e cognome" value={ownerNamePreview || '—'} />
-                  <DetailRow label="Telefono" value={profile.phone ?? '—'} />
-                  <DetailRow label="Email" value={profile.email ?? userEmail ?? '—'} />
-                </div>
+              <div className="grid grid-cols-1 gap-3">
+                <DetailsBlock
+                  title="Contatti"
+                  subtitle="Dati usati per comunicazioni e conferme."
+                  toneClass="border-[rgba(255,130,0,0.22)] bg-[linear-gradient(180deg,rgba(255,130,0,0.08),rgba(20,24,23,0.94))]"
+                >
+                  <div className="space-y-2">
+                    <DetailRow label="Nome e cognome" value={ownerNamePreview || '—'} />
+                    <DetailRow label="Telefono" value={profile.phone ?? '—'} />
+                    <DetailRow label="Email" value={profile.email ?? userEmail ?? '—'} />
+                  </div>
+                </DetailsBlock>
 
-                <div className="p-3 space-y-2">
-                  <p className="ui-body font-[var(--font-weight-semibold)]">Indirizzi</p>
-                  <DetailRow label="Casa" value={homeAddressPreview || '—'} />
-                  <DetailRow label="Ritiro/servizi" value={dogAddressPreview || '—'} />
-                </div>
+                <DetailsBlock
+                  title="Indirizzo di casa"
+                  subtitle="Riferimento anagrafico principale."
+                  toneClass="border-[rgba(59,130,246,0.22)] bg-[linear-gradient(180deg,rgba(59,130,246,0.08),rgba(20,24,23,0.94))]"
+                >
+                  <DetailRow label="Indirizzo" value={homeAddressPreview || '—'} />
+                </DetailsBlock>
 
-                <div className="p-3 space-y-2">
-                  <p className="ui-body font-[var(--font-weight-semibold)]">Anagrafica</p>
-                  <DetailRow label="Codice fiscale" value={profile.fiscal_code ?? '—'} />
-                  <DetailRow label="Data di nascita" value={profile.birth_date ?? '—'} />
-                </div>
+                <DetailsBlock
+                  title="Indirizzo ritiro/servizi"
+                  subtitle="Usato per taxi dog e servizi collegati."
+                  toneClass="border-[rgba(34,197,94,0.22)] bg-[linear-gradient(180deg,rgba(34,197,94,0.08),rgba(20,24,23,0.94))]"
+                >
+                  <DetailRow label="Indirizzo" value={dogAddressPreview || '—'} />
+                </DetailsBlock>
+
+                <DetailsBlock
+                  title="Anagrafica"
+                  subtitle="Dati richiesti per liberatoria e gestione servizi."
+                  toneClass="border-[rgba(168,85,247,0.22)] bg-[linear-gradient(180deg,rgba(168,85,247,0.08),rgba(20,24,23,0.94))]"
+                >
+                  <div className="space-y-2">
+                    <DetailRow label="Codice fiscale" value={profile.fiscal_code ?? '—'} />
+                    <DetailRow label="Data di nascita" value={profile.birth_date ?? '—'} />
+                  </div>
+                </DetailsBlock>
               </div>
             ) : (
               <p className="ui-body">
@@ -123,60 +226,79 @@ export function ProfileDetails({
           </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className={labelBase}>Nome</label>
-                <input
-                  type="text"
-                  value={profileForm.first_name}
-                  onChange={(e) => onChangeText('first_name', e.target.value)}
-                  className={inputBase}
-                />
-              </div>
+            <div className="space-y-4">
+              <DetailsBlock
+                title="Contatti"
+                subtitle="Le informazioni principali del proprietario."
+                toneClass="border-[rgba(255,130,0,0.22)] bg-[linear-gradient(180deg,rgba(255,130,0,0.08),rgba(20,24,23,0.94))]"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className={labelBase}>Nome</label>
+                    <input
+                      type="text"
+                      value={profileForm.first_name}
+                      onChange={(e) => onChangeText('first_name', e.target.value)}
+                      className={inputBase}
+                    />
+                  </div>
 
-              <div className="space-y-1">
-                <label className={labelBase}>Cognome</label>
-                <input
-                  type="text"
-                  value={profileForm.last_name}
-                  onChange={(e) => onChangeText('last_name', e.target.value)}
-                  className={inputBase}
-                />
-              </div>
+                  <div className="space-y-1">
+                    <label className={labelBase}>Cognome</label>
+                    <input
+                      type="text"
+                      value={profileForm.last_name}
+                      onChange={(e) => onChangeText('last_name', e.target.value)}
+                      className={inputBase}
+                    />
+                  </div>
 
-              <div className="space-y-1">
-                <label className={labelBase}>Telefono</label>
-                <input
-                  type="tel"
-                  value={profileForm.phone}
-                  onChange={(e) => onChangeText('phone', e.target.value)}
-                  className={inputBase}
-                />
-              </div>
+                  <div className="space-y-1">
+                    <label className={labelBase}>Telefono</label>
+                    <input
+                      type="tel"
+                      value={profileForm.phone}
+                      onChange={(e) => onChangeText('phone', e.target.value)}
+                      className={inputBase}
+                    />
+                  </div>
 
-              <div className="space-y-1">
-                <label className={labelBase}>Email (per contatti)</label>
-                <input
-                  type="email"
-                  value={profileForm.email}
-                  onChange={(e) => onChangeText('email', e.target.value)}
-                  className={inputBase}
-                />
-              </div>
+                  <div className="space-y-1">
+                    <label className={labelBase}>Email (per contatti)</label>
+                    <input
+                      type="email"
+                      value={profileForm.email}
+                      onChange={(e) => onChangeText('email', e.target.value)}
+                      className={inputBase}
+                    />
+                  </div>
+                </div>
+              </DetailsBlock>
 
-              {/* Indirizzo casa */}
-              <div className="space-y-2 sm:col-span-2">
-                <p className="ui-body font-[var(--font-weight-semibold)]">Indirizzo di casa</p>
-
+              <DetailsBlock
+                title="Indirizzo di casa"
+                subtitle="Riferimento principale dell’anagrafica."
+                toneClass="border-[rgba(59,130,246,0.22)] bg-[linear-gradient(180deg,rgba(59,130,246,0.08),rgba(20,24,23,0.94))]"
+              >
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2 space-y-1">
                     <label className={labelBase}>Via / indirizzo</label>
-                    <input
-                      type="text"
-                      value={profileForm.address_line}
-                      onChange={(e) => onChangeText('address_line', e.target.value)}
-                      className={inputBase}
-                    />
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={profileForm.address_line}
+                        onChange={(e) => onChangeText('address_line', e.target.value)}
+                        onFocus={residenceAddressAutocomplete?.onFocus}
+                        onBlur={residenceAddressAutocomplete?.onBlur}
+                        className={inputBase}
+                        placeholder="Inizia a scrivere la via"
+                        autoComplete="off"
+                      />
+                      <AddressSuggestions config={residenceAddressAutocomplete} />
+                      <p className="ui-muted">
+                        Seleziona un suggerimento per compilare automaticamente città, CAP e provincia.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -209,12 +331,13 @@ export function ProfileDetails({
                     />
                   </div>
                 </div>
-              </div>
+              </DetailsBlock>
 
-              {/* Indirizzo ritiro/servizi */}
-              <div className="space-y-2 sm:col-span-2">
-                <p className="ui-body font-[var(--font-weight-semibold)]">Indirizzo ritiro/servizi</p>
-
+              <DetailsBlock
+                title="Indirizzo ritiro/servizi"
+                subtitle="Usato per taxi dog e servizi che richiedono un indirizzo operativo."
+                toneClass="border-[rgba(34,197,94,0.22)] bg-[linear-gradient(180deg,rgba(34,197,94,0.08),rgba(20,24,23,0.94))]"
+              >
                 <label className="flex items-center gap-2 ui-body">
                   <input
                     type="checkbox"
@@ -228,13 +351,27 @@ export function ProfileDetails({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="sm:col-span-2 space-y-1">
                     <label className={labelBase}>Via / indirizzo</label>
-                    <input
-                      type="text"
-                      value={profileForm.dog_address_line}
-                      onChange={(e) => onChangeText('dog_address_line', e.target.value)}
-                      disabled={profileForm.dog_address_same_as_home}
-                      className={inputBase}
-                    />
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={profileForm.dog_address_line}
+                        onChange={(e) => onChangeText('dog_address_line', e.target.value)}
+                        onFocus={serviceAddressAutocomplete?.onFocus}
+                        onBlur={serviceAddressAutocomplete?.onBlur}
+                        disabled={profileForm.dog_address_same_as_home}
+                        className={inputBase}
+                        placeholder="Inizia a scrivere la via"
+                        autoComplete="off"
+                      />
+                      {!profileForm.dog_address_same_as_home ? (
+                        <>
+                          <AddressSuggestions config={serviceAddressAutocomplete} />
+                          <p className="ui-muted">
+                            Seleziona un suggerimento per compilare automaticamente città, CAP e provincia.
+                          </p>
+                        </>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="space-y-1">
@@ -270,38 +407,40 @@ export function ProfileDetails({
                     />
                   </div>
                 </div>
-              </div>
+              </DetailsBlock>
 
-              {/* CF */}
-              <div className="sm:col-span-2">
-                <div className="ui-panelInset p-3 space-y-2">
-                  <p className="ui-body font-[var(--font-weight-semibold)]">Codice fiscale</p>
-                  <input
-                    type="text"
-                    value={profileForm.fiscal_code}
-                    onChange={(e) => {
-                      onChangeText('fiscal_code', e.target.value);
-                    }}
-                    className={`${inputBase} uppercase`}
-                    placeholder="RSSMRA80A01H501U"
-                  />
-                  <p className="ui-muted">Usato per liberatoria/servizi.</p>
-                </div>
-              </div>
+              <DetailsBlock
+                title="Anagrafica"
+                subtitle="Dati richiesti per documenti e liberatoria."
+                toneClass="border-[rgba(168,85,247,0.22)] bg-[linear-gradient(180deg,rgba(168,85,247,0.08),rgba(20,24,23,0.94))]"
+              >
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="space-y-1">
+                    <label className={labelBase}>Codice fiscale</label>
+                    <input
+                      type="text"
+                      value={profileForm.fiscal_code}
+                      onChange={(e) => {
+                        onChangeText('fiscal_code', e.target.value);
+                      }}
+                      className={`${inputBase} uppercase`}
+                      placeholder="RSSMRA80A01H501U"
+                    />
+                    <p className="ui-muted">Usato per liberatoria e servizi.</p>
+                  </div>
 
-              {/* Birth date */}
-              <div className="sm:col-span-2">
-                <div className="ui-panelInset p-3 space-y-2">
-                  <p className="ui-body font-[var(--font-weight-semibold)]">Data di nascita</p>
-                  <input
-                    type="date"
-                    value={profileForm.birth_date}
-                    onChange={(e) => onChangeText('birth_date', e.target.value)}
-                    className={inputBase}
-                  />
-                  <p className="ui-muted">Usata per liberatoria/servizi.</p>
+                  <div className="space-y-1">
+                    <label className={labelBase}>Data di nascita</label>
+                    <input
+                      type="date"
+                      value={profileForm.birth_date}
+                      onChange={(e) => onChangeText('birth_date', e.target.value)}
+                      className={inputBase}
+                    />
+                    <p className="ui-muted">Usata per liberatoria e servizi.</p>
+                  </div>
                 </div>
-              </div>
+              </DetailsBlock>
             </div>
 
             <div className="flex items-center gap-2">

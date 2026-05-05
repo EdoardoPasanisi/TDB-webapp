@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
 import type { Profile } from '@/types/profile';
 import { Button } from '@/components/ui/Button';
@@ -77,7 +78,7 @@ export default function AccountWaiverPage() {
           .maybeSingle();
 
         if (e) {
-          setError(e.message);
+          setError(humanizeErrorMessage(e, 'Non siamo riusciti a caricare la liberatoria.'));
           setProfile(null);
           return;
         }

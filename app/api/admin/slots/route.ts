@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
-import { listAdminSlots, upsertAdminSlot } from '@/lib/admin/data';
+import { deleteAdminSlot, listAdminSlots, upsertAdminSlot } from '@/lib/admin/data';
 import { adminErrorResponse } from '@/lib/admin/route';
-import type { ServiceType, ServiceVariant } from '@/types/services';
+import {
+  sanitizeDateRangeInput,
+  sanitizeSlotDeleteInput,
+  sanitizeServiceTypeOrAllInput,
+  sanitizeSlotInput,
+} from '@/lib/admin/validation';
 
 function fallbackDate(offsetDays = 0): string {
   const value = new Date(Date.now() + offsetDays * 24 * 60 * 60 * 1000);
@@ -14,12 +19,17 @@ export async function GET(request: Request) {
     await requireStaffAccess('view');
 
     const { searchParams } = new URL(request.url);
-    const startDate = searchParams.get('start') ?? fallbackDate(0);
-    const endDate = searchParams.get('end') ?? fallbackDate(30);
-    const rawServiceType = searchParams.get('serviceType') ?? 'ALL';
-    const serviceType = rawServiceType === 'ALL' ? 'ALL' : (rawServiceType as ServiceType);
+    const { startDate, endDate } = sanitizeDateRangeInput(
+      searchParams.get('start') ?? fallbackDate(0),
+      searchParams.get('end') ?? fallbackDate(30)
+    );
+    const serviceType = sanitizeServiceTypeOrAllInput(searchParams.get('serviceType') ?? 'ALL');
 
-    const items = await listAdminSlots({ startDate, endDate, serviceType });
+    const items = await listAdminSlots({
+      startDate,
+      endDate,
+      serviceTypes: serviceType === 'ALL' ? 'ALL' : [serviceType],
+    });
     return NextResponse.json({ items });
   } catch (error) {
     return adminErrorResponse(error);
@@ -30,33 +40,24 @@ export async function POST(request: Request) {
   try {
     await requireStaffAccess('manage');
 
-    const body = (await request.json().catch(() => null)) as null | {
-      slotId?: string | null;
-      serviceType?: ServiceType;
-      serviceVariant?: ServiceVariant | null;
-      startAt?: string;
-      endAt?: string;
-      capacity?: number;
-      isActive?: boolean;
-      notes?: string | null;
-    };
-
-    if (!body?.serviceType || !body.startAt || !body.endAt || typeof body.capacity !== 'number') {
-      return NextResponse.json({ error: 'Dati slot incompleti.' }, { status: 400 });
-    }
-
-    const slot = await upsertAdminSlot({
-      slotId: body.slotId ?? null,
-      serviceType: body.serviceType,
-      serviceVariant: body.serviceVariant ?? null,
-      startAt: body.startAt,
-      endAt: body.endAt,
-      capacity: body.capacity,
-      isActive: body.isActive ?? true,
-      notes: body.notes ?? null,
-    });
+    const body = await request.json().catch(() => null);
+    const slot = await upsertAdminSlot(sanitizeSlotInput(body));
 
     return NextResponse.json(slot);
+  } catch (error) {
+    return adminErrorResponse(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await requireStaffAccess('manage');
+
+    const body = await request.json().catch(() => null);
+    const { slotId } = sanitizeSlotDeleteInput(body);
+    await deleteAdminSlot(slotId);
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return adminErrorResponse(error);
   }

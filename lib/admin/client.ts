@@ -1,5 +1,11 @@
 'use client';
 
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
+
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
 export async function fetchAdminJson<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
     ...init,
@@ -26,7 +32,7 @@ export async function fetchAdminJson<T>(input: RequestInfo | URL, init?: Request
       } catch {}
     }
 
-    throw new Error(message);
+    throw new Error(humanizeErrorMessage(message, 'Non siamo riusciti a completare la richiesta del gestionale. Riprova.'));
   }
 
   return response.json() as Promise<T>;

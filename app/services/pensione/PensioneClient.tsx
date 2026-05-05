@@ -9,6 +9,7 @@ export default function PensioneClient() {
     loading,
     saving,
     error,
+    missingRequiredFields,
     dogs,
     isSingleDog,
     effectiveSelectedDogIds,
@@ -19,6 +20,8 @@ export default function PensioneClient() {
     taxiOption,
     taxiDistanceBand,
     taxiDistance,
+    taxiServiceAddress,
+    showTaxiServiceAddressEditor,
     notes,
     perDogForm,
     daysCount,
@@ -28,11 +31,13 @@ export default function PensioneClient() {
     setArrivalTime,
     setDepartureTime,
     setTaxiOption,
+    updateTaxiServiceAddressField,
     setNotes,
     toggleDogSelection,
     updatePerDogField,
     editingBookingId,
     handleCancelEdit,
+    handleRequiredProfileSaved,
     submit,
   } = usePensioneBooking();
 
@@ -48,6 +53,7 @@ export default function PensioneClient() {
     <PensioneBookingForm
       title={`Prenotazione pensione${editingBookingId ? ' (modifica)' : ''}`}
       error={error}
+      missingRequiredFields={missingRequiredFields}
       saving={saving}
       dogs={dogs}
       isSingleDog={isSingleDog}
@@ -59,6 +65,8 @@ export default function PensioneClient() {
       taxiOption={taxiOption}
       taxiDistanceBand={taxiDistanceBand}
       taxiDistance={taxiDistance}
+      taxiServiceAddress={taxiServiceAddress}
+      showTaxiServiceAddressEditor={showTaxiServiceAddressEditor}
       notes={notes}
       perDogForm={perDogForm}
       daysCount={daysCount}
@@ -69,9 +77,11 @@ export default function PensioneClient() {
       onChangeArrivalTime={setArrivalTime}
       onChangeDepartureTime={setDepartureTime}
       onChangeTaxiOption={setTaxiOption}
+      onChangeTaxiServiceAddressField={updateTaxiServiceAddressField}
       onChangeNotes={setNotes}
       onUpdatePerDogField={updatePerDogField}
       onCancelEdit={handleCancelEdit}
+      onCompleteRequiredProfile={handleRequiredProfileSaved}
       onSubmit={submit}
       showCancelEdit={!!editingBookingId}
     />

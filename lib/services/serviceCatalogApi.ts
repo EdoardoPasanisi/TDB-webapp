@@ -2,6 +2,7 @@
 // API per leggere il catalogo prodotti servizi (service_products).
 // Serve per le pagine acquisto: asilo/addestramento/consulenza.
 
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { supabase } from '@/lib/supabaseClient';
 import type { ServiceProductRow, ServiceType, ServiceVariant } from '@/types/services';
 
@@ -28,7 +29,7 @@ export async function getServiceProducts(args: GetProductsArgs = {}): Promise<Se
   const { data, error } = await q.order('price_eur', { ascending: true });
 
   if (error) {
-    throw new Error(error.message);
+    throw new Error(humanizeErrorMessage(error, 'Non siamo riusciti a caricare i pacchetti disponibili.'));
   }
 
   return (data ?? []) as ServiceProductRow[];

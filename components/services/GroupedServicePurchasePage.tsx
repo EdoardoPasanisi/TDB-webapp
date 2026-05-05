@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { purchasePassFromProduct } from '@/lib/services/servicePassesApi';
 import type { ServiceProductRow } from '@/types/services';
 
@@ -35,8 +36,7 @@ type SelectedChoice = {
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 export function GroupedServicePurchasePage({
@@ -58,6 +58,7 @@ export function GroupedServicePurchasePage({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [purchaseOk, setPurchaseOk] = useState(false);
+  const [lastPurchaseLocked, setLastPurchaseLocked] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const sortedSections = useMemo(
@@ -164,11 +165,18 @@ export function GroupedServicePurchasePage({
     setPurchasing(true);
     setError(null);
     setPurchaseOk(false);
+    setLastPurchaseLocked(false);
 
     try {
-      await purchasePassFromProduct({ userId: user.id, product: selectedChoice.product });
+      const purchasedPass = await purchasePassFromProduct(selectedChoice.product.id);
+      const purchaseLocked = purchasedPass.status === 'LOCKED';
       setPurchaseOk(true);
-      setToastMsg('Acquisto riuscito ✅ Crediti aggiunti.');
+      setLastPurchaseLocked(purchaseLocked);
+      setToastMsg(
+        purchaseLocked
+          ? 'Acquisto registrato. Il pacchetto sarà utilizzabile dopo conferma dal gestionale.'
+          : 'Acquisto riuscito ✅ Crediti aggiunti.'
+      );
       setConfirmOpen(false);
     } catch (purchaseError) {
       console.error(purchaseError);
@@ -275,7 +283,11 @@ export function GroupedServicePurchasePage({
 
             {purchaseOk ? (
               <div className="ui-success">
-                {postPurchaseMessage}
+                {lastPurchaseLocked ? (
+                  <>Acquisto registrato. Il pacchetto resterà bloccato finché il pagamento non viene confermato dal gestionale.</>
+                ) : (
+                  postPurchaseMessage
+                )}
               </div>
             ) : null}
 

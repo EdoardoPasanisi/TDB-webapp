@@ -1,28 +1,164 @@
 // FILE: app/profile/page.tsx
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { createPortal } from 'react-dom';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
 import type { Profile } from '@/types/profile';
 import type { Dog } from '@/types/dog';
+import type { CustomerMediaViewItem } from '@/types/media';
 import { getAgeLabel } from '@/lib/dogs/dogDisplay';
 import { DogAvatar } from '@/components/dogs/DogAvatar';
+import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
-import { SectionHeader } from '@/components/ui/SectionHeader';
 import { ListItem } from '@/components/ui/ListItem';
 
-function initials(first?: string | null, last?: string | null) {
+function initials(first?: string | null, last?: string | null, email?: string | null) {
   const a = (first ?? '').trim().slice(0, 1).toUpperCase();
   const b = (last ?? '').trim().slice(0, 1).toUpperCase();
-  return `${a}${b}`.trim() || '👤';
+  const pair = `${a}${b}`.trim();
+  if (pair) return pair;
+
+  const localPart = (email ?? '').trim().split('@')[0] ?? '';
+  const normalized = localPart.replace(/[^a-z0-9]+/gi, ' ').trim();
+  if (!normalized) return 'TU';
+
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0].slice(0, 1)}${parts[1].slice(0, 1)}`.toUpperCase();
+  }
+
+  return normalized.replace(/\s+/g, '').slice(0, 2).toUpperCase() || 'TU';
 }
 
 function ChevronMuted() {
   return <span className="ui-muted">›</span>;
+}
+
+function formatMediaDateTime(value: string) {
+  return new Intl.DateTimeFormat('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+function AccountBanner({
+  ownerPhotoPath,
+  ownerInitials,
+  ownerFullName,
+  ownerEmail,
+  onOpen,
+  onOpenSettings,
+  showMobileNav = false,
+}: {
+  ownerPhotoPath?: string | null;
+  ownerInitials: string;
+  ownerFullName: string;
+  ownerEmail: string;
+  onOpen: () => void;
+  onOpenSettings: () => void;
+  showMobileNav?: boolean;
+}) {
+  return (
+    <div className="ui-profileHero md:rounded-[calc(var(--radius-xl)+4px)] md:shadow-[var(--shadow)]">
+      {showMobileNav ? (
+        <div className="ui-profileHeroTopbar md:hidden">
+          <button
+            type="button"
+            onClick={onOpenSettings}
+            className="ui-topbarIconBtn"
+            aria-label="Impostazioni"
+          >
+            <Image src="/icon-settings.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />
+          </button>
+          <NotificationBell
+            buttonClassName="ui-topbarIconBtn"
+            panelClassName="ui-notificationPanel--profile"
+          />
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        onClick={onOpen}
+        className="relative block w-full text-left"
+        aria-label="Apri dati personali"
+      >
+        <div className="mx-auto w-full max-w-xl px-4 pb-6 pt-3 md:pt-5">
+          <div className="flex items-center gap-3">
+            <ProfileAvatar
+              photoPath={ownerPhotoPath}
+              alt={ownerFullName || 'Profilo proprietario'}
+              initials={ownerInitials}
+              className="ui-profileHeroAvatar overflow-hidden object-cover shrink-0"
+              fallbackClassName="ui-profileHeroAvatar shrink-0"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="text-lg font-extrabold truncate">
+                {ownerFullName || 'Dati personali'}
+              </div>
+              <div className="ui-note ui-profileHeroMuted truncate">{ownerEmail || '—'}</div>
+              <div className="mt-1 ui-fine ui-profileHeroMuted">
+                Apri qui per gestire dati, documenti e liberatoria
+              </div>
+            </div>
+            <div className="shrink-0 pl-1" aria-hidden="true">
+              <span className="ui-profileHeroChevron">›</span>
+            </div>
+          </div>
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function ProfileMobileBannerPortal({
+  ownerPhotoPath,
+  ownerInitials,
+  ownerFullName,
+  ownerEmail,
+  onOpen,
+  onOpenSettings,
+}: {
+  ownerPhotoPath?: string | null;
+  ownerInitials: string;
+  ownerFullName: string;
+  ownerEmail: string;
+  onOpen: () => void;
+  onOpenSettings: () => void;
+}) {
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+
+  if (!isClient || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <section data-app-chrome="mobile-top" className="md:hidden fixed top-0 inset-x-0 z-50">
+      <AccountBanner
+        ownerPhotoPath={ownerPhotoPath}
+        ownerInitials={ownerInitials}
+        ownerFullName={ownerFullName}
+        ownerEmail={ownerEmail}
+        onOpen={onOpen}
+        onOpenSettings={onOpenSettings}
+        showMobileNav
+      />
+    </section>,
+    document.body
+  );
 }
 
 export default function ProfileOverviewPage() {
@@ -35,9 +171,11 @@ export default function ProfileOverviewPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mediaError, setMediaError] = useState<string | null>(null);
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
+  const [mediaItems, setMediaItems] = useState<CustomerMediaViewItem[]>([]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -49,17 +187,18 @@ export default function ProfileOverviewPage() {
     const load = async () => {
       setLoading(true);
       setError(null);
+      setMediaError(null);
 
       try {
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select(
-            'user_id, first_name, last_name, phone, address_line, city, zip_code, province, email, show_owner_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card'
+            'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, dog_address_line, dog_city, dog_zip_code, dog_province, email, show_owner_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card'
           )
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (profileError) setError(profileError.message);
+        if (profileError) setError(humanizeErrorMessage(profileError, 'Non siamo riusciti a caricare il profilo.'));
         setProfile((profileData as Profile | null) ?? null);
 
         const { data: dogsData, error: dogsError } = await supabase
@@ -71,8 +210,35 @@ export default function ProfileOverviewPage() {
           .eq('is_active', true)
           .order('name', { ascending: true });
 
-        if (dogsError) setError(dogsError.message);
+        if (dogsError) setError(humanizeErrorMessage(dogsError, 'Non siamo riusciti a caricare i cani.'));
         setDogs(((dogsData as Dog[]) ?? []).filter((d) => d.is_active));
+
+        try {
+          const mediaResponse = await fetch('/api/media', {
+            method: 'GET',
+            credentials: 'include',
+            cache: 'no-store',
+          });
+          const mediaJson = (await mediaResponse.json().catch(() => null)) as
+            | { ok: true; items: CustomerMediaViewItem[] }
+            | { ok: false; error?: string }
+            | null;
+
+          if (!mediaResponse.ok || !mediaJson?.ok) {
+            setMediaItems([]);
+            setMediaError(
+              mediaJson && !mediaJson.ok && mediaJson.error
+                ? mediaJson.error
+                : 'Non siamo riusciti a caricare i media.'
+            );
+          } else {
+            setMediaItems(mediaJson.items);
+          }
+        } catch (mediaErr) {
+          console.error(mediaErr);
+          setMediaItems([]);
+          setMediaError('Non siamo riusciti a caricare i media.');
+        }
       } catch (e) {
         console.error(e);
         setError('Errore nel caricamento dei dati.');
@@ -97,8 +263,8 @@ export default function ProfileOverviewPage() {
   }, [profile?.email, user?.email]);
 
   const ownerInitials = useMemo(
-    () => initials(profile?.first_name, profile?.last_name),
-    [profile?.first_name, profile?.last_name]
+    () => initials(profile?.first_name, profile?.last_name, profile?.email ?? user?.email ?? null),
+    [profile?.first_name, profile?.last_name, profile?.email, user?.email]
   );
 
   if (authLoading || loading) {
@@ -112,63 +278,53 @@ export default function ProfileOverviewPage() {
   if (!user) return null;
 
   return (
-    <main className="ui-page min-h-screen -mt-[calc(var(--topbar-h)+12px)] md:mt-0">
-      {/*
-        Banner attaccato in alto:
-        - mobile: compensiamo lo spazio della topbar del layout (che su /profile dovrebbe essere nascosta)
-        - desktop: compensiamo l’eventuale padding-top del layout
-      */}
-      {/* ✅ Banner FIXED (mobile): resta fermo come navbar */}
-      <section className="md:hidden fixed top-0 left-0 right-0 z-50">
-        <button
-          type="button"
-          onClick={() => router.push('/account')}
-          className="relative block w-full text-left"
-          aria-label="Apri dati personali"
-        >
-          <div className="relative ui-profileHero">
-            <div className="mx-auto w-full max-w-xl px-4 pt-5 pb-6">
-              <div className="flex items-center gap-3">
-                <div className="ui-profileHeroAvatar">
-                  {ownerInitials}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-lg font-extrabold truncate">
-                    {ownerFullName || 'Dati personali'}
-                  </div>
-                  <div className="ui-note ui-profileHeroMuted truncate">{ownerEmail || '—'}</div>
-                  <div className="mt-1 ui-fine ui-profileHeroMuted">
-                    Tocca qui per gestire dati, documenti e liberatoria
-                  </div>
-                </div>
-                <div className="shrink-0 pl-1" aria-hidden="true">
-                  <span className="ui-profileHeroChevron">›</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </button>
-      </section>
+    <main className="ui-page min-h-screen">
+      <ProfileMobileBannerPortal
+        ownerPhotoPath={profile?.photo_path ?? null}
+        ownerInitials={ownerInitials}
+        ownerFullName={ownerFullName}
+        ownerEmail={ownerEmail}
+        onOpen={() => router.push('/account')}
+        onOpenSettings={() => router.push('/settings')}
+      />
 
-      {/* Spacer: altezza banner (mobile) */}
-      <div className="md:hidden h-[120px]" />
+      <div className="md:hidden h-[164px]" />
 
       {/* contenuto */}
-      <div className="mx-auto w-full max-w-xl px-4 pb-8 pt-4 space-y-6">
+      <div className="mx-auto w-full max-w-xl px-4 pb-8 pt-6 space-y-6">
+        <div className="hidden md:block">
+          <AccountBanner
+            ownerPhotoPath={profile?.photo_path ?? null}
+            ownerInitials={ownerInitials}
+            ownerFullName={ownerFullName}
+            ownerEmail={ownerEmail}
+            onOpen={() => router.push('/account')}
+            onOpenSettings={() => router.push('/settings')}
+          />
+        </div>
+
         {error ? (
           <div className="ui-error">{error}</div>
         ) : null}
 
+        {mediaError ? (
+          <div className="ui-error">{mediaError}</div>
+        ) : null}
+
         <section className="space-y-3">
-          <SectionHeader
-            title="I tuoi cani"
-            subtitle={dogs.length ? `${dogs.length} profili` : 'Aggiungi il primo cane'}
-            action={
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h2 className="ui-title text-[30px] leading-[0.95]">I miei cani</h2>
+              <p className="mt-1 ui-body text-[18px] text-[var(--muted)]">
+                {dogs.length ? `${dogs.length} profili` : 'Aggiungi il primo cane'}
+              </p>
+            </div>
+            <div className="shrink-0">
               <Button variant="primary" onClick={() => router.push('/dogs/new')}>
                 + Aggiungi
               </Button>
-            }
-          />
+            </div>
+          </div>
 
           {dogs.length === 0 ? (
             <Card>
@@ -201,6 +357,58 @@ export default function ProfileOverviewPage() {
             </div>
           )}
         </section>
+
+        {mediaItems.length ? (
+          <section className="space-y-3">
+            <div className="space-y-1">
+              <h2 className="ui-title text-[26px] leading-[1]">I miei media</h2>
+              <p className="ui-muted">
+                Foto e video recenti inviati durante la pensione. Restano visibili fino a 24 ore dopo la fine del servizio.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              {mediaItems.map((item) => (
+                <Card key={item.id}>
+                  <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="ui-accentPill">
+                        {item.mediaType === 'VIDEO' ? 'Video' : 'Foto'}
+                      </span>
+                      <span className="ui-fine text-[rgba(255,255,255,0.56)]">
+                        {formatMediaDateTime(item.createdAt)}
+                      </span>
+                    </div>
+
+                    <div className="overflow-hidden rounded-[calc(var(--radius)+2px)] border border-[rgba(255,255,255,0.08)] bg-black">
+                      {item.mediaType === 'VIDEO' ? (
+                        <video
+                          controls
+                          preload="metadata"
+                          className="block h-auto max-h-[420px] w-full bg-black object-contain"
+                        >
+                          <source src={item.signedUrl} />
+                        </video>
+                      ) : (
+                        <img
+                          src={item.signedUrl}
+                          alt={item.caption || 'Media del tuo cane'}
+                          className="block h-auto max-h-[420px] w-full object-cover"
+                        />
+                      )}
+                    </div>
+
+                    {item.caption ? <div className="ui-body">{item.caption}</div> : null}
+
+                    <div className="ui-fine text-[rgba(255,255,255,0.52)]">
+                      Visibile fino al {formatMediaDateTime(item.visibleUntil)}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        ) : null}
       </div>
     </main>
   );

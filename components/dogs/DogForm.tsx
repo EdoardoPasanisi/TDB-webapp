@@ -2,7 +2,12 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DOG_BREEDS, type GroomingDifficulty, type SizeCategory } from '@/data/dogBreeds';
+import {
+  DOG_BREEDS,
+  findDogBreed,
+  type GroomingDifficulty,
+  type SizeCategory,
+} from '@/data/dogBreeds';
 import { BreedSearchInput } from '@/components/dogs/BreedSearchInput';
 import type { Dog, DogInput, DogSex } from '@/types/dog';
 import { isValidMicrochip, sanitizeMicrochip } from '@/lib/validation/italy';
@@ -92,6 +97,7 @@ interface DogFormProps {
   onPhotoSelected?: (file: File | null) => void;
   photoUploading?: boolean;
   photoEnabled?: boolean;
+  allowManualSize?: boolean;
 }
 
 export function DogForm({
@@ -108,19 +114,23 @@ export function DogForm({
   onPhotoSelected,
   photoUploading = false,
   photoEnabled = true,
+  allowManualSize = false,
 }: DogFormProps) {
   const isEdit = mode === 'edit';
   const editableDog = isEdit ? initialDog ?? null : null;
   const initialBirthParts = parseBirthDate(editableDog?.birth_date ?? null);
+  const initialBreedProfile = findDogBreed(editableDog?.breed ?? null);
 
   // Required
   const [name, setName] = useState(editableDog?.name ?? '');
   const [breed, setBreed] = useState(editableDog?.breed ?? '');
-  const [sizeCategory, setSizeCategory] = useState<SizeCategory | null>(editableDog?.size_category ?? null);
+  const [sizeCategory, setSizeCategory] = useState<SizeCategory | null>(
+    editableDog?.size_category ?? initialBreedProfile?.size ?? null
+  );
 
   // Business-only (non mostrato)
   const [groomingDifficulty, setGroomingDifficulty] = useState<GroomingDifficulty | null>(
-    editableDog?.grooming_difficulty ?? null,
+    editableDog?.grooming_difficulty ?? initialBreedProfile?.washDifficulty ?? null,
   );
 
   // New: sex (optional)
@@ -181,7 +191,9 @@ export function DogForm({
     const errors: string[] = [];
     if (!name.trim()) errors.push('Inserisci il nome del cane.');
     if (!breed.trim()) errors.push('Seleziona la razza.');
-    if (!sizeCategory) errors.push('Seleziona la taglia.');
+    if (!sizeCategory) {
+      errors.push(allowManualSize ? 'Seleziona la taglia.' : 'Impossibile determinare la taglia dalla razza selezionata.');
+    }
     // ✅ anno obbligatorio
     if (!birthY) errors.push('Seleziona l’anno di nascita.');
     return errors;
@@ -421,34 +433,35 @@ export function DogForm({
         </CardContent>
       </Card>
 
-      {/* Taglia (required) */}
-      <Card>
-        <CardContent className="space-y-2">
-          <Field
-            label={
-              <>
-                Taglia <span className="ui-required">*</span>
-              </>
-            }
-            hint="Preimpostata dalla razza, modificabile."
-          >
-            <select
-              value={sizeCategory ?? ''}
-              onChange={(e) => setSizeCategory((e.target.value as SizeCategory) || null)}
-              className="ui-control ui-select"
+      {allowManualSize ? (
+        <Card>
+          <CardContent className="space-y-2">
+            <Field
+              label={
+                <>
+                  Taglia <span className="ui-required">*</span>
+                </>
+              }
+              hint="Preimpostata dalla razza, modificabile solo dal gestionale."
             >
-              <option value="" disabled>
-                Seleziona taglia...
-              </option>
-              {SIZE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
+              <select
+                value={sizeCategory ?? ''}
+                onChange={(e) => setSizeCategory((e.target.value as SizeCategory) || null)}
+                className="ui-control ui-select"
+              >
+                <option value="" disabled>
+                  Seleziona taglia...
                 </option>
-              ))}
-            </select>
-          </Field>
-        </CardContent>
-      </Card>
+                {SIZE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Data di nascita (anno obbligatorio) */}
       <Card>

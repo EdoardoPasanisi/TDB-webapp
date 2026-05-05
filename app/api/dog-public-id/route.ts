@@ -1,25 +1,36 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { randomBytes } from 'crypto';
+import { requireRequestUser, RouteAuthError } from '@/lib/server/routeAuth';
+
+async function generateUniquePublicId(dogId: string): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const candidate = randomBytes(8).toString('hex');
+    const { data, error } = await supabaseAdmin
+      .from('dogs')
+      .update({ public_id: candidate })
+      .eq('id', dogId)
+      .is('public_id', null)
+      .select('public_id')
+      .maybeSingle();
+
+    if (error) continue;
+    if (data?.public_id) return data.public_id;
+  }
+
+  const { data: current } = await supabaseAdmin
+    .from('dogs')
+    .select('public_id')
+    .eq('id', dogId)
+    .maybeSingle();
+
+  if (current?.public_id) return current.public_id;
+  throw new Error('Errore nel salvataggio del public_id.');
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // ✅ Richiede sessione valida (passata dal client come Bearer token)
-    const authHeader = req.headers.get('authorization') ?? '';
-    const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-    const accessToken = tokenMatch?.[1] ?? null;
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Non autorizzato.' }, { status: 401 });
-    }
-
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (userError || !userData?.user) {
-      return NextResponse.json({ error: 'Sessione non valida.' }, { status: 401 });
-    }
-
-    const userId = userData.user.id;
+    const { userId } = await requireRequestUser(req);
 
     const body = await req.json().catch(() => null);
 
@@ -50,21 +61,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ publicId: dog.public_id });
     }
 
-    // Generiamo un nuovo public_id (stringa breve, tipo 10 caratteri)
-    const newPublicId = randomBytes(6).toString('hex'); // 12 caratteri esadecimali
-
-    const { error: updateError } = await supabaseAdmin
-      .from('dogs')
-      .update({ public_id: newPublicId })
-      .eq('id', dogId);
-
-    if (updateError) {
-      return NextResponse.json({ error: 'Errore nel salvataggio del public_id.' }, { status: 500 });
-    }
+    const newPublicId = await generateUniquePublicId(dogId);
 
     return NextResponse.json({ publicId: newPublicId });
-  } catch (err: any) {
+  } catch (err) {
     console.error('Errore in /api/dog-public-id:', err);
-    return NextResponse.json({ error: 'Errore interno.' }, { status: 500 });
+
+    if (err instanceof RouteAuthError) {
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
+
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : 'Errore interno.' },
+      { status: 500 }
+    );
   }
 }

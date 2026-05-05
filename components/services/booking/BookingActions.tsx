@@ -2,17 +2,17 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/ui/Button';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { cancelPensioneBooking } from '@/lib/services/pensione/api';
 
 type Props = {
   bookingId: string;
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 export function BookingActions({ bookingId }: Props) {
@@ -31,26 +31,7 @@ export function BookingActions({ bookingId }: Props) {
     setDeleteError(null);
 
     try {
-      // Elimina prima booking_dogs poi booking
-      const { error: dogsError } = await supabase
-        .from('booking_dogs')
-        .delete()
-        .eq('booking_id', bookingId);
-
-      if (dogsError) {
-        setDeleteError(`Errore eliminazione dettaglio cani: ${dogsError.message}`);
-        return;
-      }
-
-      const { error: bookingError } = await supabase
-        .from('bookings')
-        .delete()
-        .eq('id', bookingId);
-
-      if (bookingError) {
-        setDeleteError(`Errore eliminazione prenotazione: ${bookingError.message}`);
-        return;
-      }
+      await cancelPensioneBooking(bookingId);
 
       setConfirmOpen(false);
       router.push('/services');
@@ -69,13 +50,13 @@ export function BookingActions({ bookingId }: Props) {
         </Button>
 
         <Button type="button" variant="danger" onClick={() => setConfirmOpen(true)}>
-          Elimina
+          Annulla
         </Button>
       </section>
 
       <Modal
         open={confirmOpen}
-        title="Elimina prenotazione"
+        title="Annulla prenotazione"
         onClose={() => {
           if (deleting) return;
           setConfirmOpen(false);
@@ -84,7 +65,7 @@ export function BookingActions({ bookingId }: Props) {
       >
         <div className="space-y-4">
           <p className="ui-body">
-            Vuoi eliminare questa prenotazione? L’operazione non può essere annullata.
+            Vuoi annullare questa prenotazione? La prenotazione resterà nello storico con stato annullato.
           </p>
 
           {deleteError ? (
@@ -106,7 +87,7 @@ export function BookingActions({ bookingId }: Props) {
               Annulla
             </Button>
             <Button type="button" variant="danger" onClick={handleDelete} disabled={deleting}>
-              {deleting ? 'Eliminazione…' : 'Conferma eliminazione'}
+              {deleting ? 'Annullamento…' : 'Conferma annullamento'}
             </Button>
           </div>
         </div>

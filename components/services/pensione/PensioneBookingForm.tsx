@@ -1,19 +1,27 @@
 // components/services/pensione/PensioneBookingForm.tsx
 'use client';
 
+import { useEffect, useState } from 'react';
 import type { AccommodationKey, TaxiOption } from '@/types/booking';
 import type { DogLite, PerDogForm, PensionePricing } from '@/lib/services/pensione/types';
 import { ACCOMMODATION_PRICES } from '@/lib/services/pensione/constants';
-import { computeGroomingPriceForDog } from '@/lib/services/pensione/utils';
+import { computeGroomingPriceForDog, isSundayDate } from '@/lib/services/pensione/utils';
 import { DogAvatar } from '@/components/dogs/DogAvatar';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
+import type { AddressSearchApiResponse, AddressSuggestion } from '@/lib/address/addressSearch';
 import { TaxiQuote } from '@/components/services/common/TaxiQuote';
+import { RequiredBookingProfileCard } from '@/components/services/common/RequiredBookingProfileCard';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
+
+const ADDRESS_SEARCH_MIN_CHARS = 3;
+const ADDRESS_SEARCH_DEBOUNCE_MS = 350;
 
 type Props = {
   title: string;
   error: string | null;
+  missingRequiredFields: string[];
   saving: boolean;
 
   dogs: DogLite[];
@@ -29,6 +37,13 @@ type Props = {
 
   taxiDistanceBand: 'ENTRO_40' | 'OLTRE_40';
   taxiDistance: { loading: boolean; error: string | null; km: number | null };
+  taxiServiceAddress: {
+    dog_address_line: string;
+    dog_city: string;
+    dog_zip_code: string;
+    dog_province: string;
+  };
+  showTaxiServiceAddressEditor: boolean;
 
   notes: string;
 
@@ -45,18 +60,37 @@ type Props = {
   onChangeDepartureTime: (v: string) => void;
 
   onChangeTaxiOption: (v: TaxiOption) => void;
+  onChangeTaxiServiceAddressField: (
+    field: 'dog_address_line' | 'dog_city' | 'dog_zip_code' | 'dog_province',
+    value: string
+  ) => void;
 
   onChangeNotes: (v: string) => void;
 
   onUpdatePerDogField: (dogId: string, field: keyof PerDogForm, value: boolean | number | string) => void;
 
   onCancelEdit: () => void;
+  onCompleteRequiredProfile: () => void | Promise<void>;
   onSubmit: () => void;
   showCancelEdit: boolean;
 };
 
 function cx(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ');
+}
+
+function formatAddressLine(
+  addressLine?: string | null,
+  zipCode?: string | null,
+  city?: string | null,
+  province?: string | null
+) {
+  const parts: string[] = [];
+  if (addressLine) parts.push(addressLine);
+  const cityLine = [zipCode, city].filter(Boolean).join(' ');
+  if (cityLine) parts.push(cityLine);
+  if (province) parts.push(`(${province})`);
+  return parts.join(', ');
 }
 
 function SelectCard({
@@ -142,6 +176,7 @@ export function PensioneBookingForm(props: Props) {
   const {
     title,
     error,
+    missingRequiredFields,
     saving,
     dogs,
     isSingleDog,
@@ -152,6 +187,8 @@ export function PensioneBookingForm(props: Props) {
     departureTime,
     taxiOption,
     taxiDistance,
+    taxiServiceAddress,
+    showTaxiServiceAddressEditor,
     notes,
     perDogForm,
     daysCount,
@@ -162,18 +199,120 @@ export function PensioneBookingForm(props: Props) {
     onChangeArrivalTime,
     onChangeDepartureTime,
     onChangeTaxiOption,
+    onChangeTaxiServiceAddressField,
     onChangeNotes,
     onUpdatePerDogField,
     onCancelEdit,
+    onCompleteRequiredProfile,
     onSubmit,
     showCancelEdit,
   } = props;
+
+  const startIsSunday = isSundayDate(startDate);
+  const endIsSunday = isSundayDate(endDate);
+  const taxiServiceAddressReady =
+    taxiServiceAddress.dog_address_line.trim().length > 0 &&
+    taxiServiceAddress.dog_city.trim().length > 0;
+  const taxiServiceAddressPreview = formatAddressLine(
+    taxiServiceAddress.dog_address_line,
+    taxiServiceAddress.dog_zip_code,
+    taxiServiceAddress.dog_city,
+    taxiServiceAddress.dog_province
+  );
+  const [addressInputFocused, setAddressInputFocused] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<AddressSuggestion[]>([]);
+  const [addressSearchLoading, setAddressSearchLoading] = useState(false);
+  const [addressSearchError, setAddressSearchError] = useState<string | null>(null);
+  const debouncedAddressQuery = useDebouncedValue(
+    taxiServiceAddress.dog_address_line,
+    ADDRESS_SEARCH_DEBOUNCE_MS
+  );
+
+  useEffect(() => {
+    const query = debouncedAddressQuery.trim();
+
+    if (taxiOption === 'NONE' || !showTaxiServiceAddressEditor || !addressInputFocused) {
+      setAddressSuggestions([]);
+      setAddressSearchLoading(false);
+      setAddressSearchError(null);
+      return;
+    }
+
+    if (query.length < ADDRESS_SEARCH_MIN_CHARS) {
+      setAddressSuggestions([]);
+      setAddressSearchLoading(false);
+      setAddressSearchError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const run = async () => {
+      setAddressSearchLoading(true);
+      setAddressSearchError(null);
+
+      try {
+        const response = await fetch(`/api/address-search?q=${encodeURIComponent(query)}`, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const json = (await response.json().catch(() => null)) as AddressSearchApiResponse | null;
+
+        if (!response.ok || !json?.ok) {
+          throw new Error(
+            json && !json.ok && json.error
+              ? json.error
+              : 'Ricerca indirizzo non disponibile in questo momento.'
+          );
+        }
+
+        if (cancelled) return;
+        setAddressSuggestions(json.items);
+      } catch (error) {
+        if (controller.signal.aborted || cancelled) return;
+        setAddressSuggestions([]);
+        setAddressSearchError(
+          error instanceof Error && error.message
+            ? error.message
+            : 'Ricerca indirizzo non disponibile in questo momento.'
+        );
+      } finally {
+        if (!cancelled) setAddressSearchLoading(false);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [addressInputFocused, debouncedAddressQuery, showTaxiServiceAddressEditor, taxiOption]);
+
+  const handleSelectAddressSuggestion = (suggestion: AddressSuggestion) => {
+    onChangeTaxiServiceAddressField('dog_address_line', suggestion.dog_address_line);
+    onChangeTaxiServiceAddressField('dog_city', suggestion.dog_city);
+    onChangeTaxiServiceAddressField('dog_zip_code', suggestion.dog_zip_code);
+    onChangeTaxiServiceAddressField('dog_province', suggestion.dog_province);
+    setAddressSuggestions([]);
+    setAddressSearchError(null);
+    setAddressInputFocused(false);
+  };
 
   return (
     <div className="ui-container space-y-4 ui-minw0">
       <div className="space-y-2 ui-minw0">
         <h1 className="ui-title ui-minw0">{title}</h1>
       </div>
+
+      {missingRequiredFields.length ? (
+        <RequiredBookingProfileCard
+          missingFields={missingRequiredFields}
+          onSaved={() => onCompleteRequiredProfile()}
+        />
+      ) : null}
 
       {!isSingleDog ? (
         <Card>
@@ -254,7 +393,7 @@ export function PensioneBookingForm(props: Props) {
             <Field
               label="Orario di arrivo (indicativo)"
               className="ui-minw0"
-              hint="Possibile tra le 9–13 o le 15–18."
+              hint={startIsSunday ? 'Di domenica è possibile solo tra le 9–13.' : 'Possibile tra le 9–13 o le 15–18.'}
             >
               <input
                 type="time"
@@ -267,7 +406,11 @@ export function PensioneBookingForm(props: Props) {
             <Field
               label="Orario di partenza (indicativo, richiesto)"
               className="ui-minw0"
-              hint={'9–13: non si conta il giorno di partenza.\n 15–18: si conta anche il giorno di partenza.'}
+              hint={
+                endIsSunday
+                  ? 'Di domenica è possibile solo tra le 9–13. Entro le 13:00 non si conta il giorno di partenza.'
+                  : '9–13: non si conta il giorno di partenza.\n 15–18: si conta anche il giorno di partenza.'
+              }
             >
               <input
                 type="time"
@@ -293,7 +436,120 @@ export function PensioneBookingForm(props: Props) {
               </select>
             </Field>
 
-            <Field label="Distanza taxi dog (automatica)" hint="Basata sull’indirizzo taxi dog salvato nel profilo.">
+            {taxiOption !== 'NONE' ? (
+              <div className="ui-panelInset p-3 space-y-3">
+                <div className="space-y-1">
+                  <div className="ui-body font-[var(--font-weight-semibold)]">Indirizzo servizi</div>
+                  <div className="ui-muted">
+                    È l’indirizzo usato per calcolare il taxi dog.
+                  </div>
+                </div>
+
+                {!showTaxiServiceAddressEditor && taxiServiceAddressReady ? (
+                  <div className="ui-body">{taxiServiceAddressPreview}</div>
+                ) : (
+                  <>
+                    <div className="ui-dangerText">
+                      Inserisci qui l’indirizzo servizi per usare il taxi dog.
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="space-y-1 sm:col-span-2">
+                        <label className="ui-label">Via / indirizzo</label>
+                        <div className="space-y-2">
+                          <input
+                            type="text"
+                            value={taxiServiceAddress.dog_address_line}
+                            onChange={(e) => onChangeTaxiServiceAddressField('dog_address_line', e.target.value)}
+                            onFocus={() => setAddressInputFocused(true)}
+                            onBlur={() => {
+                              window.setTimeout(() => setAddressInputFocused(false), 120);
+                            }}
+                            className="ui-control ui-input"
+                            placeholder="Inizia a scrivere la via"
+                            autoComplete="off"
+                          />
+
+                          {addressInputFocused &&
+                          taxiServiceAddress.dog_address_line.trim().length >= ADDRESS_SEARCH_MIN_CHARS ? (
+                            <div className="ui-panelInset overflow-hidden">
+                              {addressSearchLoading ? (
+                                <div className="px-3 py-2 ui-muted">Sto cercando l’indirizzo…</div>
+                              ) : addressSearchError ? (
+                                <div className="px-3 py-2 ui-dangerText">{addressSearchError}</div>
+                              ) : addressSuggestions.length > 0 ? (
+                                <div className="divide-y divide-[rgba(255,255,255,0.08)]">
+                                  {addressSuggestions.map((suggestion) => (
+                                    <button
+                                      key={[
+                                        suggestion.dog_address_line,
+                                        suggestion.dog_city,
+                                        suggestion.dog_zip_code,
+                                        suggestion.dog_province,
+                                      ].join('|')}
+                                      type="button"
+                                      onMouseDown={(event) => event.preventDefault()}
+                                      onClick={() => handleSelectAddressSuggestion(suggestion)}
+                                      className="flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-[rgba(255,130,0,0.08)]"
+                                    >
+                                      <div className="space-y-1">
+                                        <div className="ui-body font-[var(--font-weight-semibold)]">
+                                          {suggestion.dog_address_line}
+                                        </div>
+                                        <div className="ui-muted">{suggestion.label}</div>
+                                      </div>
+                                    </button>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="px-3 py-2 ui-muted">
+                                  Nessun indirizzo trovato. Puoi continuare a compilarlo a mano.
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
+
+                          <div className="ui-muted">
+                            Seleziona un suggerimento per compilare automaticamente città, CAP e provincia.
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="ui-label">Città</label>
+                        <input
+                          type="text"
+                          value={taxiServiceAddress.dog_city}
+                          onChange={(e) => onChangeTaxiServiceAddressField('dog_city', e.target.value)}
+                          className="ui-control ui-input"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="ui-label">CAP</label>
+                        <input
+                          type="text"
+                          value={taxiServiceAddress.dog_zip_code}
+                          onChange={(e) => onChangeTaxiServiceAddressField('dog_zip_code', e.target.value)}
+                          className="ui-control ui-input"
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="ui-label">Provincia</label>
+                        <input
+                          type="text"
+                          value={taxiServiceAddress.dog_province}
+                          onChange={(e) => onChangeTaxiServiceAddressField('dog_province', e.target.value)}
+                          className="ui-control ui-input"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
+
+            <Field label="Distanza taxi dog (automatica)" hint="Basata sull’indirizzo servizi attuale.">
               {taxiOption === 'NONE' ? (
                 <div className="ui-muted">Non richiesta.</div>
               ) : taxiDistance.loading ? (

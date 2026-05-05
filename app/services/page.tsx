@@ -4,6 +4,7 @@
 import { useMemo, useState, useEffect } from 'react';
 
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 
 import { ServiceCards } from '@/components/services/ServiceCards';
 import { ServicePassCards } from '@/components/services/ServicePassCards';
@@ -16,8 +17,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 export default function ServicesPage() {
@@ -84,7 +84,7 @@ export default function ServicesPage() {
 
   if (!user) return null;
 
-  const anyError = authError?.message ?? passesError;
+  const anyError = authError ? humanizeErrorMessage(authError, 'Non siamo riusciti a verificare il tuo accesso.') : passesError;
 
   return (
     <main className="ui-page min-h-screen">

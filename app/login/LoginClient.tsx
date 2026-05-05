@@ -3,12 +3,13 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 
 function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Errore inaspettato.';
+  return humanizeErrorMessage(error, 'Non siamo riusciti a completare l’accesso. Riprova.');
 }
 
 export default function LoginClient() {
@@ -52,11 +53,11 @@ export default function LoginClient() {
       });
 
       if (error) {
-        setError(error.message);
+        setError(humanizeErrorMessage(error, 'Non siamo riusciti a completare l’accesso. Riprova.'));
         return;
       }
 
-      const target = redirectedFrom || '/profile';
+      const target = redirectedFrom || '/';
       router.replace(target);
       router.refresh();
     } catch (submitError) {

@@ -1,18 +1,14 @@
 // lib/services/servicePassesApi.ts
-// API per leggere e creare i pass (crediti/pacchetti) dell’utente.
-// In MVP: "acquisto simulato" = insert su service_passes.
+// API per leggere e acquistare i pass (crediti/pacchetti) dell’utente.
 
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { supabase } from '@/lib/supabaseClient';
 import type {
   ServicePassRow,
   ServicePassGroupSummary,
   ServicePassLeafSummary,
-  ServiceProductRow,
-  ServiceType,
-  ServiceVariant,
 } from '@/types/services';
 import { buildPassGroupKey, getCreditsRemaining } from '@/types/services';
-import { addToWalletDueEur } from '@/lib/wallet/walletApi';
 
 export async function getUserServicePasses(userId: string): Promise<ServicePassRow[]> {
   const { data, error } = await supabase
@@ -21,7 +17,7 @@ export async function getUserServicePasses(userId: string): Promise<ServicePassR
     .eq('user_id', userId)
     .order('purchased_at', { ascending: false });
 
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(humanizeErrorMessage(error, 'Non siamo riusciti a caricare i tuoi crediti.'));
   return (data ?? []) as ServicePassRow[];
 }
 
@@ -80,36 +76,32 @@ export function buildPassSummaries(passes: ServicePassRow[]): ServicePassGroupSu
 }
 
 /**
- * Acquisto simulato: crea un pass a partire da un prodotto.
- * In futuro sostituiremo questo con Stripe webhook -> insert server-side.
- *
- * Wallet: ogni acquisto aumenta il debito (wallet_due_eur) dell'utente.
+ * Acquisto pass atomico lato DB:
+ * - valida il prodotto server-side
+ * - crea il pass
+ * - aggiorna il wallet
  */
-export async function purchasePassFromProduct(args: {
-  userId: string;
-  product: ServiceProductRow;
-  expiresAtIso?: string | null;
-}): Promise<ServicePassRow> {
-  const { userId, product, expiresAtIso = null } = args;
+export async function purchasePassFromProduct(productId: string): Promise<ServicePassRow> {
+  const normalizedProductId = String(productId ?? '').trim();
+  if (!normalizedProductId) {
+    throw new Error('Prodotto non valido.');
+  }
 
-  const insertPayload = {
-    user_id: userId,
-    service_type: product.service_type as ServiceType,
-    service_variant: product.service_variant as ServiceVariant | null,
-    product_id: product.id,
-    credits_total: product.credits,
-    credits_used: 0,
-    status: 'ACTIVE',
-    expires_at: expiresAtIso,
-  };
+  const { data, error } = await supabase.rpc('purchase_service_pass', {
+    p_product_id: normalizedProductId,
+  });
 
-  const { data, error } = await supabase.from('service_passes').insert(insertPayload).select('*').single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    const msg = error.message ?? '';
+    const looksMissingFn =
+      msg.includes('purchase_service_pass') &&
+      (msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('Could not find'));
 
-  // Wallet increment (best effort ma NON silenzioso: se fallisce vogliamo accorgercene)
-  const price = Number(product.price_eur);
-  if (Number.isFinite(price) && price > 0) {
-    await addToWalletDueEur(userId, price);
+    if (looksMissingFn) {
+      throw new Error('Database non aggiornato: applica le ultime migration Supabase.');
+    }
+
+    throw new Error(humanizeErrorMessage(error, 'Non siamo riusciti a completare l’acquisto del pacchetto.'));
   }
 
   return data as ServicePassRow;

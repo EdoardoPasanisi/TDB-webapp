@@ -75,6 +75,18 @@ export default function SettingsPage() {
           <p className="ui-muted">Gestisci account, documenti e preferenze principali.</p>
         </header>
 
+        {staffAccess ? (
+          <Button
+            type="button"
+            variant="primary"
+            fullWidth
+            className="py-4 text-base font-[var(--font-weight-bold)]"
+            onClick={() => router.push('/admin')}
+          >
+            Apri gestionale
+          </Button>
+        ) : null}
+
         <Card>
           <CardContent className="space-y-3">
             <SectionHeader title="Account" />
@@ -95,26 +107,20 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {staffAccess ? (
-          <Card>
-            <CardContent className="space-y-3">
-              <SectionHeader
-                title="Gestionale"
-                subtitle={
-                  staffAccess.canManage
-                    ? 'Accesso completo al backoffice.'
-                    : 'Accesso in sola lettura al backoffice.'
-                }
-              />
+        <Card>
+          <CardContent className="space-y-3">
+            <SectionHeader
+              title="Notifiche"
+              subtitle="Gestisci quali aggiornamenti ricevere e su quali canali."
+            />
 
-              <SettingActionCard
-                title="Apri gestionale"
-                subtitle="Clienti, cani, prenotazioni, documenti, slot e configurazione."
-                onClick={() => router.push('/admin')}
-              />
-            </CardContent>
-          </Card>
-        ) : null}
+            <SettingActionCard
+              title="Preferenze notifiche"
+              subtitle="Scegli quali notifiche operative ricevere nell’app e, in futuro, anche via email."
+              onClick={() => router.push('/settings/notifications')}
+            />
+          </CardContent>
+        </Card>
 
         <Card>
           <CardContent className="space-y-3">

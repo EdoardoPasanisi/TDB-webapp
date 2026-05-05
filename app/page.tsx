@@ -1,6 +1,9 @@
 // app/page.tsx
 'use client';
 
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { fetchAdminJson } from '@/lib/admin/client';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
 
 /**
@@ -12,11 +15,29 @@ import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
  * (feed, notifiche, ecc.) sapendo che la logica di routing è tutta qui.
  */
 export default function HomePage() {
-  useCurrentUser({
-    redirectToIfAuthenticated: '/services',
+  const router = useRouter();
+  const { user, loading } = useCurrentUser({
     redirectToIfUnauthenticated: '/login',
     enableRedirects: true,
   });
+
+  useEffect(() => {
+    if (loading || !user) return;
+
+    let isActive = true;
+
+    fetchAdminJson('/api/admin/me')
+      .then(() => {
+        if (isActive) router.replace('/admin');
+      })
+      .catch(() => {
+        if (isActive) router.replace('/services');
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [loading, router, user]);
 
   // UI minimale di "caricamento" mentre controlliamo lo stato auth
   return (

@@ -1,3 +1,4 @@
+import type { BookingDogExtras, TaxiDistanceBand, TaxiOption } from '@/types/booking';
 import type { Dog } from '@/types/dog';
 import type { Profile } from '@/types/profile';
 import type { BookingStatus } from '@/types/booking';
@@ -61,6 +62,7 @@ export type AdminDogListItem = {
 export type AdminDocumentRecord = {
   id: string;
   userId: string;
+  ownerName: string | null;
   kind: AdminDocumentKind;
   path: string;
   fileName: string;
@@ -73,6 +75,7 @@ export type AdminDocumentRecord = {
 };
 
 export type AdminAgendaItem = {
+  itemKey: string;
   kind: AdminBookingKind;
   id: string;
   userId: string;
@@ -90,6 +93,7 @@ export type AdminAgendaItem = {
   notes: string | null;
   isActive: boolean;
   meta: string[];
+  summaryLines: string[];
 };
 
 export type AdminSlotRecord = {
@@ -101,8 +105,13 @@ export type AdminSlotRecord = {
   capacity: number;
   bookedCount: number;
   remainingCount: number;
-  isActive: boolean;
   notes: string | null;
+};
+
+export type AdminOverviewServiceCount = {
+  serviceKey: AdminServiceKey;
+  label: string;
+  count: number;
 };
 
 export type AdminOverview = {
@@ -112,10 +121,36 @@ export type AdminOverview = {
     activeBookings: number;
     pendingBookings: number;
     pendingDocuments: number;
+    presentDogs: number;
+    activePensione: number;
+    checkInsToday: number;
+    checkOutsToday: number;
+    servicesToday: number;
   };
+  serviceCountsToday: AdminOverviewServiceCount[];
+  todayServices: AdminAgendaItem[];
   pendingBookings: AdminAgendaItem[];
   pendingDocuments: AdminDocumentRecord[];
-  upcomingServices: AdminAgendaItem[];
+  urgentItems: AdminAgendaItem[];
+};
+
+export type AdminAnalytics = {
+  totals: {
+    users: number;
+    activeUsers: number;
+    dogs: number;
+    activeDogs: number;
+    confirmedRevenue: number;
+    confirmedBookings: number;
+    last30DaysRevenue: number;
+    last30DaysBookings: number;
+  };
+  revenueByService: Array<{
+    serviceKey: Extract<AdminServiceKey, 'PENSIONE' | 'ASILO' | 'ADDESTRAMENTO' | 'CONSULENZA'>;
+    label: string;
+    revenue: number;
+    bookings: number;
+  }>;
 };
 
 export type AdminUserDetail = {
@@ -139,9 +174,9 @@ export type AdminDogDetail = {
 
 export type AdminStaffMember = {
   userId: string;
+  fullName: string;
   email: string | null;
   role: StaffRole;
-  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -149,4 +184,75 @@ export type AdminStaffMember = {
 export type AdminDateViewResponse = {
   items: AdminAgendaItem[];
   slots: AdminSlotRecord[];
+};
+
+export type AdminServicesViewResponse = {
+  items: AdminAgendaItem[];
+  slots: AdminSlotRecord[];
+};
+
+export type AdminBookingDetail = {
+  kind: AdminBookingKind;
+  id: string;
+  status: AdminAnyBookingStatus;
+  serviceKey: AdminServiceKey;
+  serviceType: ServiceType | null;
+  serviceVariant: ServiceVariant | null;
+  serviceLabel: string;
+  startAt: string;
+  endAt: string | null;
+  totalPrice: number | null;
+  notes: string | null;
+  meta: string[];
+  booking: {
+    createdAt: string | null;
+    arrivalTime: string | null;
+    departureTime: string | null;
+    taxiPickupTime: string | null;
+    taxiReturnTime: string | null;
+    taxiDistanceBand: TaxiDistanceBand | null;
+  };
+  user: {
+    userId: string;
+    fullName: string;
+    email: string | null;
+    phone: string | null;
+    dogAddressLine: string | null;
+    dogCity: string | null;
+    dogZipCode: string | null;
+    dogProvince: string | null;
+    profile: Profile | null;
+  };
+  dogs: Array<{
+    dogId: string;
+    name: string;
+    breed: string | null;
+    microchip: string | null;
+    sizeCategory: Dog['size_category'] | null;
+    groomingDifficulty: Dog['grooming_difficulty'] | null;
+    sex: Dog['sex'] | null;
+    birthDate: string | null;
+    notes: string | null;
+    coatColor: string | null;
+    temperament: string[] | null;
+    extras: BookingDogExtras | null;
+    pricing: {
+      accommodationType: string | null;
+      accommodationPricePerDay: number | null;
+      daysCount: number | null;
+      accommodationSubtotal: number | null;
+      extrasSubtotal: number | null;
+      total: number | null;
+    };
+  }>;
+  taxi: {
+    enabled: boolean;
+    option: TaxiOption | null;
+    distanceKm: number | null;
+    priceEur: number | null;
+  };
+  credits: {
+    passId: string | null;
+    creditsSpent: number | null;
+  };
 };

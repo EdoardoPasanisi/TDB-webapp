@@ -2,13 +2,19 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { supabase } from '@/lib/supabaseClient';
+import {
+  loadServiceSlotDogSummaryMap,
+  mapServiceSlotDogs,
+  type ServiceSlotDogSummary,
+} from '@/lib/services/serviceSlotDogs';
 import type { BookingDogRow, BookingRow, BookingStatus } from '@/types/booking';
 import type { ServiceType as SlotServiceType, ServiceVariant } from '@/types/services';
 
 type Status = 'idle' | 'loading' | 'success' | 'error';
 
-type DogMini = { id: string; name: string; breed?: string | null };
+type DogMini = ServiceSlotDogSummary;
 export type BookingDogDetailRow = BookingDogRow & { dogName: string; dogBreed: string | null };
 
 type BookingQueryRow = BookingRow;
@@ -37,7 +43,8 @@ type ServiceSlotBookingQueryRow = {
   credits_spent: number | null;
   total_price: number | null;
   created_at: string | null;
-  dogs: DogMini[] | DogMini | null;
+  dog_id: string | null;
+  dog_ids: string[] | null;
   service_slots: ServiceSlotRowRelation[] | ServiceSlotRowRelation | null;
 };
 
@@ -81,7 +88,7 @@ export type BookingDetailData =
     };
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 function normalizeBookingRow(raw: BookingQueryRow): BookingRow {
@@ -279,6 +286,8 @@ export function useBookingDetail(userId: string | undefined, bookingId: string |
         id,
         user_id,
         slot_id,
+        dog_id,
+        dog_ids,
         service_type,
         service_variant,
         status,
@@ -289,7 +298,6 @@ export function useBookingDetail(userId: string | undefined, bookingId: string |
         credits_spent,
         total_price,
         created_at,
-        dogs:dog_id ( id, name, breed ),
         service_slots:slot_id ( id, start_at, end_at, service_type, service_variant )
       `;
 
@@ -338,16 +346,21 @@ export function useBookingDetail(userId: string | undefined, bookingId: string |
       if (allErr) throw new Error(`Errore Supabase (service_slot_bookings group): ${allErr.message}`);
 
       const rows = (allRows ?? []) as ServiceSlotBookingQueryRow[];
-      const slot = firstRelation(rows[0]?.service_slots) ?? firstRelation(repRow.service_slots);
+      const groupedRows = rows.length > 0 ? rows : [repRow];
+      const slot = firstRelation(groupedRows[0]?.service_slots) ?? firstRelation(repRow.service_slots);
       const serviceType = repRow.service_type ?? slot?.service_type;
       if (!serviceType) throw new Error('Prenotazione non valida (servizio mancante).');
 
-      const dogs: DogMini[] = rows
-        .map((r) => firstRelation(r.dogs))
-        .filter((dog): dog is DogMini => Boolean(dog))
-        .map((dog) => ({ id: dog.id, name: dog.name, breed: dog.breed ?? null }));
+      const dogMap = await loadServiceSlotDogSummaryMap(groupedRows);
+      const dogs = Array.from(
+        new Map(
+          groupedRows
+            .flatMap((row) => mapServiceSlotDogs(row, dogMap))
+            .map((dog) => [dog.id, dog] as const)
+        ).values()
+      );
 
-      const taxiRow = rows.find((r) => !!r.taxi_enabled) ?? repRow;
+      const taxiRow = groupedRows.find((r) => !!r.taxi_enabled) ?? repRow;
 
       const slotBooking: ServiceSlotBookingDetail = {
         rep_id: repRow.id,
@@ -355,17 +368,17 @@ export function useBookingDetail(userId: string | undefined, bookingId: string |
         user_id: repRow.user_id,
         service_type: serviceType,
         service_variant: repRow.service_variant ?? slot?.service_variant ?? null,
-        status: pickGroupStatus(rows.map((r) => r.status)),
-        notes: rows.map((r) => r.notes).find((n) => !!n) ?? repRow.notes ?? null,
+        status: pickGroupStatus(groupedRows.map((r) => r.status)),
+        notes: groupedRows.map((r) => r.notes).find((n) => !!n) ?? repRow.notes ?? null,
         start_at: slot?.start_at ?? '',
         end_at: slot?.end_at ?? '',
         dogs,
         taxi_enabled: !!taxiRow.taxi_enabled,
         taxi_distance_km: taxiRow.taxi_distance_km ?? null,
         taxi_price_eur: taxiRow.taxi_price_eur ?? null,
-        credits_spent: rows.reduce((acc, r) => acc + (Number(r.credits_spent) || 0), 0),
-        total_price: sumMaybe(rows.map((r) => r.total_price)),
-        booking_ids: rows.map((r) => r.id),
+        credits_spent: groupedRows.reduce((acc, r) => acc + (Number(r.credits_spent) || 0), 0),
+        total_price: sumMaybe(groupedRows.map((r) => r.total_price)),
+        booking_ids: groupedRows.map((r) => r.id),
         created_at: repRow.created_at ?? undefined,
       };
 

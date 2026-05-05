@@ -1,6 +1,12 @@
-// FILE: app/api/dog-photo/route.ts
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { requireRequestUser, RouteAuthError } from '@/lib/server/routeAuth';
+import {
+  DOG_PHOTO_MIME_TYPES,
+  MAX_DOG_PHOTO_BYTES,
+  validateUploadFile,
+} from '@/lib/validation/uploads';
 
 export const runtime = 'nodejs';
 
@@ -12,7 +18,7 @@ type DogRow = {
 };
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 function guessExtFromMimeOrName(file: File): string {
@@ -24,176 +30,158 @@ function guessExtFromMimeOrName(file: File): string {
   };
   if (byType[file.type]) return byType[file.type];
 
-  const m = file.name.toLowerCase().match(/\.([a-z0-9]+)$/);
-  const ext = m?.[1] ?? '';
-  if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) return ext === 'jpeg' ? 'jpg' : ext;
+  const match = file.name.toLowerCase().match(/\.([a-z0-9]+)$/);
+  const ext = match?.[1] ?? '';
+  if (['jpg', 'jpeg', 'png', 'webp'].includes(ext)) {
+    return ext === 'jpeg' ? 'jpg' : ext;
+  }
 
   return 'jpg';
 }
 
+async function getOwnedDogOrResponse(dogId: string, userId: string): Promise<DogRow | NextResponse> {
+  const { data, error } = await supabaseAdmin
+    .from('dogs')
+    .select('id, owner_id, is_active, photo_path')
+    .eq('id', dogId)
+    .maybeSingle();
+
+  const dogRow = (data ?? null) as DogRow | null;
+
+  if (error) {
+    return NextResponse.json({ error: humanizeErrorMessage(error, 'Non siamo riusciti a recuperare i dati del cane.') }, { status: 400 });
+  }
+  if (!dogRow || dogRow.is_active === false) {
+    return NextResponse.json({ error: 'Cane non trovato.' }, { status: 404 });
+  }
+  if (dogRow.owner_id !== userId) {
+    return NextResponse.json({ error: 'Non hai i permessi per modificare questo cane.' }, { status: 403 });
+  }
+
+  return dogRow;
+}
+
 export async function POST(req: Request) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Missing Supabase env.' }, { status: 500 });
-    }
-    if (!serviceRoleKey) {
-      return NextResponse.json({ error: 'Missing SUPABASE_SERVICE_ROLE_KEY.' }, { status: 500 });
-    }
-
-    const authHeader = req.headers.get('authorization') || '';
-    const m = authHeader.match(/^Bearer\s+(.+)$/i);
-    const accessToken = m?.[1];
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Missing Authorization bearer token.' }, { status: 401 });
-    }
+    const { userId } = await requireRequestUser(req);
 
     const form = await req.formData();
     const dogId = String(form.get('dogId') ?? '').trim();
     const file = form.get('file');
 
     if (!dogId) {
-      return NextResponse.json({ error: 'Missing dogId.' }, { status: 400 });
+      return NextResponse.json({ error: 'Manca il riferimento del cane.' }, { status: 400 });
     }
     if (!file || !(file instanceof File)) {
-      return NextResponse.json({ error: 'Missing file.' }, { status: 400 });
+      return NextResponse.json({ error: 'Seleziona una foto prima di continuare.' }, { status: 400 });
     }
 
-    // Client admin (bypassa RLS) + verifica token utente
-    const admin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    const validationError = validateUploadFile({
+      file,
+      allowedMimeTypes: DOG_PHOTO_MIME_TYPES,
+      maxBytes: MAX_DOG_PHOTO_BYTES,
+      invalidTypeMessage: 'Formato non valido. Usa JPG, PNG o WebP.',
+      tooLargeMessage: 'La foto è troppo grande. Limite massimo: 5MB.',
     });
-
-    // Verifica JWT -> user id
-    const { data: userData, error: userErr } = await admin.auth.getUser(accessToken);
-    if (userErr || !userData?.user?.id) {
-      return NextResponse.json({ error: 'Invalid session.' }, { status: 401 });
-    }
-    const userId = userData.user.id;
-
-    // Verifica ownership cane
-    const { data: dogData, error: dogErr } = await admin
-      .from('dogs')
-      .select('id, owner_id, is_active, photo_path')
-      .eq('id', dogId)
-      .maybeSingle();
-    const dogRow = (dogData ?? null) as DogRow | null;
-
-    if (dogErr) {
-      return NextResponse.json({ error: dogErr.message }, { status: 400 });
-    }
-    if (!dogRow || dogRow.is_active === false) {
-      return NextResponse.json({ error: 'Dog not found.' }, { status: 404 });
-    }
-    if (dogRow.owner_id !== userId) {
-      return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
-    // Upload su storage con service role (no RLS)
+    const dogLookup = await getOwnedDogOrResponse(dogId, userId);
+    if (dogLookup instanceof NextResponse) return dogLookup;
+    const dogRow = dogLookup;
+
     const ext = guessExtFromMimeOrName(file);
     const path = `${userId}/${dogId}.${ext}`;
-    // Se l'estensione cambia (es. da .png a .jpg), rimuoviamo il vecchio file
-    const prevPath = dogRow.photo_path;
-    if (prevPath && prevPath !== path) {
-        await admin.storage.from('dog-images').remove([prevPath]).catch(() => undefined);
+    const previousPath = dogRow.photo_path;
+    if (previousPath && previousPath !== path) {
+      await supabaseAdmin.storage.from('dog-images').remove([previousPath]).catch(() => undefined);
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
-
-    const { error: upErr } = await admin.storage.from('dog-images').upload(path, bytes, {
+    const { error: uploadError } = await supabaseAdmin.storage.from('dog-images').upload(path, bytes, {
       upsert: true,
       contentType: file.type || 'application/octet-stream',
-      cacheControl: '3600',
+      cacheControl: '31536000',
     });
 
-    if (upErr) {
-      return NextResponse.json({ error: upErr.message }, { status: 400 });
+    if (uploadError) {
+      return NextResponse.json({ error: humanizeErrorMessage(uploadError, 'Non siamo riusciti a caricare la foto.') }, { status: 400 });
     }
 
-    // Salva photo_path sul cane
-    const { error: updErr } = await admin
+    const { error: updateError } = await supabaseAdmin
       .from('dogs')
       .update({ photo_path: path, updated_at: new Date().toISOString() })
       .eq('id', dogId)
       .eq('owner_id', userId);
 
-    if (updErr) {
-      return NextResponse.json({ error: updErr.message }, { status: 400 });
+    if (updateError) {
+      await supabaseAdmin.storage.from('dog-images').remove([path]).catch(() => undefined);
+      return NextResponse.json({ error: humanizeErrorMessage(updateError, 'Non siamo riusciti a salvare la foto del cane.') }, { status: 400 });
     }
 
     return NextResponse.json({ ok: true, path }, { status: 200 });
-  } catch (e) {
-    return NextResponse.json({ error: getErrorMessage(e, 'Unexpected error.') }, { status: 500 });
+  } catch (error) {
+    if (error instanceof RouteAuthError) {
+      return NextResponse.json(
+        { error: humanizeErrorMessage(error.message, 'Devi accedere per modificare la foto del cane.') },
+        { status: error.status }
+      );
+    }
+
+    return NextResponse.json(
+      { error: getErrorMessage(error, 'Si è verificato un problema interno. Riprova tra poco.') },
+      { status: 500 }
+    );
   }
 }
 
 export async function DELETE(req: Request) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      return NextResponse.json({ error: 'Missing Supabase env.' }, { status: 500 });
-    }
-    if (!serviceRoleKey) {
-      return NextResponse.json({ error: 'Missing SUPABASE_SERVICE_ROLE_KEY.' }, { status: 500 });
-    }
-
-    const authHeader = req.headers.get('authorization') || '';
-    const m = authHeader.match(/^Bearer\s+(.+)$/i);
-    const accessToken = m?.[1];
-    if (!accessToken) {
-      return NextResponse.json({ error: 'Missing Authorization bearer token.' }, { status: 401 });
-    }
+    const { userId } = await requireRequestUser(req);
 
     const body = (await req.json().catch(() => null)) as null | { dogId?: string };
     const dogId = String(body?.dogId ?? '').trim();
     if (!dogId) {
-      return NextResponse.json({ error: 'Missing dogId.' }, { status: 400 });
+      return NextResponse.json({ error: 'Manca il riferimento del cane.' }, { status: 400 });
     }
 
-    const admin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    });
+    const dogLookup = await getOwnedDogOrResponse(dogId, userId);
+    if (dogLookup instanceof NextResponse) return dogLookup;
+    const dogRow = dogLookup;
 
-    const { data: userData, error: userErr } = await admin.auth.getUser(accessToken);
-    if (userErr || !userData?.user?.id) {
-      return NextResponse.json({ error: 'Invalid session.' }, { status: 401 });
-    }
-    const userId = userData.user.id;
+    if (dogRow.photo_path) {
+      const { error: removeError } = await supabaseAdmin.storage
+        .from('dog-images')
+        .remove([dogRow.photo_path]);
 
-    const { data: dogData, error: dogErr } = await admin
-      .from('dogs')
-      .select('id, owner_id, is_active, photo_path')
-      .eq('id', dogId)
-      .maybeSingle();
-    const dogRow = (dogData ?? null) as DogRow | null;
-
-    if (dogErr) return NextResponse.json({ error: dogErr.message }, { status: 400 });
-    if (!dogRow || dogRow.is_active === false) return NextResponse.json({ error: 'Dog not found.' }, { status: 404 });
-    if (dogRow.owner_id !== userId) return NextResponse.json({ error: 'Forbidden.' }, { status: 403 });
-
-    const photoPath = dogRow.photo_path;
-
-    if (photoPath) {
-      const { error: rmErr } = await admin.storage.from('dog-images').remove([photoPath]);
-      if (rmErr) return NextResponse.json({ error: rmErr.message }, { status: 400 });
+      if (removeError) {
+        return NextResponse.json({ error: humanizeErrorMessage(removeError, 'Non siamo riusciti a rimuovere la foto del cane.') }, { status: 400 });
+      }
     }
 
-    const { error: updErr } = await admin
+    const { error: updateError } = await supabaseAdmin
       .from('dogs')
       .update({ photo_path: null, updated_at: new Date().toISOString() })
       .eq('id', dogId)
       .eq('owner_id', userId);
 
-    if (updErr) return NextResponse.json({ error: updErr.message }, { status: 400 });
+    if (updateError) {
+      return NextResponse.json({ error: humanizeErrorMessage(updateError, 'Non siamo riusciti ad aggiornare il profilo del cane.') }, { status: 400 });
+    }
 
     return NextResponse.json({ ok: true }, { status: 200 });
-  } catch (e) {
-    return NextResponse.json({ error: getErrorMessage(e, 'Unexpected error.') }, { status: 500 });
+  } catch (error) {
+    if (error instanceof RouteAuthError) {
+      return NextResponse.json(
+        { error: humanizeErrorMessage(error.message, 'Devi accedere per modificare la foto del cane.') },
+        { status: error.status }
+      );
+    }
+
+    return NextResponse.json(
+      { error: getErrorMessage(error, 'Si è verificato un problema interno. Riprova tra poco.') },
+      { status: 500 }
+    );
   }
 }

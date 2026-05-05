@@ -4,6 +4,7 @@ import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { getAuthRedirectBase } from '@/lib/auth/getAuthRedirectBase';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
@@ -28,7 +29,12 @@ export default function ForgotPasswordPage() {
       const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
 
       if (error) {
-        setErrorMessage(error.message || 'Non siamo riusciti a inviare l’email di recupero. Riprova tra poco.');
+        setErrorMessage(
+          humanizeErrorMessage(
+            error,
+            'Non siamo riusciti a inviare l’email di recupero. Riprova tra poco.'
+          )
+        );
         return;
       }
 

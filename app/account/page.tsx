@@ -4,21 +4,37 @@
 import { useCallback, useEffect, useMemo, useRef, useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import type { AddressSearchApiResponse, AddressSuggestion } from '@/lib/address/addressSearch';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
+import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
 import type { Profile as ProfileRow } from '@/types/profile';
 import { ProfileDetails } from '@/components/profile/ProfileDetails';
+import { ProfileAvatar } from '@/components/profile/ProfileAvatar';
 import type { ProfileFormState } from '@/types/forms';
+import { updateProfileForCurrentUser } from '@/lib/account/profileApi';
+import { deleteProfilePhoto, uploadProfilePhoto } from '@/lib/account/profilePhotoApi';
 import { isValidItalianFiscalCode, sanitizeFiscalCode } from '@/lib/validation/italy';
+import { uploadUserDocument } from '@/lib/account/documentApi';
+import {
+  MAX_PROFILE_PHOTO_BYTES,
+  MAX_USER_DOCUMENT_BYTES,
+  PROFILE_PHOTO_MIME_TYPES,
+  USER_DOCUMENT_MIME_TYPES,
+  validateUploadFile,
+} from '@/lib/validation/uploads';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 
 const ID_DOC_BUCKET = 'identity-documents';
 const PROFILE_SELECT =
-  'user_id, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
+  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOC_ACTION_WIDTH_CLASS = 'w-[132px]';
 const DOC_DOWNLOAD_LINK_CLASS =
   'ui-btn ui-btnTone-secondary w-[132px]';
+const ADDRESS_SEARCH_MIN_CHARS = 3;
+const ADDRESS_SEARCH_DEBOUNCE_MS = 350;
 
 type UserDocumentKind = 'ID_DOCUMENT' | 'WAIVER_SIGNED';
 type UserDocumentStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED';
@@ -88,21 +104,42 @@ function inferDogAddressSameAsHome(row: ProfileRow | null): boolean {
   );
 }
 
-function getFileExt(file: File): string {
-  const originalName = file.name || 'file';
-  const extMatch = originalName.toLowerCase().match(/\.([a-z0-9]+)$/);
-  if (extMatch?.[1]) return extMatch[1];
-  if (file.type === 'application/pdf') return 'pdf';
-  if (file.type === 'image/png') return 'png';
-  if (file.type === 'image/webp') return 'webp';
-  return 'jpg';
+function validateUserDocument(file: File): string | null {
+  return validateUploadFile({
+    file,
+    allowedMimeTypes: USER_DOCUMENT_MIME_TYPES,
+    maxBytes: MAX_USER_DOCUMENT_BYTES,
+    invalidTypeMessage: 'Formato non valido. Usa PDF, JPG, PNG o WebP.',
+    tooLargeMessage: 'Il file è troppo grande. Limite massimo: 10MB.',
+  });
 }
 
-function safeUuid(): string {
-  if (typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function') {
-    return globalThis.crypto.randomUUID();
+function validateProfilePhoto(file: File): string | null {
+  return validateUploadFile({
+    file,
+    allowedMimeTypes: PROFILE_PHOTO_MIME_TYPES,
+    maxBytes: MAX_PROFILE_PHOTO_BYTES,
+    invalidTypeMessage: 'Formato non valido. Usa JPG, PNG o WebP.',
+    tooLargeMessage: 'La foto è troppo grande. Limite massimo: 5MB.',
+  });
+}
+
+function buildInitials(first?: string | null, last?: string | null, email?: string | null): string {
+  const a = (first ?? '').trim().slice(0, 1).toUpperCase();
+  const b = (last ?? '').trim().slice(0, 1).toUpperCase();
+  const pair = `${a}${b}`.trim();
+  if (pair) return pair;
+
+  const localPart = (email ?? '').trim().split('@')[0] ?? '';
+  const normalized = localPart.replace(/[^a-z0-9]+/gi, ' ').trim();
+  if (!normalized) return 'TU';
+
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0].slice(0, 1)}${parts[1].slice(0, 1)}`.toUpperCase();
   }
-  return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+
+  return normalized.replace(/\s+/g, '').slice(0, 2).toUpperCase() || 'TU';
 }
 
 function initFormFromProfile(row: ProfileRow | null, fallbackEmail: string | null): ProfileFormState {
@@ -146,6 +183,86 @@ function initFormFromProfile(row: ProfileRow | null, fallbackEmail: string | nul
   };
 }
 
+function useAddressAutocompleteSearch(query: string, enabled: boolean) {
+  const debouncedQuery = useDebouncedValue(query, ADDRESS_SEARCH_DEBOUNCE_MS);
+  const [focused, setFocused] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
+
+  const active = enabled && focused && query.trim().length >= ADDRESS_SEARCH_MIN_CHARS;
+
+  useEffect(() => {
+    if (!active) {
+      setSuggestions([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    const trimmedQuery = debouncedQuery.trim();
+    if (trimmedQuery.length < ADDRESS_SEARCH_MIN_CHARS) {
+      setSuggestions([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const run = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch(`/api/address-search?q=${encodeURIComponent(trimmedQuery)}`, {
+          method: 'GET',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        const json = (await response.json().catch(() => null)) as AddressSearchApiResponse | null;
+
+        if (!response.ok || !json?.ok) {
+          throw new Error(
+            json && !json.ok && json.error
+              ? json.error
+              : 'Ricerca indirizzo non disponibile in questo momento.'
+          );
+        }
+
+        if (cancelled) return;
+        setSuggestions(json.items);
+      } catch (err) {
+        if (controller.signal.aborted || cancelled) return;
+        setSuggestions([]);
+        setError(
+          err instanceof Error && err.message
+            ? err.message
+            : 'Ricerca indirizzo non disponibile in questo momento.'
+        );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [active, debouncedQuery]);
+
+  return {
+    active,
+    loading,
+    error,
+    suggestions,
+    setFocused,
+  };
+}
+
 export default function AccountPage() {
   const router = useRouter();
   const { user, loading: authLoading, error: authError } = useCurrentUser({
@@ -167,6 +284,11 @@ export default function AccountPage() {
   const [idDocSignedUrl, setIdDocSignedUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
+  // Foto profilo
+  const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
+  const [profilePhotoError, setProfilePhotoError] = useState<string | null>(null);
+  const profilePhotoInputRef = useRef<HTMLInputElement | null>(null);
+
   // ✅ Stato “accettazioni” (MVP)
   const [latestIdDoc, setLatestIdDoc] = useState<UserDocumentRow | null>(null);
   const [latestWaiverSigned, setLatestWaiverSigned] = useState<UserDocumentRow | null>(null);
@@ -181,6 +303,11 @@ export default function AccountPage() {
   const [showWaiverSection, setShowWaiverSection] = useState(false);
 
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM);
+  const homeAddressAutocomplete = useAddressAutocompleteSearch(form.address_line, editing);
+  const serviceAddressAutocomplete = useAddressAutocompleteSearch(
+    form.dog_address_line,
+    editing && !form.dog_address_same_as_home
+  );
 
   const idDocIsPdf = useMemo(() => {
     const path = profile?.id_document_path ?? '';
@@ -202,6 +329,14 @@ export default function AccountPage() {
   }, [profile?.first_name, profile?.last_name, profile?.fiscal_code]);
 
   const canGenerateWaiver = waiverMissingFields.length === 0;
+  const ownerDisplayName = useMemo(
+    () => `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim(),
+    [profile?.first_name, profile?.last_name]
+  );
+  const ownerInitials = useMemo(
+    () => buildInitials(profile?.first_name, profile?.last_name, profile?.email ?? user?.email ?? null),
+    [profile?.first_name, profile?.last_name, profile?.email, user?.email]
+  );
 
   const refreshSignedUrl = useCallback(async (path: string | null, setter: (url: string | null) => void) => {
     if (!path) {
@@ -246,6 +381,7 @@ export default function AccountPage() {
     const load = async () => {
       setLoadingData(true);
       setError(null);
+      setProfilePhotoError(null);
       setIdDocError(null);
       setIdDocSignedUrl(null);
       setWaiverError(null);
@@ -258,7 +394,7 @@ export default function AccountPage() {
           .eq('user_id', user.id)
           .maybeSingle();
 
-        if (e) setError(e.message);
+        if (e) setError(humanizeErrorMessage(e, 'Non siamo riusciti a caricare il profilo.'));
 
         const row = (data as ProfileRow | null) ?? null;
         setProfile(row);
@@ -279,12 +415,12 @@ export default function AccountPage() {
         if (waiverRow?.path) {
           await refreshSignedUrl(waiverRow.path, setWaiverSignedUrl);
         }
-      } catch (err) {
-        console.error(err);
-        setError('Errore nel caricamento del profilo.');
-      } finally {
-        setLoadingData(false);
-      }
+    } catch (err) {
+      console.error(err);
+      setError(humanizeErrorMessage(err, 'Errore nel caricamento del profilo.'));
+    } finally {
+      setLoadingData(false);
+    }
     };
 
     void load();
@@ -322,6 +458,45 @@ export default function AccountPage() {
       return next;
     });
   };
+
+  const applyResidenceAddressSuggestion = useCallback(
+    (suggestion: AddressSuggestion) => {
+      setForm((prev) => {
+        const next: ProfileFormState = {
+          ...prev,
+          address_line: suggestion.dog_address_line,
+          city: suggestion.dog_city,
+          zip_code: suggestion.dog_zip_code,
+          province: suggestion.dog_province,
+        };
+
+        if (prev.dog_address_same_as_home) {
+          next.dog_address_line = suggestion.dog_address_line;
+          next.dog_city = suggestion.dog_city;
+          next.dog_zip_code = suggestion.dog_zip_code;
+          next.dog_province = suggestion.dog_province;
+        }
+
+        return next;
+      });
+      homeAddressAutocomplete.setFocused(false);
+    },
+    [homeAddressAutocomplete]
+  );
+
+  const applyServiceAddressSuggestion = useCallback(
+    (suggestion: AddressSuggestion) => {
+      setForm((prev) => ({
+        ...prev,
+        dog_address_line: suggestion.dog_address_line,
+        dog_city: suggestion.dog_city,
+        dog_zip_code: suggestion.dog_zip_code,
+        dog_province: suggestion.dog_province,
+      }));
+      serviceAddressAutocomplete.setFocused(false);
+    },
+    [serviceAddressAutocomplete]
+  );
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -385,20 +560,11 @@ export default function AccountPage() {
         show_dog_address_on_dog_card: form.show_dog_address_on_dog_card,
       };
 
-      const { data, error: e } = await supabase
-        .from('profiles')
-        .upsert(payload, { onConflict: 'user_id' })
-        .select(PROFILE_SELECT)
-        .single();
-
-      if (e) {
-        setError(e.message);
-        return;
-      }
-
-      const updated = data as ProfileRow;
+      const updated = await updateProfileForCurrentUser(payload);
       setProfile(updated);
       setForm(initFormFromProfile(updated, user.email ?? null));
+      homeAddressAutocomplete.setFocused(false);
+      serviceAddressAutocomplete.setFocused(false);
       setEditing(false);
 
       if (cfProvided && !cfValid) {
@@ -421,52 +587,21 @@ export default function AccountPage() {
     setIdDocError(null);
 
     try {
-      const ext = getFileExt(file);
-      const token = safeUuid();
-      const path = `${user.id}/id-documents/${token}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(ID_DOC_BUCKET)
-        .upload(path, file, { upsert: false, contentType: file.type || undefined });
-
-      if (uploadError) {
-        console.error('Upload documento errore:', uploadError);
-        setIdDocError(uploadError.message);
+      const validationError = validateUserDocument(file);
+      if (validationError) {
+        setIdDocError(validationError);
         return;
       }
 
-      const { error: docRowErr } = await supabase.from('user_documents').insert({
-        user_id: user.id,
+      const { path, profile: updatedProfile } = await uploadUserDocument({
         kind: 'ID_DOCUMENT',
-        path,
-        status: 'PENDING',
+        file,
       });
 
-      if (docRowErr) {
-        console.error('Insert user_documents (ID_DOCUMENT) errore:', docRowErr);
-        setIdDocError('Documento caricato, ma non è stato possibile registrarlo per l’accettazione.');
+      if (updatedProfile) {
+        setProfile(updatedProfile);
       }
 
-      const { data: updated, error: updateError } = await supabase
-        .from('profiles')
-        .upsert(
-          {
-            user_id: user.id,
-            id_document_path: path,
-            id_document_uploaded_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }
-        )
-        .select(PROFILE_SELECT)
-        .single();
-
-      if (updateError || !updated) {
-        console.error('Update profilo doc errore:', updateError);
-        setIdDocError(updateError?.message ?? 'Impossibile aggiornare il profilo.');
-        return;
-      }
-
-      setProfile(updated as ProfileRow);
       await refreshSignedUrl(path, setIdDocSignedUrl);
 
       const latest = await loadLatestUserDocument(user.id, 'ID_DOCUMENT');
@@ -479,6 +614,50 @@ export default function AccountPage() {
     }
   };
 
+  const uploadOwnerPhoto = async (file: File) => {
+    setProfilePhotoUploading(true);
+    setProfilePhotoError(null);
+
+    try {
+      const validationError = validateProfilePhoto(file);
+      if (validationError) {
+        setProfilePhotoError(validationError);
+        return;
+      }
+
+      const { profile: updatedProfile } = await uploadProfilePhoto(file);
+      if (updatedProfile) {
+        setProfile(updatedProfile);
+      }
+    } catch (err) {
+      console.error(err);
+      setProfilePhotoError(humanizeErrorMessage(err, 'Errore durante il caricamento della foto profilo.'));
+    } finally {
+      setProfilePhotoUploading(false);
+    }
+  };
+
+  const removeOwnerPhoto = async () => {
+    if (!profile?.photo_path) return;
+
+    setProfilePhotoUploading(true);
+    setProfilePhotoError(null);
+
+    try {
+      const { profile: updatedProfile } = await deleteProfilePhoto();
+      if (updatedProfile) {
+        setProfile(updatedProfile);
+      } else {
+        setProfile((current) => (current ? { ...current, photo_path: null } : current));
+      }
+    } catch (err) {
+      console.error(err);
+      setProfilePhotoError(humanizeErrorMessage(err, 'Errore durante la rimozione della foto profilo.'));
+    } finally {
+      setProfilePhotoUploading(false);
+    }
+  };
+
   const uploadSignedWaiver = async (file: File) => {
     if (!user) return;
 
@@ -486,31 +665,16 @@ export default function AccountPage() {
     setWaiverError(null);
 
     try {
-      const ext = getFileExt(file);
-      const token = safeUuid();
-      const path = `${user.id}/waivers/${token}.${ext}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from(ID_DOC_BUCKET)
-        .upload(path, file, { upsert: false, contentType: file.type || undefined });
-
-      if (uploadError) {
-        console.error('Upload liberatoria firmata errore:', uploadError);
-        setWaiverError(uploadError.message);
+      const validationError = validateUserDocument(file);
+      if (validationError) {
+        setWaiverError(validationError);
         return;
       }
 
-      const { error: insErr } = await supabase.from('user_documents').insert({
-        user_id: user.id,
+      const { path } = await uploadUserDocument({
         kind: 'WAIVER_SIGNED',
-        path,
-        status: 'PENDING',
+        file,
       });
-
-      if (insErr) {
-        console.error('Insert user_documents (WAIVER_SIGNED) errore:', insErr);
-        setWaiverError('Liberatoria caricata, ma non è stato possibile registrarla per l’accettazione.');
-      }
 
       const latest = await loadLatestUserDocument(user.id, 'WAIVER_SIGNED');
       setLatestWaiverSigned(latest);
@@ -554,7 +718,7 @@ export default function AccountPage() {
       ? 'In attesa di conferma'
       : 'Non caricato';
 
-  const topError = error ?? authError?.message ?? null;
+  const topError = error ?? (authError ? humanizeErrorMessage(authError, 'Accesso non disponibile.') : null);
 
   return (
     <main className="ui-page min-h-screen">
@@ -571,6 +735,86 @@ export default function AccountPage() {
           </div>
         ) : null}
 
+        <Card>
+          <CardContent className="space-y-3">
+            <SectionHeader
+              title="Foto profilo"
+              subtitle={
+                profile?.photo_path
+                  ? 'Viene mostrata nel banner del tuo profilo.'
+                  : 'Aggiungi una foto del proprietario.'
+              }
+            />
+
+            {profilePhotoError ? (
+              <div className="ui-error">{profilePhotoError}</div>
+            ) : null}
+
+            <input
+              ref={profilePhotoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                void uploadOwnerPhoto(file);
+                e.currentTarget.value = '';
+              }}
+            />
+
+            <div className="ui-panelInset p-3">
+              <div className="flex items-center gap-3">
+                <ProfileAvatar
+                  photoPath={profile?.photo_path ?? null}
+                  alt={ownerDisplayName || 'Profilo utente'}
+                  initials={ownerInitials}
+                  size={80}
+                  className="ui-mediaFrame ui-mediaFrame--circle h-20 w-20 shrink-0 overflow-hidden object-cover"
+                  fallbackClassName="ui-mediaFrame ui-mediaFrame--circle flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden bg-[rgba(255,130,0,0.14)] text-[22px] font-[var(--font-weight-bold)]"
+                />
+
+                <div className="min-w-0">
+                  <div className="ui-body font-[var(--font-weight-semibold)]">
+                    {ownerDisplayName || 'Profilo proprietario'}
+                  </div>
+                  <div className="ui-muted mt-1">
+                    {profile?.photo_path
+                      ? 'La foto è attiva e visibile nel banner del profilo.'
+                      : 'Nessuna foto caricata.'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                className={DOC_ACTION_WIDTH_CLASS}
+                disabled={profilePhotoUploading}
+                onClick={() => profilePhotoInputRef.current?.click()}
+              >
+                {profile?.photo_path ? 'Sostituisci' : 'Carica'}
+              </Button>
+
+              {profile?.photo_path ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className={DOC_ACTION_WIDTH_CLASS}
+                  disabled={profilePhotoUploading}
+                  onClick={() => void removeOwnerPhoto()}
+                >
+                  Rimuovi
+                </Button>
+              ) : null}
+
+              {profilePhotoUploading ? <p className="ui-muted">Caricamento…</p> : null}
+            </div>
+          </CardContent>
+        </Card>
+
         <ProfileDetails
           userEmail={profile?.email ?? user.email ?? ''}
           profile={profile}
@@ -580,11 +824,35 @@ export default function AccountPage() {
           onChangeText={onChangeText}
           onToggle={onToggle}
           onSubmit={onSubmit}
+          residenceAddressAutocomplete={{
+            active: homeAddressAutocomplete.active,
+            loading: homeAddressAutocomplete.loading,
+            error: homeAddressAutocomplete.error,
+            suggestions: homeAddressAutocomplete.suggestions,
+            onFocus: () => homeAddressAutocomplete.setFocused(true),
+            onBlur: () => {
+              window.setTimeout(() => homeAddressAutocomplete.setFocused(false), 120);
+            },
+            onSelectSuggestion: applyResidenceAddressSuggestion,
+          }}
+          serviceAddressAutocomplete={{
+            active: serviceAddressAutocomplete.active,
+            loading: serviceAddressAutocomplete.loading,
+            error: serviceAddressAutocomplete.error,
+            suggestions: serviceAddressAutocomplete.suggestions,
+            onFocus: () => serviceAddressAutocomplete.setFocused(true),
+            onBlur: () => {
+              window.setTimeout(() => serviceAddressAutocomplete.setFocused(false), 120);
+            },
+            onSelectSuggestion: applyServiceAddressSuggestion,
+          }}
           onStartEdit={() => setEditing(true)}
-            onCancelEdit={() => {
-              setEditing(false);
-              setForm(initFormFromProfile(profile, user.email ?? null));
-            }}
+          onCancelEdit={() => {
+            homeAddressAutocomplete.setFocused(false);
+            serviceAddressAutocomplete.setFocused(false);
+            setEditing(false);
+            setForm(initFormFromProfile(profile, user.email ?? null));
+          }}
         />
 
         {/* Documento identità */}
@@ -625,7 +893,7 @@ export default function AccountPage() {
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/*,application/pdf"
+                  accept="image/jpeg,image/png,image/webp,application/pdf"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -766,7 +1034,7 @@ export default function AccountPage() {
                   <input
                     ref={waiverFileInputRef}
                     type="file"
-                    accept="image/*,application/pdf"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];

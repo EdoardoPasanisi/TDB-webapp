@@ -25,104 +25,37 @@ export async function getDogByIdForOwner(dogId: string, ownerId: string): Promis
 }
 
 export async function createDogForOwner(ownerId: string, input: DogInput): Promise<Dog> {
-  const { data, error } = await supabase
-    .from('dogs')
-    .insert({
-      owner_id: ownerId,
-
-      name: input.name.trim(),
-      breed: input.breed,
-
-      size_category: input.size_category,
-      grooming_difficulty: input.grooming_difficulty,
-
-      // ✅ new
-      sex: input.sex,
-
-      microchip: input.microchip,
-      birth_date: input.birth_date,
-      notes: input.notes,
-
-      // ✅ new
-      coat_color: input.coat_color,
-      temperament: input.temperament,
-
-      // Toggles
-      show_breed: input.show_breed,
-      show_sex: input.show_sex,
-      show_size: input.show_size,
-      show_microchip: input.show_microchip,
-      show_birth_date: input.show_birth_date,
-      show_notes: input.show_notes,
-      show_coat_color: input.show_coat_color,
-      show_temperament: input.show_temperament,
-    })
-    .select(DOG_SELECT)
-    .single();
-
-  if (error || !data) {
-    console.error('createDogForOwner – errore:', error);
-    throw error;
-  }
-
-  return data as Dog;
+  void ownerId;
+  return requestDogMutation<Dog>('/api/dogs', 'POST', input);
 }
 
 export async function updateDogForOwner(dogId: string, ownerId: string, input: DogInput): Promise<Dog> {
-  const { data, error } = await supabase
-    .from('dogs')
-    .update({
-      name: input.name.trim(),
-      breed: input.breed,
-
-      size_category: input.size_category,
-      grooming_difficulty: input.grooming_difficulty,
-
-      // ✅ new
-      sex: input.sex,
-
-      microchip: input.microchip,
-      birth_date: input.birth_date,
-      notes: input.notes,
-
-      // ✅ new
-      coat_color: input.coat_color,
-      temperament: input.temperament,
-
-      // Toggles
-      show_breed: input.show_breed,
-      show_sex: input.show_sex,
-      show_size: input.show_size,
-      show_microchip: input.show_microchip,
-      show_birth_date: input.show_birth_date,
-      show_notes: input.show_notes,
-      show_coat_color: input.show_coat_color,
-      show_temperament: input.show_temperament,
-    })
-    .eq('id', dogId)
-    .eq('owner_id', ownerId)
-    .select(DOG_SELECT)
-    .single();
-
-  if (error || !data) {
-    console.error('updateDogForOwner – errore:', error);
-    throw error;
-  }
-
-  return data as Dog;
+  void ownerId;
+  return requestDogMutation<Dog>(`/api/dogs/${dogId}`, 'PATCH', input);
 }
 
 export async function softDeleteDogForOwner(dogId: string, ownerId: string): Promise<void> {
-  const { error } = await supabase
-    .from('dogs')
-    .update({ is_active: false })
-    .eq('id', dogId)
-    .eq('owner_id', ownerId);
+  void ownerId;
+  await requestDogMutation(`/api/dogs/${dogId}`, 'DELETE');
+}
 
-  if (error) {
-    console.error('softDeleteDogForOwner – errore:', error);
-    throw error;
-  }
+export async function updateDogVisibilityForOwner(
+  dogId: string,
+  ownerId: string,
+  visibility: Pick<
+    Dog,
+    | 'show_breed'
+    | 'show_sex'
+    | 'show_size'
+    | 'show_microchip'
+    | 'show_birth_date'
+    | 'show_notes'
+    | 'show_coat_color'
+    | 'show_temperament'
+  >
+): Promise<Dog> {
+  void ownerId;
+  return requestDogMutation<Dog>(`/api/dogs/${dogId}/visibility`, 'PATCH', visibility);
 }
 
 // =======================
@@ -146,6 +79,50 @@ async function readApiErrorMessage(res: Response): Promise<string> {
   return '';
 }
 
+async function getAccessToken(): Promise<string> {
+  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+  if (sessionErr) throw new Error('Sessione non valida: fai logout/login e riprova.');
+
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error('Token mancante: fai logout/login e riprova.');
+  return token;
+}
+
+function humanizeDogMutationError(raw: string, status: number): string {
+  const s = raw.toLowerCase();
+
+  if (status === 401) return 'Sessione non valida. Fai logout/login e riprova.';
+  if (status === 403) return 'Non hai i permessi per questa operazione.';
+  if (status === 404) return 'Cane non trovato.';
+  if (s.includes('payload cane non valido')) return 'Dati cane non validi.';
+  if (s.includes('nome cane mancante')) return 'Nome cane mancante.';
+
+  return raw ? `Operazione non riuscita: ${raw}` : `Operazione non riuscita (HTTP ${status}).`;
+}
+
+async function requestDogMutation<T = void>(url: string, method: 'POST' | 'PATCH' | 'DELETE', body?: object): Promise<T> {
+  const token = await getAccessToken();
+  const res = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+
+  if (!res.ok) {
+    const raw = await readApiErrorMessage(res);
+    throw new Error(humanizeDogMutationError(raw, res.status));
+  }
+
+  if (method === 'DELETE') {
+    return undefined as T;
+  }
+
+  return (await res.json()) as T;
+}
+
 function humanizeDogPhotoError(raw: string, status: number): string {
   const s = raw.toLowerCase();
 
@@ -164,16 +141,12 @@ function humanizeDogPhotoError(raw: string, status: number): string {
 }
 
 export async function uploadDogPhotoForOwner(args: {
-  ownerId: string;
   dogId: string;
   file: File;
 }): Promise<string> {
   const { dogId, file } = args;
 
-  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-  if (sessionErr) throw new Error('Sessione non valida: fai logout/login e riprova.');
-  const token = sessionData.session?.access_token;
-  if (!token) throw new Error('Token mancante: fai logout/login e riprova.');
+  const token = await getAccessToken();
 
   const fd = new FormData();
   fd.append('dogId', dogId);
@@ -200,36 +173,10 @@ export async function uploadDogPhotoForOwner(args: {
   return json.path;
 }
 
-export async function setDogPhotoPathForOwner(args: {
-  ownerId: string;
-  dogId: string;
-  photoPath: string | null;
-}): Promise<Dog> {
-  const { ownerId, dogId, photoPath } = args;
-
-  const { data, error } = await supabase
-    .from('dogs')
-    .update({ photo_path: photoPath })
-    .eq('id', dogId)
-    .eq('owner_id', ownerId)
-    .select(DOG_SELECT)
-    .single();
-
-  if (error || !data) {
-    console.error('setDogPhotoPathForOwner – errore:', error);
-    throw error ?? new Error('Impossibile salvare foto cane.');
-  }
-
-  return data as Dog;
-}
-
 export async function removeDogPhotoForOwner(args: { dogId: string }): Promise<void> {
   const { dogId } = args;
 
-  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
-  if (sessionErr) throw new Error('Sessione non valida: fai logout/login e riprova.');
-  const token = sessionData.session?.access_token;
-  if (!token) throw new Error('Token mancante: fai logout/login e riprova.');
+  const token = await getAccessToken();
 
   const res = await fetch('/api/dog-photo', {
     method: 'DELETE',

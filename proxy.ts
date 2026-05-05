@@ -17,6 +17,9 @@ const PUBLIC_PATHS = new Set<string>([
   '/privacy',
   '/terms',
   '/cookies',
+  '/payments-success',
+  '/payments-cancel',
+  '/api/stripe/webhook',
   '/auth/callback', // è il callback email: deve essere pubblico
   '/auth/recovery',
 ]);
@@ -41,6 +44,23 @@ function isPublicPath(pathname: string) {
   return false;
 }
 
+function isApiPath(pathname: string) {
+  return pathname.startsWith('/api/');
+}
+
+function hasBearerAuth(request: NextRequest): boolean {
+  const authHeader = request.headers.get('authorization') ?? '';
+  return /^Bearer\s+\S+/i.test(authHeader);
+}
+
+function copyResponseCookies(source: NextResponse, target: NextResponse): NextResponse {
+  for (const cookie of source.cookies.getAll()) {
+    target.cookies.set(cookie);
+  }
+
+  return target;
+}
+
 export async function proxy(request: NextRequest) {
   // Response “prossima”
   const response = NextResponse.next({ request: { headers: request.headers } });
@@ -48,6 +68,10 @@ export async function proxy(request: NextRequest) {
 
   // Se è una pagina pubblica → lascia passare
   if (isPublicPath(pathname)) {
+    return response;
+  }
+
+  if (isApiPath(pathname) && hasBearerAuth(request)) {
     return response;
   }
 
@@ -72,6 +96,10 @@ export async function proxy(request: NextRequest) {
 
   // 1) Non loggato → login
   if (!user) {
+    if (isApiPath(pathname)) {
+      return NextResponse.json({ error: 'Non autorizzato.' }, { status: 401 });
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('next', request.nextUrl.pathname);
@@ -88,10 +116,17 @@ export async function proxy(request: NextRequest) {
     // Logout server-side: elimina cookie session
     await supabase.auth.signOut();
 
+    if (isApiPath(pathname)) {
+      return copyResponseCookies(
+        response,
+        NextResponse.json({ error: 'Email non verificata.' }, { status: 403 })
+      );
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = '/signup/check-email';
     if (user.email) url.searchParams.set('email', user.email);
-    return NextResponse.redirect(url);
+    return copyResponseCookies(response, NextResponse.redirect(url));
   }
 
   if (pathname.startsWith('/admin')) {

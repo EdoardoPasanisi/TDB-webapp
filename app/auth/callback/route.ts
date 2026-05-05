@@ -2,15 +2,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getAuthRedirectBaseFromRequest } from '@/lib/auth/getAuthRedirectBase';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 function resolveSafeNextPath(url: URL): string {
   const next = url.searchParams.get('next');
-  if (!next) return '/profile';
-  if (!next.startsWith('/')) return '/profile';
-  if (next.startsWith('//')) return '/profile';
+  if (!next) return '/';
+  if (!next.startsWith('/')) return '/';
+  if (next.startsWith('//')) return '/';
   return next;
 }
 
@@ -97,7 +98,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (!existing) {
-      await supabase.from('profiles').insert({
+      await supabaseAdmin.from('profiles').insert({
         user_id: user.id,
         email: user.email ?? null,
       });

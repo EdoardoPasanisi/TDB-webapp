@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { getAuthRedirectBase } from '@/lib/auth/getAuthRedirectBase';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
@@ -21,7 +22,7 @@ export default function SignupPage() {
     const checkUser = async () => {
       const { data, error: userError } = await supabase.auth.getUser();
       if (!userError && data.user) {
-        router.push('/profile');
+        router.push('/');
       }
     };
     void checkUser();
@@ -43,7 +44,9 @@ export default function SignupPage() {
     });
 
     if (signupError || !data.user) {
-      setError(signupError?.message ?? 'Errore nella registrazione.');
+      setError(
+        humanizeErrorMessage(signupError, 'Non siamo riusciti a completare la registrazione.')
+      );
       setLoading(false);
       return;
     }

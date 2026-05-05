@@ -23,7 +23,7 @@ export type ServiceStatus =
   | 'CANCELLED'
   | 'COMPLETED';
 
-export type PassStatus = 'ACTIVE' | 'CONSUMED' | 'EXPIRED' | 'CANCELLED';
+export type PassStatus = 'ACTIVE' | 'LOCKED' | 'CONSUMED' | 'EXPIRED' | 'CANCELLED';
 
 export type TaxiPricingBand = 'LE_40KM' | 'GT_40KM';
 
@@ -66,6 +66,8 @@ export type ServicePassRow = {
   status: PassStatus;
   purchased_at: string;
   expires_at: string | null;
+  unlocked_at?: string | null;
+  unlocked_by?: string | null;
 };
 
 /**

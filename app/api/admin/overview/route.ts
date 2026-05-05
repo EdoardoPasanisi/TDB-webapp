@@ -5,8 +5,8 @@ import { adminErrorResponse } from '@/lib/admin/route';
 
 export async function GET() {
   try {
-    await requireStaffAccess('view');
-    const overview = await getAdminOverview();
+    const access = await requireStaffAccess('view');
+    const overview = await getAdminOverview(access.canManage ? 'full' : 'limited');
     return NextResponse.json(overview);
   } catch (error) {
     return adminErrorResponse(error);

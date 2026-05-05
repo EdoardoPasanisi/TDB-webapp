@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DOG_BREEDS, type DogBreed } from '@/data/dogBreeds';
+import { DOG_BREEDS, getDogBreedSearchScore, type DogBreed } from '@/data/dogBreeds';
 
 type Props = {
   value: string;
@@ -18,7 +18,20 @@ export function BreedCombobox({ value, onChange, placeholder, disabled }: Props)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return DOG_BREEDS.slice(0, 50);
-    return DOG_BREEDS.filter((b) => b.name.toLowerCase().includes(q)).slice(0, 50);
+
+    return DOG_BREEDS
+      .map((breed) => ({
+        breed,
+        score: getDogBreedSearchScore(breed, q),
+      }))
+      .filter((item) => item.score > 0)
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.breed.name.localeCompare(right.breed.name, 'it', { sensitivity: 'base' })
+      )
+      .slice(0, 50)
+      .map((item) => item.breed);
   }, [query]);
 
   useEffect(() => {
@@ -70,11 +83,16 @@ export function BreedCombobox({ value, onChange, placeholder, disabled }: Props)
                     className="ui-comboboxOption"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="ui-body font-[var(--font-weight-semibold)]">{b.name}</span>
+                      <span className="ui-body font-[var(--font-weight-semibold)]">
+                        <strong>{b.name}</strong>
+                      </span>
                       <span className="ui-comboboxOptionMeta">
                         {b.size} • diff {b.washDifficulty}
                       </span>
                     </div>
+                    {b.aliases.length > 0 ? (
+                      <div className="ui-comboboxOptionSub italic">{b.aliases.join(', ')}</div>
+                    ) : null}
                     <div className="ui-comboboxOptionSub">{b.coat}</div>
                   </button>
                 </li>

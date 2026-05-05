@@ -2,17 +2,18 @@ import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
 import { getAdminUserDetail, updateAdminUserProfile } from '@/lib/admin/data';
 import { adminErrorResponse } from '@/lib/admin/route';
-import type { Profile } from '@/types/profile';
+import { assertUuid, sanitizeProfilePatch } from '@/lib/admin/validation';
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ userId: string }> }
 ) {
   try {
-    await requireStaffAccess('view');
+    const access = await requireStaffAccess('view');
 
     const { userId } = await context.params;
-    const detail = await getAdminUserDetail(userId);
+    const normalizedUserId = assertUuid(userId, 'Utente');
+    const detail = await getAdminUserDetail(normalizedUserId, access.canManage ? 'full' : 'limited');
 
     if (!detail) {
       return NextResponse.json({ error: 'Utente non trovato.' }, { status: 404 });
@@ -32,13 +33,11 @@ export async function PATCH(
     await requireStaffAccess('manage');
 
     const { userId } = await context.params;
-    const body = (await request.json().catch(() => null)) as Partial<Profile> | null;
-
-    if (!body) {
-      return NextResponse.json({ error: 'Payload non valido.' }, { status: 400 });
-    }
-
-    const profile = await updateAdminUserProfile(userId, body);
+    const normalizedUserId = assertUuid(userId, 'Utente');
+    const profile = await updateAdminUserProfile(
+      normalizedUserId,
+      sanitizeProfilePatch(await request.json().catch(() => null))
+    );
     return NextResponse.json(profile);
   } catch (error) {
     return adminErrorResponse(error);

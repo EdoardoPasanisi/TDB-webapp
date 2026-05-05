@@ -5,9 +5,10 @@ import { useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 
 import { Modal } from '@/components/common/Modal';
-import { supabase } from '@/lib/supabaseClient';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { useBookingDetail } from '@/lib/services/hooks/useBookingDetail';
+import { cancelServiceSlotBooking } from '@/lib/services/serviceCalendarApi';
 import { BookingDetailHeader } from '@/components/services/booking/BookingDetailHeader';
 import { BookingDogsList } from '@/components/services/booking/BookingDogsList';
 import { BookingTotals } from '@/components/services/booking/BookingTotals';
@@ -68,7 +69,7 @@ function isWithin24Hours(startAtIso: string): boolean {
 }
 
 function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+  return humanizeErrorMessage(error, fallback);
 }
 
 function taxiHumanFromOption(option: TaxiOption | null | undefined): string {
@@ -114,7 +115,7 @@ export default function BookingDetailPage() {
       <main className="ui-page min-h-screen flex items-center justify-center p-4">
         <div className="ui-panel p-4 max-w-md w-full text-center">
           <h1 className="ui-h2 mb-2">Prenotazione non disponibile</h1>
-          <p className="ui-muted">{authError?.message ?? error ?? 'Prenotazione non trovata.'}</p>
+          <p className="ui-muted">{authError ? humanizeErrorMessage(authError, 'Prenotazione non trovata.') : error ?? 'Prenotazione non trovata.'}</p>
         </div>
       </main>
     );
@@ -245,14 +246,7 @@ export default function BookingDetailPage() {
     setActionError(null);
     try {
       for (const id of sb.booking_ids) {
-        const { error: rpcError } = await supabase.rpc('cancel_service_slot_booking', {
-          p_user_id: user.id,
-          p_booking_id: id,
-        });
-        if (rpcError) {
-          setActionError(rpcError.message);
-          return;
-        }
+        await cancelServiceSlotBooking({ bookingId: id });
       }
 
       setConfirmOpen(false);

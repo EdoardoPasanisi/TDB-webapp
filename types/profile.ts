@@ -3,6 +3,8 @@
 export interface Profile {
   user_id: string;
 
+  photo_path: string | null;
+
   first_name: string | null;
   last_name: string | null;
 

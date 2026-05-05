@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { DogBreed } from '@/data/dogBreeds';
+import { getDogBreedSearchScore, type DogBreed } from '@/data/dogBreeds';
 import { Button } from '@/components/ui/Button';
 
 type Props = {
@@ -45,15 +45,19 @@ export function BreedSearchInput({
   const filtered = useMemo(() => {
     if (!normalizedQuery) return breeds.slice(0, 20);
 
-    const results = breeds.filter((b) => {
-      const nameMatch = b.name.toLowerCase().includes(normalizedQuery);
-      if (nameMatch) return true;
-
-      // ✅ alias match
-      return (b.aliases ?? []).some((a) => a.toLowerCase().includes(normalizedQuery));
-    });
-
-    return results.slice(0, 30);
+    return breeds
+      .map((breed) => ({
+        breed,
+        score: getDogBreedSearchScore(breed, normalizedQuery),
+      }))
+      .filter((item) => item.score > 0)
+      .sort(
+        (left, right) =>
+          right.score - left.score ||
+          left.breed.name.localeCompare(right.breed.name, 'it', { sensitivity: 'base' })
+      )
+      .slice(0, 30)
+      .map((item) => item.breed);
   }, [breeds, normalizedQuery]);
 
   return (
@@ -110,9 +114,11 @@ export function BreedSearchInput({
                     }}
                     className="ui-comboboxOption"
                   >
-                    <div className="ui-body font-[var(--font-weight-semibold)]">{b.name}</div>
+                    <div className="ui-body font-[var(--font-weight-semibold)]">
+                      <strong>{b.name}</strong>
+                    </div>
                     {b.aliases && b.aliases.length > 0 ? (
-                      <div className="ui-muted truncate">{b.aliases.join(', ')}</div>
+                      <div className="ui-muted truncate italic">{b.aliases.join(', ')}</div>
                     ) : null}
                   </button>
                 </li>

@@ -30,14 +30,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function loadUser() {
       try {
         const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+
+        if (!mounted) return;
+
+        setUser(session?.user ?? null);
+        setError(sessionError ?? null);
+        setLoading(false);
+
+        const {
           data: { user: currentUser },
           error: authError,
         } = await supabase.auth.getUser();
 
         if (!mounted) return;
 
-        setUser(currentUser ?? null);
-        setError(authError ?? null);
+        setUser(currentUser ?? session?.user ?? null);
+        setError(authError ?? sessionError ?? null);
       } catch (err) {
         if (!mounted) return;
 

@@ -1,5 +1,9 @@
 // FILE: app/api/taxi-distance/route.ts
 import { NextResponse } from 'next/server';
+import { requireRequestUser, RouteAuthError } from '@/lib/server/routeAuth';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 type LatLng = { lat: number; lon: number };
 type OsrmRouteResponse = {
@@ -7,9 +11,40 @@ type OsrmRouteResponse = {
 };
 type TaxiDistancePostBody = { address?: string };
 
+const ADDRESS_MAX_LENGTH = 240;
+const UPSTREAM_TIMEOUT_MS = 8_000;
+
 function toNum(v: string): number {
   const n = Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+function normalizeAddress(value: string): string {
+  return String(value ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, ADDRESS_MAX_LENGTH);
+}
+
+function validateAddress(address: string): string | null {
+  if (!address) return 'Indirizzo taxi utente mancante.';
+  if (address.length < 6) return 'Indirizzo taxi utente troppo corto.';
+  if (address.length > ADDRESS_MAX_LENGTH) return 'Indirizzo taxi utente troppo lungo.';
+  return null;
+}
+
+async function fetchWithTimeout(input: string | URL, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+
+  try {
+    return await fetch(input, {
+      ...init,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function geocode(address: string): Promise<LatLng | null> {
@@ -18,7 +53,7 @@ async function geocode(address: string): Promise<LatLng | null> {
   url.searchParams.set('limit', '1');
   url.searchParams.set('q', address);
 
-  const res = await fetch(url.toString(), {
+  const res = await fetchWithTimeout(url.toString(), {
     headers: { 'User-Agent': 'TenutaDelBarone/1.0 (taxi-distance)' },
     cache: 'no-store',
   });
@@ -37,7 +72,7 @@ async function routeDistanceKm(origin: LatLng, dest: LatLng): Promise<number | n
   );
   url.searchParams.set('overview', 'false');
 
-  const res = await fetch(url.toString(), { cache: 'no-store' });
+  const res = await fetchWithTimeout(url.toString(), { cache: 'no-store' });
   if (!res.ok) return null;
 
   const data = (await res.json()) as OsrmRouteResponse;
@@ -49,12 +84,13 @@ async function routeDistanceKm(origin: LatLng, dest: LatLng): Promise<number | n
 }
 
 async function computeKmFromAddress(userAddress: string): Promise<NextResponse> {
-  const addr = (userAddress ?? '').trim();
-  if (!addr) {
-    return NextResponse.json({ ok: false, error: 'Indirizzo taxi utente mancante.' }, { status: 400 });
+  const addr = normalizeAddress(userAddress);
+  const addressError = validateAddress(addr);
+  if (addressError) {
+    return NextResponse.json({ ok: false, error: addressError }, { status: 400 });
   }
 
-  const businessAddress = (process.env.TENUTADELBARONE_BUSINESS_ADDRESS ?? '').trim();
+  const businessAddress = normalizeAddress(process.env.TENUTADELBARONE_BUSINESS_ADDRESS ?? '');
   if (!businessAddress) {
     return NextResponse.json(
       { ok: false, error: 'Indirizzo azienda mancante (TENUTADELBARONE_BUSINESS_ADDRESS in .env.local).' },
@@ -73,24 +109,25 @@ async function computeKmFromAddress(userAddress: string): Promise<NextResponse> 
   return NextResponse.json({ ok: true, km }, { status: 200 });
 }
 
-export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const userAddress = (searchParams.get('userAddress') ?? '').trim();
-    return await computeKmFromAddress(userAddress);
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ ok: false, error: 'Errore inatteso nel calcolo distanza taxi.' }, { status: 500 });
-  }
+export async function GET() {
+  return NextResponse.json(
+    { ok: false, error: 'Metodo non supportato. Usa POST per il calcolo distanza taxi.' },
+    { status: 405 }
+  );
 }
 
-// Compatibilità con la UI (FissaDataModal) che invia JSON via POST.
 export async function POST(req: Request) {
   try {
+    await requireRequestUser(req);
+
     const body = (await req.json().catch(() => null)) as TaxiDistancePostBody | null;
-    const userAddress = String(body?.address ?? '').trim();
+    const userAddress = normalizeAddress(String(body?.address ?? ''));
     return await computeKmFromAddress(userAddress);
   } catch (e) {
+    if (e instanceof RouteAuthError) {
+      return NextResponse.json({ ok: false, error: e.message }, { status: e.status });
+    }
+
     console.error(e);
     return NextResponse.json({ ok: false, error: 'Errore inatteso nel calcolo distanza taxi.' }, { status: 500 });
   }

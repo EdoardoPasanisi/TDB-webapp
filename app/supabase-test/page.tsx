@@ -2,6 +2,7 @@
 // Diciamo a Next che questo componente gira lato client (browser)
 
 import { useState } from 'react';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
 
@@ -18,7 +19,7 @@ export default function SupabaseTestPage() {
     const { data, error } = await supabase.auth.getSession();
 
     if (error) {
-      setError(error.message);
+      setError(humanizeErrorMessage(error, 'Non siamo riusciti a completare il test di connessione.'));
     } else {
       setResult(JSON.stringify(data, null, 2));
     }

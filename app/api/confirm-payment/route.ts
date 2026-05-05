@@ -1,64 +1,47 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { confirmStripeCheckoutSession } from '@/lib/server/payments';
+import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { requireRequestUser, RouteAuthError } from '@/lib/server/routeAuth';
+
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   try {
-    const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-    if (!stripeSecretKey) {
-      return NextResponse.json(
-        { ok: false, message: 'Stripe non configurato: manca STRIPE_SECRET_KEY in .env.local.' },
-        { status: 500 }
-      );
-    }
-
-    const stripe = new Stripe(stripeSecretKey);
+    await requireRequestUser(req);
 
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get('session_id');
     if (!sessionId) {
-      return NextResponse.json({ ok: false, message: 'session_id mancante.' }, { status: 400 });
+      return NextResponse.json({ ok: false, message: 'Manca il riferimento del pagamento.' }, { status: 400 });
     }
 
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    // ✅ Verifica che Stripe consideri la sessione pagata
-    // (payment_status: 'paid' quando il pagamento è stato completato)
-    if (session.payment_status !== 'paid') {
-      return NextResponse.json({ ok: false, message: 'Pagamento non completato.' }, { status: 400 });
-    }
-
-    const bookingId = session.metadata?.bookingId;
-    if (!bookingId) {
-      return NextResponse.json(
-        { ok: false, message: 'bookingId mancante nei metadata Stripe.' },
-        { status: 400 }
-      );
-    }
-
-    const { error } = await supabaseAdmin
-      .from('bookings')
-      .update({
-        status: 'PAID',
-        stripe_session_id: session.id,
-        total_amount_cents: session.amount_total ?? null,
-      })
-      .eq('id', bookingId);
-
-    if (error) {
-      return NextResponse.json(
-        { ok: false, message: 'Pagamento ok, ma errore aggiornando lo stato prenotazione.' },
-        { status: 500 }
-      );
-    }
-
-    return NextResponse.json({ ok: true, message: 'Pagamento riuscito e prenotazione aggiornata.' });
-  } catch (error: any) {
+    const result = await confirmStripeCheckoutSession(sessionId);
+    return NextResponse.json(result);
+  } catch (error) {
     console.error('Errore in /api/confirm-payment:', error);
+
+    if (error instanceof RouteAuthError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          message: humanizeErrorMessage(
+            error.message,
+            'Devi accedere per verificare il pagamento.'
+          ),
+        },
+        { status: error.status }
+      );
+    }
+
     return NextResponse.json(
-      { ok: false, message: 'Pagamento ok, ma errore aggiornando lo stato prenotazione.' },
+      {
+        ok: false,
+        message: humanizeErrorMessage(
+          error,
+          'Il pagamento risulta eseguito, ma non siamo riusciti ad aggiornare subito la prenotazione.'
+        ),
+      },
       { status: 500 }
     );
   }
