@@ -39,6 +39,19 @@ export default function CookiesPage() {
           </p>
         </section>
 
+        <section className="space-y-2">
+          <h2 className="ui-legalH2">Titolare del trattamento</h2>
+          <p className="ui-legalText">
+            <strong>Tenuta del Barone srls</strong> – P.IVA <strong>16378301002</strong>
+            <br />
+            Via Davide Passigli 60, 00054 Fiumicino RM
+            <br />
+            PEC: <strong>tenutadelbarone-srls@legalmail.it</strong>
+            <br />
+            Codice SDI: <strong>N92GLON</strong>
+          </p>
+        </section>
+
           <p className="ui-legalUpdated">
             Ultimo aggiornamento: {LAST_UPDATED}
           </p>

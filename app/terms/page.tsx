@@ -18,9 +18,13 @@ export default function TermsPage() {
         <section className="space-y-2">
           <h2 className="ui-legalH2">Titolare</h2>
           <p className="ui-legalText">
-            <strong>Tenuta del Barone Srls</strong> – P.IVA <strong>16378301002</strong>
+            <strong>Tenuta del Barone srls</strong> – P.IVA <strong>16378301002</strong>
             <br />
-            Via Davide Passigli 60, Fiumicino
+            Via Davide Passigli 60, 00054 Fiumicino RM
+            <br />
+            PEC: <strong>tenutadelbarone-srls@legalmail.it</strong>
+            <br />
+            Codice SDI: <strong>N92GLON</strong>
             <br />
             Email: <strong>info@latenutadelbaroneroma.it</strong>
           </p>
