@@ -1397,7 +1397,7 @@ export async function getAdminUserDetail(
     return null;
   }
 
-  const dogMap = await loadDogsByIds(unique(slotRows.flatMap((row) => slotBookingDogIds(row))));
+  const dogMap = await loadDogsByIds(unique((slotRows as ServiceSlotBookingQueryRow[]).flatMap((row) => slotBookingDogIds(row))));
   const profileMap = new Map<string, Profile | ProfileSummaryRow>();
   if (profile) {
     profileMap.set(
@@ -1562,7 +1562,7 @@ export async function getAdminDogDetail(
     .map((row) => firstRelation(row.bookings))
     .filter(Boolean) as PensioneBookingQueryRow[];
 
-  const slotRows = slotRes.filter((row) => slotBookingDogIds(row).includes(dogId));
+  const slotRows = (slotRes as ServiceSlotBookingQueryRow[]).filter((row) => slotBookingDogIds(row).includes(dogId));
   const dogMap = new Map<string, Dog>([[dog.id, dog]]);
 
   const combined = [
@@ -1900,7 +1900,7 @@ export async function getAdminOverview(
 
   const activeAgendaItems = agendaItems.filter((item) => item.isActive);
   const pendingAgendaItems = agendaItems.filter((item) => item.status === 'PENDING');
-  const activePensioneRows = agendaData.pensioneRows.filter((row) =>
+  const activePensioneRows = (agendaData.pensioneRows as PensioneBookingQueryRow[]).filter((row) =>
     isActiveBookingStatus(
       deriveAgendaStatus(
         row.status ?? null,

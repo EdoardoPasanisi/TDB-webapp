@@ -1,20 +1,10 @@
 import { createServerClient } from '@supabase/ssr';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { missingEnvClient } from '@/lib/supabaseUtils';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-function missingEnvClient(message: string): SupabaseClient {
-  return new Proxy(
-    {},
-    {
-      get() {
-        throw new Error(message);
-      },
-    }
-  ) as unknown as SupabaseClient;
-}
 
 export async function createServerSupabaseClient(): Promise<SupabaseClient> {
   if (!supabaseUrl || !supabaseAnonKey) {

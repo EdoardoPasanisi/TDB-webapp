@@ -492,14 +492,16 @@ async function getUserBookingsStatus(userId: string) {
         'id, service_type, status, start_date, end_date, arrival_time, departure_time, total_price, booking_dogs(dogs(name))'
       )
       .eq('user_id', userId)
-      .order('start_date', { ascending: true }),
+      .order('start_date', { ascending: false })
+      .limit(30),
     supabaseAdmin
       .from('service_slot_bookings')
       .select(
         'id, service_type, service_variant, status, total_price, dog_ids, service_slots(start_at, end_at, service_type, service_variant)'
       )
       .eq('user_id', userId)
-      .order('created_at', { ascending: false }),
+      .order('created_at', { ascending: false })
+      .limit(30),
   ]);
 
   if (pensioneRes.error) throw new Error(pensioneRes.error.message);
@@ -618,7 +620,7 @@ async function getServiceAvailability(args: {
     .eq('is_active', true)
     .gt('remaining_capacity', 0)
     .gte('start_at', `${startDate}T00:00:00`)
-    .lt('start_at', `${endDate}T23:59:59`)
+    .lte('start_at', `${endDate}T23:59:59`)
     .order('start_at', { ascending: true })
     .limit(20);
 

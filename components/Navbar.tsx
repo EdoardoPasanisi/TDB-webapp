@@ -2,7 +2,8 @@
 
 import { useEffect } from 'react';
 import Image from 'next/image';
-import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useAuthContext } from '@/lib/auth/AuthProvider';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { MobileTopBar } from '@/components/ui/MobileTopBar';
@@ -30,7 +31,6 @@ function isAuthRoute(pathname: string) {
 }
 
 export default function Navbar() {
-  const router = useRouter();
   const pathname = usePathname();
   const { user, loading } = useAuthContext();
   const hideNavbarForRoute =
@@ -94,12 +94,7 @@ export default function Navbar() {
       <header data-app-chrome="desktop-top" className="hidden md:fixed md:inset-x-0 md:top-0 md:z-50 md:block">
         <div className="ui-desktopTopShell">
           <nav className="mx-auto grid max-w-[1400px] grid-cols-[auto_1fr_auto] items-center gap-10 px-8 py-7">
-            <button
-              type="button"
-              onClick={() => router.push('/services')}
-              className="ml-8 flex items-center justify-center"
-              aria-label="Vai ai servizi"
-            >
+            <Link href="/services" className="ml-8 flex items-center justify-center" aria-label="Vai ai servizi">
               <Image
                 src="/tenuta-logo.png"
                 alt="Tenuta del Barone"
@@ -108,64 +103,52 @@ export default function Navbar() {
                 priority
                 className="h-[96px] w-auto"
               />
-            </button>
+            </Link>
 
             <div className="flex items-center justify-center gap-5 text-sm">
-              <button
-                onClick={() => router.push('/services')}
-                className={`ui-navLinkBtn ${
-                  isServicesActive ? 'ui-navLinkBtn--active' : ''
-                }`}
+              <Link
+                href="/services"
+                className={`ui-navLinkBtn ${isServicesActive ? 'ui-navLinkBtn--active' : ''}`}
               >
                 Servizi
-              </button>
+              </Link>
 
-              <button
-                onClick={() => router.push('/services/calendar')}
-                className={`ui-navLinkBtn ${
-                  isCalendarActive ? 'ui-navLinkBtn--active' : ''
-                }`}
+              <Link
+                href="/services/calendar"
+                className={`ui-navLinkBtn ${isCalendarActive ? 'ui-navLinkBtn--active' : ''}`}
               >
                 Calendario
-              </button>
+              </Link>
 
-              <button
-                onClick={() => router.push('/chat')}
-                className={`ui-navLinkBtn ${
-                  isChatActive ? 'ui-navLinkBtn--active' : ''
-                }`}
-                >
-                  Chat
-                </button>
+              <Link
+                href="/chat"
+                className={`ui-navLinkBtn ${isChatActive ? 'ui-navLinkBtn--active' : ''}`}
+              >
+                Chat
+              </Link>
             </div>
 
             <div className="flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => router.push('/settings')}
-                className={`ui-desktopTopIconBtn ${
-                  isSettingsActive ? 'ui-desktopTopIconBtn--active' : ''
-                }`}
+              <Link
+                href="/settings"
+                className={`ui-desktopTopIconBtn ${isSettingsActive ? 'ui-desktopTopIconBtn--active' : ''}`}
                 aria-label="Impostazioni"
               >
                 <Image src="/icon-settings.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />
-              </button>
+              </Link>
 
               <NotificationBell
                 buttonClassName="ui-desktopTopIconBtn"
                 panelClassName="ui-notificationPanel--desktop"
               />
 
-              <button
-                type="button"
-                onClick={() => router.push('/profile')}
-                className={`ui-desktopTopIconBtn ${
-                  isProfileActive ? 'ui-desktopTopIconBtn--active' : ''
-                }`}
+              <Link
+                href="/profile"
+                className={`ui-desktopTopIconBtn ${isProfileActive ? 'ui-desktopTopIconBtn--active' : ''}`}
                 aria-label="Profilo"
               >
                 <Image src="/icon-user.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />
-              </button>
+              </Link>
             </div>
           </nav>
         </div>

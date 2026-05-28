@@ -1,7 +1,8 @@
 // FILE: components/ui/BottomNav.tsx
 'use client';
 
-import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 function IconChat() {
   return (
@@ -32,7 +33,6 @@ function cx(...parts: Array<string | false | null | undefined>) {
 }
 
 export function BottomNav({ chatHref, homeHref, calendarHref }: BottomNavProps) {
-  const router = useRouter();
   const pathname = usePathname();
 
   const isChatActive = pathname === chatHref || pathname.startsWith(chatHref + '/');
@@ -43,31 +43,28 @@ export function BottomNav({ chatHref, homeHref, calendarHref }: BottomNavProps) 
     <nav data-app-chrome="mobile-bottom" className="md:hidden fixed bottom-0 inset-x-0 z-40">
       <div className="ui-bottomNavShell">
         <div className="relative mx-auto flex h-[74px] w-full max-w-xl items-center justify-between px-8">
-          <button
-            type="button"
-            onClick={() => router.push(chatHref)}
+          <Link
+            href={chatHref}
             className={cx('ui-bottomNavActionBtn', isChatActive && 'ui-bottomNavActionBtn--active')}
             aria-label="Chat"
           >
             <IconChat />
             <span className="ui-bottomNavActionBtn__label">Chat</span>
-          </button>
+          </Link>
 
           <div className="w-[86px]" aria-hidden="true" />
 
-          <button
-            type="button"
-            onClick={() => router.push(calendarHref)}
+          <Link
+            href={calendarHref}
             className={cx('ui-bottomNavActionBtn', isCalendarActive && 'ui-bottomNavActionBtn--active')}
             aria-label="Calendario"
           >
             <IconCalendar />
             <span className="ui-bottomNavActionBtn__label">Calendario</span>
-          </button>
+          </Link>
 
-          <button
-            type="button"
-            onClick={() => router.push(homeHref)}
+          <Link
+            href={homeHref}
             aria-label="Home"
             className="ui-bottomNavCenterTap absolute left-1/2 -translate-x-1/2 -top-9"
           >
@@ -85,7 +82,7 @@ export function BottomNav({ chatHref, homeHref, calendarHref }: BottomNavProps) 
                 draggable={false}
               />
             </div>
-          </button>
+          </Link>
         </div>
       </div>
     </nav>

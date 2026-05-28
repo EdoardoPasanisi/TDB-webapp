@@ -1,4 +1,4 @@
-// FILE: middleware.ts
+// proxy.ts — Next 16 middleware entry point (exported as "proxy")
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import type { User } from '@supabase/supabase-js';
@@ -100,7 +100,7 @@ export async function proxy(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     url.searchParams.set('next', request.nextUrl.pathname);
-    return NextResponse.redirect(url);
+    return copyResponseCookies(response, NextResponse.redirect(url));
   }
 
   // 2) Loggato ma email NON confermata → check-email
@@ -137,7 +137,7 @@ export async function proxy(request: NextRequest) {
       const url = request.nextUrl.clone();
       url.pathname = '/services';
       url.searchParams.set('admin', 'forbidden');
-      return NextResponse.redirect(url);
+      return copyResponseCookies(response, NextResponse.redirect(url));
     }
   }
 

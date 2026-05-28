@@ -95,9 +95,12 @@ function buildEmailPayload(args: {
 }
 
 async function resolveNotificationRecipientEmail(userId: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin.auth.admin.getUserById(userId);
-  if (error) return null;
-  return data.user?.email?.trim() || null;
+  const { data } = await supabaseAdmin
+    .from('profiles')
+    .select('email')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return (data as { email?: string | null } | null)?.email?.trim() || null;
 }
 
 async function sendNotificationEmail(args: {

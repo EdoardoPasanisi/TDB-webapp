@@ -4,7 +4,14 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 
 export function adminErrorResponse(error: unknown) {
   if (error instanceof AdminAccessError) {
-    return NextResponse.json({ error: humanizeErrorMessage(error.message, 'Accesso al gestionale non disponibile.') }, { status: error.status });
+    const response = NextResponse.json(
+      { error: humanizeErrorMessage(error.message, 'Accesso al gestionale non disponibile.') },
+      { status: error.status }
+    );
+    if (error.status === 429 && error.retryAfterMs != null) {
+      response.headers.set('Retry-After', String(Math.ceil(error.retryAfterMs / 1000)));
+    }
+    return response;
   }
 
   if (error instanceof Error) {

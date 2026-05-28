@@ -99,12 +99,13 @@ export async function POST(req: Request) {
       await supabaseAdmin.storage.from('dog-images').remove([previousPath]).catch(() => undefined);
     }
 
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const signatureError = validateUploadBytes(file, bytes);
+    const headerBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+    const signatureError = validateUploadBytes(file, headerBytes);
     if (signatureError) {
       return NextResponse.json({ error: signatureError }, { status: 400 });
     }
 
+    const bytes = new Uint8Array(await file.arrayBuffer());
     const { error: uploadError } = await supabaseAdmin.storage.from('dog-images').upload(path, bytes, {
       upsert: true,
       contentType: file.type || 'application/octet-stream',

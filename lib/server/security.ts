@@ -9,6 +9,7 @@ type RateLimitBucket = {
 export type SecurityCheckResult = {
   status: number;
   message: string;
+  retryAfterMs?: number;
 };
 
 type RateLimitArgs = {
@@ -20,6 +21,18 @@ type RateLimitArgs = {
 };
 
 const buckets = new Map<string, RateLimitBucket>();
+
+let _cachedEnvOrigins: Set<string> | null = null;
+
+function getTrustedEnvOrigins(): Set<string> {
+  if (_cachedEnvOrigins) return _cachedEnvOrigins;
+  _cachedEnvOrigins = new Set([
+    ...splitOrigins(process.env.NEXT_PUBLIC_SITE_URL),
+    ...splitOrigins(process.env.NEXT_PUBLIC_AUTH_REDIRECT_BASE_URL),
+    ...splitOrigins(process.env.ALLOWED_ORIGINS),
+  ]);
+  return _cachedEnvOrigins;
+}
 
 function normalizeOrigin(value: string | null | undefined): string | null {
   const raw = String(value ?? '').trim();
@@ -70,9 +83,7 @@ export function checkTrustedOrigin(request: Request): SecurityCheckResult | null
 
   const trustedOrigins = new Set<string>([
     ...(requestOrigin ? [requestOrigin] : []),
-    ...splitOrigins(process.env.NEXT_PUBLIC_SITE_URL),
-    ...splitOrigins(process.env.NEXT_PUBLIC_AUTH_REDIRECT_BASE_URL),
-    ...splitOrigins(process.env.ALLOWED_ORIGINS),
+    ...getTrustedEnvOrigins(),
   ]);
 
   if (trustedOrigins.has(requestOriginHeader)) return null;
@@ -104,6 +115,7 @@ export function checkRateLimit(args: RateLimitArgs): SecurityCheckResult | null 
   return {
     status: 429,
     message: 'Troppe richieste. Riprova tra poco.',
+    retryAfterMs: Math.max(0, current.resetAt - now),
   };
 }
 

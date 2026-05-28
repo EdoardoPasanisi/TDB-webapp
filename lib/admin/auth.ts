@@ -14,10 +14,12 @@ type StaffAccountRow = {
 
 export class AdminAccessError extends Error {
   status: number;
+  retryAfterMs?: number;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, retryAfterMs?: number) {
     super(message);
     this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -85,7 +87,7 @@ export async function requireStaffAccess(
   if (request) {
     const rateLimitError = checkDefaultWriteRateLimit(request, access.userId);
     if (rateLimitError) {
-      throw new AdminAccessError(rateLimitError.status, rateLimitError.message);
+      throw new AdminAccessError(rateLimitError.status, rateLimitError.message, rateLimitError.retryAfterMs);
     }
   }
 

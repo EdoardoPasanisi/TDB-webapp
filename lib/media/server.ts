@@ -99,15 +99,6 @@ function computePriority(lastMediaAt: string | null, startDate: string): {
   return { priority: 'LOW', priorityScore: diffHours };
 }
 
-async function createSignedUrl(path: string): Promise<string | null> {
-  const { data, error } = await supabaseAdmin.storage
-    .from(CUSTOMER_MEDIA_BUCKET)
-    .createSignedUrl(path, 60 * 30);
-
-  if (error) return null;
-  return data.signedUrl;
-}
-
 export async function listVisibleMediaForUser(userId: string): Promise<CustomerMediaViewItem[]> {
   const nowIso = new Date().toISOString();
   const { data, error } = await supabaseAdmin
@@ -121,11 +112,21 @@ export async function listVisibleMediaForUser(userId: string): Promise<CustomerM
   if (error) throw new Error(error.message);
 
   const rows = (data ?? []).map(castMediaRow);
-  const urls = await Promise.all(rows.map((row) => createSignedUrl(row.storage_path)));
+  if (rows.length === 0) return [];
+
+  const { data: signedData } = await supabaseAdmin.storage
+    .from(CUSTOMER_MEDIA_BUCKET)
+    .createSignedUrls(rows.map((row) => row.storage_path), 60 * 30);
+
+  const urlMap = new Map<string, string>(
+    (signedData ?? [])
+      .filter((item) => item.path !== null)
+      .map((item) => [item.path!, item.signedUrl] as [string, string])
+  );
 
   return rows
-    .map((row, index) => {
-      const signedUrl = urls[index];
+    .map((row) => {
+      const signedUrl = urlMap.get(row.storage_path);
       if (!signedUrl) return null;
       return {
         id: row.id,
@@ -266,11 +267,13 @@ export async function uploadMediaForBooking(args: {
   });
 
   const mediaType = getMediaTypeFromFile(args.file);
-  const bytes = new Uint8Array(await args.file.arrayBuffer());
-  const signatureError = validateUploadBytes(args.file, bytes);
+  const headerBytes = new Uint8Array(await args.file.slice(0, 16).arrayBuffer());
+  const signatureError = validateUploadBytes(args.file, headerBytes);
   if (signatureError) {
     throw new Error(signatureError);
   }
+
+  const bytes = new Uint8Array(await args.file.arrayBuffer());
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from(CUSTOMER_MEDIA_BUCKET)

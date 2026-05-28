@@ -347,12 +347,28 @@ export async function getConversationById(conversationId: string): Promise<ChatC
   return data ? castConversation(data) : null;
 }
 
-export async function listConversationMessages(conversationId: string): Promise<ChatMessageRow[]> {
+export async function listConversationMessages(
+  conversationId: string,
+  limit?: number
+): Promise<ChatMessageRow[]> {
+  if (limit) {
+    const { data, error } = await supabaseAdmin
+      .from('chat_messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(castMessage).reverse();
+  }
+
   const { data, error } = await supabaseAdmin
     .from('chat_messages')
     .select('*')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: true })
+    .limit(100);
 
   if (error) throw new Error(error.message);
   return (data ?? []).map(castMessage);

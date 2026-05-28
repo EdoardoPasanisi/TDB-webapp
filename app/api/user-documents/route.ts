@@ -72,12 +72,13 @@ export async function POST(request: Request) {
     }
 
     const path = buildDocumentPath(userId, kind, file);
-    const fileBytes = new Uint8Array(await file.arrayBuffer());
-    const signatureError = validateUploadBytes(file, fileBytes);
+    const headerBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+    const signatureError = validateUploadBytes(file, headerBytes);
     if (signatureError) {
       return NextResponse.json({ error: signatureError }, { status: 400 });
     }
 
+    const fileBytes = new Uint8Array(await file.arrayBuffer());
     const { error: uploadError } = await supabaseAdmin.storage
       .from(ID_DOC_BUCKET)
       .upload(path, fileBytes, {
@@ -157,7 +158,9 @@ export async function POST(request: Request) {
     if (profileError || !profile) {
       try {
         await supabaseAdmin.from('user_documents').delete().eq('id', documentRow.id);
-      } catch {}
+      } catch (rollbackError) {
+        console.error('Document record rollback failed:', rollbackError);
+      }
       await supabaseAdmin.storage.from(ID_DOC_BUCKET).remove([path]).catch(() => undefined);
       return NextResponse.json(
         { error: humanizeErrorMessage(profileError, 'Impossibile aggiornare il profilo.') },

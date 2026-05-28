@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
-import { RouteAuthError, requireRequestUser } from '@/lib/server/routeAuth';
+import { RouteAuthError, requireRequestUser, routeAuthErrorResponse } from '@/lib/server/routeAuth';
 import {
   createOperatorHandoff,
   ensureUserConversation,
@@ -13,6 +13,7 @@ import {
 import { generateAssistantReply, OpenAIChatError } from '@/lib/chat/openai';
 import { trimChatMessage } from '@/lib/chat/format';
 import { checkRateLimit } from '@/lib/server/security';
+import { CHAT_HISTORY_LIMIT } from '@/lib/chat/config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -70,10 +71,9 @@ export async function GET(request: Request) {
     return NextResponse.json(thread);
   } catch (error) {
     if (error instanceof RouteAuthError) {
-      return NextResponse.json(
-        { error: humanizeErrorMessage(error.message, 'Devi accedere per usare la chat.') },
-        { status: error.status }
-      );
+      return routeAuthErrorResponse(error, {
+        error: humanizeErrorMessage(error.message, 'Devi accedere per usare la chat.'),
+      });
     }
 
     return NextResponse.json(
@@ -94,7 +94,11 @@ export async function POST(request: Request) {
       windowMs: 60_000,
     });
     if (rateLimitError) {
-      return NextResponse.json({ error: rateLimitError.message }, { status: rateLimitError.status });
+      const response = NextResponse.json({ error: rateLimitError.message }, { status: rateLimitError.status });
+      if (rateLimitError.retryAfterMs != null) {
+        response.headers.set('Retry-After', String(Math.ceil(rateLimitError.retryAfterMs / 1000)));
+      }
+      return response;
     }
 
     const body = await request.json().catch(() => null);
@@ -122,7 +126,7 @@ export async function POST(request: Request) {
     }
 
     try {
-      const messages = await listConversationMessages(conversation.id);
+      const messages = await listConversationMessages(conversation.id, CHAT_HISTORY_LIMIT);
       const assistant = await generateAssistantReply({
         conversation,
         userId,
@@ -164,10 +168,9 @@ export async function POST(request: Request) {
     return NextResponse.json(thread);
   } catch (error) {
     if (error instanceof RouteAuthError) {
-      return NextResponse.json(
-        { error: humanizeErrorMessage(error.message, 'Devi accedere per usare la chat.') },
-        { status: error.status }
-      );
+      return routeAuthErrorResponse(error, {
+        error: humanizeErrorMessage(error.message, 'Devi accedere per usare la chat.'),
+      });
     }
 
     return NextResponse.json(
@@ -191,10 +194,9 @@ export async function PATCH(request: Request) {
     return NextResponse.json(thread);
   } catch (error) {
     if (error instanceof RouteAuthError) {
-      return NextResponse.json(
-        { error: humanizeErrorMessage(error.message, 'Devi accedere per usare la chat.') },
-        { status: error.status }
-      );
+      return routeAuthErrorResponse(error, {
+        error: humanizeErrorMessage(error.message, 'Devi accedere per usare la chat.'),
+      });
     }
 
     return NextResponse.json(

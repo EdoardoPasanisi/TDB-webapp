@@ -1,5 +1,4 @@
 import {
-  CHAT_HISTORY_LIMIT,
   CHAT_TOOL_LOOP_LIMIT,
   OPENAI_CHAT_MODEL,
 } from '@/lib/chat/config';
@@ -108,10 +107,9 @@ export async function generateAssistantReply(args: {
     knowledgeBase,
     new Date().toISOString().slice(0, 10)
   );
-  const baseMessages = args.messages.slice(-CHAT_HISTORY_LIMIT);
   const inputItems = buildOpenAIConversationInput({
     conversation: args.conversation,
-    messages: baseMessages,
+    messages: args.messages,
   });
 
   let conversationChanged = false;
