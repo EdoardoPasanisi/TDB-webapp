@@ -10,6 +10,18 @@
 - Verify OpenAI and Resend accounts have production billing/quota and signed DPAs where needed.
 - Confirm the app is not using Stripe or any in-app payment route.
 
+## Rate Limiting
+
+The current rate limiter (`lib/server/security.ts`) is **in-memory per instance**.
+It provides meaningful protection on single-instance or always-warm deployments
+but can be bypassed on serverless platforms (Vercel, etc.) by spreading requests
+across cold-start instances.
+
+When traffic warrants a distributed limiter:
+1. `npm install @upstash/ratelimit @upstash/redis`
+2. Add `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to environment variables.
+3. Replace `checkRateLimit()` in `lib/server/security.ts` with Upstash's sliding-window algorithm.
+
 ## Legal And Compliance
 
 - Replace or confirm company legal details in `/privacy`, `/terms`, and `/cookies`.

@@ -20,6 +20,16 @@ type RateLimitArgs = {
   windowMs?: number;
 };
 
+// In-memory rate limiter: works correctly on single-instance deployments.
+// On serverless platforms (Vercel, etc.) each cold-start gets its own counter,
+// so limits are per-instance rather than global. This still throttles
+// individual clients that hit the same instance, but a determined attacker
+// can bypass it by spreading requests across instances.
+//
+// To upgrade to a distributed rate limiter:
+//   npm install @upstash/ratelimit @upstash/redis
+//   Replace checkRateLimit() with Upstash's sliding-window algorithm.
+//   Add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN to .env.
 const buckets = new Map<string, RateLimitBucket>();
 
 let _cachedEnvOrigins: Set<string> | null = null;
