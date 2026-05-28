@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import type { PerDogForm } from '../lib/services/pensione/types';
 import {
   buildExtrasPayload,
   computeDaysCount,
@@ -104,14 +105,14 @@ test('computePricing applies dog discount, extras and taxi correctly', () => {
 });
 
 test('computePerDogTotals and buildExtrasPayload keep per-dog bookkeeping aligned', () => {
-  const form = {
+  const form: PerDogForm = {
     accommodationType: 'BOX_GARDEN',
     grooming: true,
     vaccine: true,
     trackingSessions: 1,
     fitnessSessions: 2,
     walkSessions: 1,
-    therapy: 'YES' as const,
+    therapy: 'YES',
     therapyNotes: 'Controllare zampa posteriore',
   };
 
