@@ -3,6 +3,7 @@ import {
   RouteAuthError,
   createRequestSupabaseClient,
   requireRequestUser,
+  routeAuthErrorResponse,
 } from '@/lib/server/routeAuth';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import {
@@ -156,10 +157,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ bookingId });
   } catch (error) {
     if (error instanceof RouteAuthError) {
-      return NextResponse.json(
-        { error: humanizeErrorMessage(error.message, 'Devi accedere per prenotare questo servizio.') },
-        { status: error.status }
-      );
+      return routeAuthErrorResponse(error, {
+        error: humanizeErrorMessage(error.message, 'Devi accedere per prenotare questo servizio.'),
+      });
     }
 
     return NextResponse.json(
@@ -196,10 +196,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof RouteAuthError) {
-      return NextResponse.json(
-        { error: humanizeErrorMessage(error.message, 'Devi accedere per modificare questa prenotazione.') },
-        { status: error.status }
-      );
+      return routeAuthErrorResponse(error, {
+        error: humanizeErrorMessage(error.message, 'Devi accedere per modificare questa prenotazione.'),
+      });
     }
 
     return NextResponse.json(

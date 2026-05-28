@@ -3,7 +3,7 @@ import { createManageStaffNotifications } from '@/lib/admin/notifications';
 import { formatPersonName } from '@/lib/admin/utils';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
-import { RouteAuthError, requireRequestUser } from '@/lib/server/routeAuth';
+import { RouteAuthError, requireRequestUser, routeAuthErrorResponse } from '@/lib/server/routeAuth';
 import {
   buildMissingRequiredCustomerBookingMessage,
   getMissingRequiredCustomerBookingFields,
@@ -528,10 +528,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ bookingId });
   } catch (error) {
     if (error instanceof RouteAuthError) {
-      return NextResponse.json(
-        { error: humanizeErrorMessage(error.message, 'Devi accedere per continuare con la prenotazione.') },
-        { status: error.status }
-      );
+      return routeAuthErrorResponse(error, {
+        error: humanizeErrorMessage(error.message, 'Devi accedere per continuare con la prenotazione.'),
+      });
     }
 
     return NextResponse.json(
@@ -591,10 +590,9 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ bookingId, cancelled: true });
   } catch (error) {
     if (error instanceof RouteAuthError) {
-      return NextResponse.json(
-        { error: humanizeErrorMessage(error.message, 'Devi accedere per modificare la prenotazione.') },
-        { status: error.status }
-      );
+      return routeAuthErrorResponse(error, {
+        error: humanizeErrorMessage(error.message, 'Devi accedere per modificare la prenotazione.'),
+      });
     }
 
     return NextResponse.json(
