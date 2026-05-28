@@ -5,6 +5,8 @@ export const metadata = {
   title: 'Termini di Servizio | Tenuta del Barone',
 };
 
+const LAST_UPDATED = '5 maggio 2026';
+
 export default function TermsPage() {
   return (
     <main className="ui-legalMain">
@@ -50,6 +52,16 @@ export default function TermsPage() {
         </section>
 
         <section className="space-y-2">
+          <h2 className="ui-legalH2">Prenotazioni e pagamenti</h2>
+          <p className="ui-legalText">
+            L’app consente di inviare richieste e prenotazioni e di acquistare o utilizzare pacchetti
+            servizi secondo le disponibilità configurate. Il pagamento online in app non è attivo:
+            eventuali incassi, conferme o sblocchi dei pacchetti vengono gestiti fuori dall’app o dal
+            gestionale interno.
+          </p>
+        </section>
+
+        <section className="space-y-2">
           <h2 className="ui-legalH2">Limitazioni di responsabilità</h2>
           <p className="ui-legalText">
             Il servizio è fornito “così com’è”. Pur adottando misure ragionevoli per garantire continuità
@@ -65,7 +77,7 @@ export default function TermsPage() {
         </section>
 
           <p className="ui-legalUpdated">
-            Ultimo aggiornamento: {new Date().toLocaleDateString('it-IT')}
+            Ultimo aggiornamento: {LAST_UPDATED}
           </p>
         </div>
       </div>

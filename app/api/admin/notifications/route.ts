@@ -19,7 +19,7 @@ function readPositiveLimit(request: Request): number {
 
 export async function GET(request: Request) {
   try {
-    const access = await requireStaffAccess('view');
+    const access = await requireStaffAccess(request, 'view');
     const limit = readPositiveLimit(request);
 
     const [items, unreadCount] = await Promise.all([
@@ -35,7 +35,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
-    const access = await requireStaffAccess('view');
+    const access = await requireStaffAccess(request, 'view');
     const body = (await request.json().catch(() => null)) as { action?: unknown } | null;
     const action = typeof body?.action === 'string' ? body.action.trim() : '';
 

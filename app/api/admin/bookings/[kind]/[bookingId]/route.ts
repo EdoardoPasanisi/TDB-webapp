@@ -40,7 +40,7 @@ export async function PATCH(
   context: { params: Promise<{ kind: string; bookingId: string }> }
 ) {
   try {
-    await requireStaffAccess('manage');
+    await requireStaffAccess(request, 'manage');
 
     const { kind, bookingId } = await context.params;
     const normalizedBookingId = assertUuid(bookingId, 'Prenotazione');

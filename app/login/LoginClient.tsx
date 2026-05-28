@@ -12,6 +12,12 @@ function getErrorMessage(error: unknown): string {
   return humanizeErrorMessage(error, 'Non siamo riusciti a completare l’accesso. Riprova.');
 }
 
+function resolveSafeRedirect(value: string | null): string {
+  if (!value) return '/';
+  if (!value.startsWith('/') || value.startsWith('//')) return '/';
+  return value;
+}
+
 export default function LoginClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -22,7 +28,10 @@ export default function LoginClient() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const redirectedFrom = useMemo(() => searchParams.get('redirectedFrom'), [searchParams]);
+  const redirectedFrom = useMemo(
+    () => resolveSafeRedirect(searchParams.get('next') ?? searchParams.get('redirectedFrom')),
+    [searchParams]
+  );
   const justVerified = useMemo(() => searchParams.get('verified'), [searchParams]);
   const reason = useMemo(() => searchParams.get('reason'), [searchParams]);
   const callbackError = useMemo(() => searchParams.get('e'), [searchParams]);
@@ -57,9 +66,7 @@ export default function LoginClient() {
         return;
       }
 
-      const target = redirectedFrom || '/';
-      router.replace(target);
-      router.refresh();
+      window.location.replace(redirectedFrom);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
     } finally {

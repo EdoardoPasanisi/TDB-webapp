@@ -6,6 +6,7 @@ import type { CustomerMediaRow, CustomerMediaType, CustomerMediaViewItem, AdminM
 import {
   MAX_CUSTOMER_MEDIA_BYTES,
   CUSTOMER_MEDIA_MIME_TYPES,
+  validateUploadBytes,
   validateUploadFile,
 } from '@/lib/validation/uploads';
 
@@ -266,6 +267,10 @@ export async function uploadMediaForBooking(args: {
 
   const mediaType = getMediaTypeFromFile(args.file);
   const bytes = new Uint8Array(await args.file.arrayBuffer());
+  const signatureError = validateUploadBytes(args.file, bytes);
+  if (signatureError) {
+    throw new Error(signatureError);
+  }
 
   const { error: uploadError } = await supabaseAdmin.storage
     .from(CUSTOMER_MEDIA_BUCKET)

@@ -19,7 +19,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const access = await requireStaffAccess('manage');
+    const access = await requireStaffAccess(request, 'manage');
     const formData = await request.formData();
     const bookingId = assertUuid(String(formData.get('bookingId') ?? '').trim(), 'Prenotazione');
     const caption = String(formData.get('caption') ?? '').trim() || null;

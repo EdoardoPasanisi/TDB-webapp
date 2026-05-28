@@ -5,6 +5,8 @@ export const metadata = {
   title: 'Cookie e strumenti tecnici | Tenuta del Barone',
 };
 
+const LAST_UPDATED = '5 maggio 2026';
+
 export default function CookiesPage() {
   return (
     <main className="ui-legalMain">
@@ -22,7 +24,8 @@ export default function CookiesPage() {
         <section className="space-y-2">
           <h2 className="ui-legalH2">Cosa usiamo</h2>
           <ul className="ui-legalList">
-            <li>Archiviazioni tecniche (es. localStorage/sessione) per login e sicurezza.</li>
+            <li>Cookie e storage tecnico di Supabase per login, mantenimento sessione e sicurezza.</li>
+            <li>Archiviazioni locali tecniche per bozze di prenotazione e preferenze operative dell’interfaccia.</li>
             <li>Log tecnici per diagnosi e prevenzione abusi.</li>
           </ul>
         </section>
@@ -37,7 +40,7 @@ export default function CookiesPage() {
         </section>
 
           <p className="ui-legalUpdated">
-            Ultimo aggiornamento: {new Date().toLocaleDateString('it-IT')}
+            Ultimo aggiornamento: {LAST_UPDATED}
           </p>
         </div>
       </div>

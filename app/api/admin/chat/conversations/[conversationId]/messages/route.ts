@@ -29,7 +29,7 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   try {
-    const access = await requireStaffAccess('view');
+    const access = await requireStaffAccess(request, 'view');
     const { conversationId } = await context.params;
     const body = await request.json().catch(() => null);
     const message = trimChatMessage(readBodyString(body, 'message'));

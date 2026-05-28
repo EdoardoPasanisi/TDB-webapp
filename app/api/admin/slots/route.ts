@@ -38,7 +38,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireStaffAccess('manage');
+    await requireStaffAccess(request, 'manage');
 
     const body = await request.json().catch(() => null);
     const slot = await upsertAdminSlot(sanitizeSlotInput(body));
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    await requireStaffAccess('manage');
+    await requireStaffAccess(request, 'manage');
 
     const body = await request.json().catch(() => null);
     const { slotId } = sanitizeSlotDeleteInput(body);

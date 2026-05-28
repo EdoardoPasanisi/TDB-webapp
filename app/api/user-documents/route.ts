@@ -8,6 +8,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import {
   MAX_USER_DOCUMENT_BYTES,
   USER_DOCUMENT_MIME_TYPES,
+  validateUploadBytes,
   validateUploadFile,
 } from '@/lib/validation/uploads';
 
@@ -72,6 +73,10 @@ export async function POST(request: Request) {
 
     const path = buildDocumentPath(userId, kind, file);
     const fileBytes = new Uint8Array(await file.arrayBuffer());
+    const signatureError = validateUploadBytes(file, fileBytes);
+    if (signatureError) {
+      return NextResponse.json({ error: signatureError }, { status: 400 });
+    }
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(ID_DOC_BUCKET)

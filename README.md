@@ -1,28 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Tenuta del Barone Web App
 
-## Getting Started
+Next.js app for customer profiles, dog records, service bookings, chatbot support, notifications and admin operations.
 
-First, run the development server:
+## Local Development
+
+Create `.env.local` from `.env.example`, then run:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Verification
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run lint
+npm run test
+npm run build
+npm audit --omit=dev
+```
 
-## Learn More
+## Production Notes
 
-To learn more about Next.js, take a look at the following resources:
+- Stripe/in-app payments are intentionally disabled.
+- Keep `SUPABASE_SERVICE_ROLE_KEY`, `OPENAI_API_KEY`, and `RESEND_API_KEY` server-only.
+- Set `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_AUTH_REDIRECT_BASE_URL`, and `ALLOWED_ORIGINS` to the production origin.
+- See `docs/production-checklist.md` before deploying.
 
 - [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.

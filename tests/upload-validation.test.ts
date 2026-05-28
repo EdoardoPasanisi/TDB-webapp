@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { validateUploadFile } from '../lib/validation/uploads';
+import { validateUploadBytes, validateUploadFile } from '../lib/validation/uploads';
 
 test('validateUploadFile accepts a supported document within size limit', () => {
   const file = new File([new Uint8Array([1, 2, 3])], 'document.pdf', {
@@ -65,4 +65,24 @@ test('validateUploadFile rejects unsupported mime types', () => {
   });
 
   assert.equal(result, 'Formato non valido.');
+});
+
+test('validateUploadBytes accepts matching PDF signatures', () => {
+  const file = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])], 'document.pdf', {
+    type: 'application/pdf',
+  });
+
+  const result = validateUploadBytes(file, new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]));
+
+  assert.equal(result, null);
+});
+
+test('validateUploadBytes rejects spoofed image uploads', () => {
+  const file = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d])], 'photo.png', {
+    type: 'image/png',
+  });
+
+  const result = validateUploadBytes(file, new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]));
+
+  assert.equal(result, 'Il file PNG non è valido.');
 });

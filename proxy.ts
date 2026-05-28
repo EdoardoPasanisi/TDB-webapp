@@ -17,9 +17,6 @@ const PUBLIC_PATHS = new Set<string>([
   '/privacy',
   '/terms',
   '/cookies',
-  '/payments-success',
-  '/payments-cancel',
-  '/api/stripe/webhook',
   '/auth/callback', // è il callback email: deve essere pubblico
   '/auth/recovery',
 ]);

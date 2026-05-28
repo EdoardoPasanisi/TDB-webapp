@@ -5,6 +5,8 @@ export const metadata = {
   title: 'Privacy Policy | Tenuta del Barone',
 };
 
+const LAST_UPDATED = '5 maggio 2026';
+
 export default function PrivacyPage() {
   return (
     <main className="ui-legalMain">
@@ -31,6 +33,7 @@ export default function PrivacyPage() {
             <li>Dati anagrafici e di contatto: nome, cognome, telefono, indirizzo (se forniti).</li>
             <li>Dati relativi al cane: nome, razza, sesso, taglia, microchip (se fornito), note, foto.</li>
             <li>Documenti caricati: documento d’identità e liberatoria firmata (se caricati).</li>
+            <li>Dati relativi a prenotazioni, pacchetti servizi, notifiche e conversazioni con assistenza o chatbot.</li>
             <li>Dati tecnici: log e informazioni tecniche necessarie al funzionamento del servizio.</li>
           </ul>
         </section>
@@ -50,6 +53,10 @@ export default function PrivacyPage() {
               Sicurezza e prevenzione abusi:
               <strong> legittimo interesse</strong> del Titolare.
             </li>
+            <li>
+              Invio di comunicazioni di servizio e notifiche operative:
+              <strong> esecuzione del servizio</strong> e/o <strong>legittimo interesse</strong>.
+            </li>
           </ul>
           <p className="ui-legalText">
             Il conferimento di alcuni dati può essere necessario per utilizzare determinate funzioni
@@ -61,12 +68,24 @@ export default function PrivacyPage() {
           <h2 className="ui-legalH2">Destinatari e fornitori</h2>
           <p className="ui-legalText">
             I dati possono essere trattati da fornitori che operano come responsabili del trattamento
-            (es. infrastruttura cloud e database). L’app utilizza <strong>Supabase</strong> per database,
-            autenticazione e storage; è disponibile un Data Processing Addendum (DPA) del fornitore.
+            o autonomi titolari, secondo il ruolo ricoperto. L’app utilizza <strong>Supabase</strong> per
+            database, autenticazione e storage; <strong>OpenAI</strong> per le funzioni di chatbot;
+            <strong> Resend</strong> per l’invio di email di servizio; servizi basati su
+            <strong> OpenStreetMap/Nominatim</strong> e <strong>OSRM</strong> per ricerca indirizzi e
+            calcolo indicativo delle distanze taxi dog.
           </p>
           <p className="ui-legalText">
-            Per la conformità contrattuale con i fornitori, il Titolare sottoscrive o rende disponibili
-            gli accordi necessari (DPA).{' '}
+            Il pagamento online non è attivo nell’app. Eventuali pagamenti vengono gestiti fuori dall’app
+            o tramite conferma manuale del gestionale.
+          </p>
+        </section>
+
+        <section className="space-y-2">
+          <h2 className="ui-legalH2">Trasferimenti extra UE</h2>
+          <p className="ui-legalText">
+            Alcuni fornitori tecnologici possono trattare dati anche fuori dallo Spazio Economico Europeo.
+            In tali casi il Titolare verifica la presenza di adeguate garanzie contrattuali, come DPA,
+            clausole contrattuali standard o altri strumenti previsti dalla normativa applicabile.
           </p>
         </section>
 
@@ -77,6 +96,10 @@ export default function PrivacyPage() {
             obblighi di legge. In particolare, i documenti caricati (documento d’identità e liberatoria)
             vengono conservati finché necessari alla gestione del servizio e alle verifiche interne,
             o per periodi ulteriori se richiesti da obblighi di legge.
+          </p>
+          <p className="ui-legalText">
+            Le conversazioni e le notifiche sono conservate per il tempo utile alla gestione
+            dell’assistenza e alla ricostruzione delle richieste operative.
           </p>
         </section>
 
@@ -91,6 +114,15 @@ export default function PrivacyPage() {
         </section>
 
         <section className="space-y-2">
+          <h2 className="ui-legalH2">Decisioni automatizzate</h2>
+          <p className="ui-legalText">
+            Il chatbot può fornire risposte automatiche basate sulla knowledge base e sui dati operativi
+            disponibili, ma non prende decisioni con effetti giuridici o analogamente significativi sul
+            cliente. Nei casi delicati la conversazione può essere inoltrata a un operatore.
+          </p>
+        </section>
+
+        <section className="space-y-2">
           <h2 className="ui-legalH2">Sicurezza</h2>
           <p className="ui-legalText">
             Adottiamo misure tecniche e organizzative ragionevoli per proteggere i dati (controllo accessi,
@@ -99,7 +131,7 @@ export default function PrivacyPage() {
         </section>
 
           <p className="ui-legalUpdated">
-            Ultimo aggiornamento: {new Date().toLocaleDateString('it-IT')}
+            Ultimo aggiornamento: {LAST_UPDATED}
           </p>
         </div>
       </div>

@@ -12,6 +12,7 @@ import {
 } from '@/lib/chat/db';
 import { generateAssistantReply, OpenAIChatError } from '@/lib/chat/openai';
 import { trimChatMessage } from '@/lib/chat/format';
+import { checkRateLimit } from '@/lib/server/security';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -85,6 +86,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const { userId } = await requireRequestUser(request);
+    const rateLimitError = checkRateLimit({
+      request,
+      identifier: userId,
+      namespace: 'chat-message',
+      limit: 20,
+      windowMs: 60_000,
+    });
+    if (rateLimitError) {
+      return NextResponse.json({ error: rateLimitError.message }, { status: rateLimitError.status });
+    }
+
     const body = await request.json().catch(() => null);
     const message = trimChatMessage(readBodyString(body, 'message'));
 

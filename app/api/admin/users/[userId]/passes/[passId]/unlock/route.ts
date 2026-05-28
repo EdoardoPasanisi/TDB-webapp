@@ -5,11 +5,11 @@ import { adminErrorResponse } from '@/lib/admin/route';
 import { assertUuid } from '@/lib/admin/validation';
 
 export async function POST(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ userId: string; passId: string }> }
 ) {
   try {
-    const access = await requireStaffAccess('manage');
+    const access = await requireStaffAccess(request, 'manage');
     const { userId, passId } = await context.params;
 
     const updatedPass = await unlockAdminServicePass({

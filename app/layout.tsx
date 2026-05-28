@@ -1,12 +1,21 @@
 // FILE: app/layout.tsx
 import type { Metadata } from 'next';
 import './globals.css';
-import Navbar from '@/components/Navbar';
-import { AuthProvider } from '@/lib/auth/AuthProvider';
+import { AppChromeGate } from '@/components/AppChromeGate';
 
 export const metadata: Metadata = {
   title: 'Tenuta del Barone',
   description: 'Gestione clienti, cani e prenotazioni',
+  applicationName: 'Tenuta del Barone',
+  manifest: '/manifest.webmanifest',
+  robots: {
+    index: false,
+    follow: false,
+  },
+  icons: {
+    icon: '/icon.png',
+    apple: '/apple-icon.png',
+  },
 };
 
 export default function RootLayout({
@@ -17,18 +26,9 @@ export default function RootLayout({
   return (
     <html lang="it">
       <body className="antialiased ui-page">
-        <AuthProvider>
-          <Navbar />
-
-          {/* 
-            Mobile-first:
-            - spazio per topbar fisso
-            - spazio per bottom nav fisso
-            Desktop:
-            - topbar/bottomnav non mostrati, padding più classico
-          */}
+        <AppChromeGate>
           <main className="ui-appMain">{children}</main>
-        </AuthProvider>
+        </AppChromeGate>
       </body>
     </html>
   );

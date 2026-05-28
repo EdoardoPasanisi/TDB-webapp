@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { AddressSuggestion } from '@/lib/address/addressSearch';
 import { requireRequestUser, RouteAuthError } from '@/lib/server/routeAuth';
+import { checkRateLimit } from '@/lib/server/security';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -153,7 +154,20 @@ async function searchItalianAddresses(query: string): Promise<AddressSuggestion[
 
 export async function GET(request: Request) {
   try {
-    await requireRequestUser(request);
+    const access = await requireRequestUser(request);
+    const rateLimitError = checkRateLimit({
+      request,
+      identifier: access.userId,
+      namespace: 'address-search',
+      limit: 45,
+      windowMs: 60_000,
+    });
+    if (rateLimitError) {
+      return NextResponse.json(
+        { ok: false, error: rateLimitError.message },
+        { status: rateLimitError.status }
+      );
+    }
 
     const { searchParams } = new URL(request.url);
     const query = normalizeQuery(searchParams.get('q') ?? '');

@@ -14,7 +14,7 @@ type RouteContext = {
 
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const access = await requireStaffAccess('view');
+    const access = await requireStaffAccess(request, 'view');
     const body = (await request.json().catch(() => null)) as { action?: unknown } | null;
     const action = typeof body?.action === 'string' ? body.action.trim() : '';
 

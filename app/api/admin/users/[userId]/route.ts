@@ -30,7 +30,7 @@ export async function PATCH(
   context: { params: Promise<{ userId: string }> }
 ) {
   try {
-    await requireStaffAccess('manage');
+    await requireStaffAccess(request, 'manage');
 
     const { userId } = await context.params;
     const normalizedUserId = assertUuid(userId, 'Utente');

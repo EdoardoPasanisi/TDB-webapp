@@ -16,7 +16,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireStaffAccess('manage');
+    await requireStaffAccess(request, 'manage');
 
     const body = await request.json().catch(() => null);
     const member = await upsertAdminStaffMember(sanitizeStaffMemberInput(body));

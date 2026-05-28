@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import {
   MAX_PROFILE_PHOTO_BYTES,
   PROFILE_PHOTO_MIME_TYPES,
+  validateUploadBytes,
   validateUploadFile,
 } from '@/lib/validation/uploads';
 
@@ -87,6 +88,10 @@ export async function POST(request: Request) {
     const ext = guessExtFromMimeOrName(file);
     const path = `${userId}/${crypto.randomUUID()}.${ext}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const signatureError = validateUploadBytes(file, bytes);
+    if (signatureError) {
+      return NextResponse.json({ error: signatureError }, { status: 400 });
+    }
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from(PROFILE_PHOTO_BUCKET)

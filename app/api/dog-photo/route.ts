@@ -5,6 +5,7 @@ import { requireRequestUser, RouteAuthError } from '@/lib/server/routeAuth';
 import {
   DOG_PHOTO_MIME_TYPES,
   MAX_DOG_PHOTO_BYTES,
+  validateUploadBytes,
   validateUploadFile,
 } from '@/lib/validation/uploads';
 
@@ -99,6 +100,11 @@ export async function POST(req: Request) {
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
+    const signatureError = validateUploadBytes(file, bytes);
+    if (signatureError) {
+      return NextResponse.json({ error: signatureError }, { status: 400 });
+    }
+
     const { error: uploadError } = await supabaseAdmin.storage.from('dog-images').upload(path, bytes, {
       upsert: true,
       contentType: file.type || 'application/octet-stream',

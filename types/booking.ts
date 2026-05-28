@@ -69,9 +69,6 @@ export interface BookingRow {
   extras_total: number | null;
   total_price: number | null;
 
-  stripe_session_id?: string | null;
-  total_amount_cents?: number | null;
-
   created_at?: string;
   updated_at?: string;
 }

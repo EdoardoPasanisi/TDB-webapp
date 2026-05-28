@@ -122,9 +122,6 @@ function normalizeBookingRow(raw: BookingQueryRow): BookingRow {
     extras_total: raw.extras_total ?? null,
     total_price: raw.total_price ?? null,
 
-    stripe_session_id: raw.stripe_session_id ?? null,
-    total_amount_cents: raw.total_amount_cents ?? null,
-
     created_at: raw.created_at ?? undefined,
     updated_at: raw.updated_at ?? undefined,
   };
@@ -219,8 +216,6 @@ export function useBookingDetail(userId: string | undefined, bookingId: string |
           alloggio_total_discounted,
           extras_total,
           total_price,
-          stripe_session_id,
-          total_amount_cents,
           created_at,
           updated_at
         `,

@@ -1,5 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { createServerSupabaseClient } from '@/lib/server/supabaseServer';
+import {
+  checkDefaultWriteRateLimit,
+  checkTrustedOrigin,
+} from '@/lib/server/security';
 import type { AdminStaffAccess, StaffRole } from '@/lib/admin/types';
 
 type StaffAccountRow = {
@@ -52,7 +56,22 @@ export async function getStaffAccess(): Promise<AdminStaffAccess | null> {
   };
 }
 
-export async function requireStaffAccess(mode: 'view' | 'manage' = 'view'): Promise<AdminStaffAccess> {
+type StaffAccessMode = 'view' | 'manage';
+
+export async function requireStaffAccess(
+  modeOrRequest: StaffAccessMode | Request = 'view',
+  maybeMode: StaffAccessMode = 'view'
+): Promise<AdminStaffAccess> {
+  const request = modeOrRequest instanceof Request ? modeOrRequest : null;
+  const mode = modeOrRequest instanceof Request ? maybeMode : modeOrRequest;
+
+  if (request) {
+    const originError = checkTrustedOrigin(request);
+    if (originError) {
+      throw new AdminAccessError(originError.status, originError.message);
+    }
+  }
+
   const access = await getStaffAccess();
 
   if (!access) {
@@ -61,6 +80,13 @@ export async function requireStaffAccess(mode: 'view' | 'manage' = 'view'): Prom
 
   if (mode === 'manage' && !access.canManage) {
     throw new AdminAccessError(403, 'Il tuo account ha accesso in sola lettura.');
+  }
+
+  if (request) {
+    const rateLimitError = checkDefaultWriteRateLimit(request, access.userId);
+    if (rateLimitError) {
+      throw new AdminAccessError(rateLimitError.status, rateLimitError.message);
+    }
   }
 
   return access;

@@ -1,6 +1,7 @@
 // FILE: app/api/taxi-distance/route.ts
 import { NextResponse } from 'next/server';
 import { requireRequestUser, RouteAuthError } from '@/lib/server/routeAuth';
+import { checkRateLimit } from '@/lib/server/security';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -118,7 +119,20 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    await requireRequestUser(req);
+    const access = await requireRequestUser(req);
+    const rateLimitError = checkRateLimit({
+      request: req,
+      identifier: access.userId,
+      namespace: 'taxi-distance',
+      limit: 20,
+      windowMs: 60_000,
+    });
+    if (rateLimitError) {
+      return NextResponse.json(
+        { ok: false, error: rateLimitError.message },
+        { status: rateLimitError.status }
+      );
+    }
 
     const body = (await req.json().catch(() => null)) as TaxiDistancePostBody | null;
     const userAddress = normalizeAddress(String(body?.address ?? ''));

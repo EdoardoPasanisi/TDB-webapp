@@ -1,6 +1,10 @@
 import { createClient, type SupabaseClient, type User } from '@supabase/supabase-js';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { createServerSupabaseClient } from '@/lib/server/supabaseServer';
+import {
+  checkDefaultWriteRateLimit,
+  checkTrustedOrigin,
+} from '@/lib/server/security';
 
 export type RouteAuthUser = {
   userId: string;
@@ -63,10 +67,21 @@ export async function requireBearerUser(request: Request): Promise<RouteAuthUser
     throw new RouteAuthError(401, 'Sessione non valida.');
   }
 
-  return toRouteAuthUser(userData.user);
+  const routeUser = toRouteAuthUser(userData.user);
+  const rateLimitError = checkDefaultWriteRateLimit(request, routeUser.userId);
+  if (rateLimitError) {
+    throw new RouteAuthError(rateLimitError.status, rateLimitError.message);
+  }
+
+  return routeUser;
 }
 
 export async function requireRequestUser(request: Request): Promise<RouteAuthUser> {
+  const originError = checkTrustedOrigin(request);
+  if (originError) {
+    throw new RouteAuthError(originError.status, originError.message);
+  }
+
   const accessToken = readBearerToken(request);
   if (accessToken) {
     return requireBearerUser(request);
@@ -82,7 +97,13 @@ export async function requireRequestUser(request: Request): Promise<RouteAuthUse
     throw new RouteAuthError(401, 'Non autorizzato.');
   }
 
-  return toRouteAuthUser(user);
+  const routeUser = toRouteAuthUser(user);
+  const rateLimitError = checkDefaultWriteRateLimit(request, routeUser.userId);
+  if (rateLimitError) {
+    throw new RouteAuthError(rateLimitError.status, rateLimitError.message);
+  }
+
+  return routeUser;
 }
 
 export async function createRequestSupabaseClient(request: Request): Promise<SupabaseClient> {

@@ -96,6 +96,19 @@ async function getLatestConversationMessage(conversationId: string): Promise<Cha
   return data ? castMessage(data) : null;
 }
 
+async function conversationHasUserMessage(conversationId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin
+    .from('chat_messages')
+    .select('id')
+    .eq('conversation_id', conversationId)
+    .eq('sender_type', 'USER')
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return Boolean(data);
+}
+
 async function closeBotConversationAutomatically(conversationId: string): Promise<ChatConversationRow> {
   const nowIso = new Date().toISOString();
   return updateConversation(conversationId, {
@@ -136,6 +149,7 @@ async function maybeCloseActiveBotConversationForWrite(
   conversation: ChatConversationRow
 ): Promise<ChatConversationRow> {
   if (!isPastBotCloseThreshold(conversation)) return conversation;
+  if (!(await conversationHasUserMessage(conversation.id))) return conversation;
 
   const lastMessage = await getLatestConversationMessage(conversation.id);
   if (readMessageSource(lastMessage) !== 'bot_auto_close') {
@@ -157,6 +171,10 @@ async function reconcileBotConversationForRead(
   conversation: ChatConversationRow
 ): Promise<ChatConversationRow> {
   if (conversation.status !== 'BOT_ACTIVE') return conversation;
+
+  if (!(await conversationHasUserMessage(conversation.id))) {
+    return conversation;
+  }
 
   const idleMs = getIdleMilliseconds(conversation.last_message_at);
   const warningMs = CHAT_BOT_IDLE_WARNING_MINUTES * 60 * 1000;
@@ -521,6 +539,8 @@ export async function getUserThread(userId: string): Promise<{
 }> {
   let conversation = await getLatestConversationForUser(userId);
   if (!conversation) {
+    conversation = await createConversation({ userId });
+  } else if (conversation.status === 'CLOSED' && !(await conversationHasUserMessage(conversation.id))) {
     conversation = await createConversation({ userId });
   } else {
     conversation = await reconcileBotConversationForRead(conversation);

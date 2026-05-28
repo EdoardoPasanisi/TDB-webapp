@@ -58,3 +58,54 @@ export function validateUploadFile(args: ValidateFileArgs): string | null {
 
   return null;
 }
+
+export function validateUploadBytes(file: File, bytes: Uint8Array): string | null {
+  const mimeType = String(file.type ?? '').trim().toLowerCase();
+
+  if (mimeType === 'application/pdf') {
+    return hasPrefix(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d])
+      ? null
+      : 'Il file PDF non è valido.';
+  }
+
+  if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
+    return hasPrefix(bytes, [0xff, 0xd8, 0xff]) ? null : 'Il file JPG non è valido.';
+  }
+
+  if (mimeType === 'image/png') {
+    return hasPrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+      ? null
+      : 'Il file PNG non è valido.';
+  }
+
+  if (mimeType === 'image/webp') {
+    return hasAscii(bytes, 0, 'RIFF') && hasAscii(bytes, 8, 'WEBP')
+      ? null
+      : 'Il file WebP non è valido.';
+  }
+
+  if (mimeType === 'video/mp4' || mimeType === 'video/quicktime') {
+    return hasAscii(bytes, 4, 'ftyp') ? null : 'Il file video non è valido.';
+  }
+
+  if (mimeType === 'video/webm') {
+    return hasPrefix(bytes, [0x1a, 0x45, 0xdf, 0xa3]) ? null : 'Il file WebM non è valido.';
+  }
+
+  return null;
+}
+
+function hasPrefix(bytes: Uint8Array, signature: number[]): boolean {
+  if (bytes.length < signature.length) return false;
+  return signature.every((value, index) => bytes[index] === value);
+}
+
+function hasAscii(bytes: Uint8Array, offset: number, text: string): boolean {
+  if (bytes.length < offset + text.length) return false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    if (bytes[offset + index] !== text.charCodeAt(index)) return false;
+  }
+
+  return true;
+}
