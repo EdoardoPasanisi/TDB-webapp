@@ -28,9 +28,9 @@
   /* Nav sizing */
   --bottom-nav-h: 118px;
   --topbar-h: 56px;
-  --desktop-topbar-h: 140px;
-  --desktop-main-offset: 156px;
-  --desktop-main-offset-back: 208px;
+  --desktop-topbar-h: 68px;
+  --desktop-main-offset: 84px;
+  --desktop-main-offset-back: 136px;
   --desktop-chat-composer-lift: 72px;
 
   /* Safe area (iOS) */

@@ -86,7 +86,11 @@ export async function GET(request: NextRequest) {
       error: userErr,
     } = await supabase.auth.getUser();
 
-    if (userErr || !user) {
+    // PKCE code verifier può mancare se il link è aperto in un browser diverso.
+    // In quel caso getUser() fallisce ma l'email è già confermata: usiamo la sessione.
+    const resolvedUser = user ?? (await supabase.auth.getSession()).data.session?.user ?? null;
+
+    if (!resolvedUser) {
       return NextResponse.redirect(new URL('/login?reason=confirmation_link_used_or_expired', redirectBase));
     }
 
@@ -94,19 +98,22 @@ export async function GET(request: NextRequest) {
     const { data: existing } = await supabase
       .from('profiles')
       .select('user_id')
-      .eq('user_id', user.id)
+      .eq('user_id', resolvedUser.id)
       .maybeSingle();
 
     if (!existing) {
       await supabaseAdmin.from('profiles').insert({
-        user_id: user.id,
-        email: user.email ?? null,
+        user_id: resolvedUser.id,
+        email: resolvedUser.email ?? null,
       });
     }
 
     return response;
   } catch (e) {
     console.error('[auth callback route] error:', e);
+    // Se il PKCE fallisce ma esiste già una sessione valida, redirect a success.
+    const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
+    if (session) return response;
     if (isUsedOrExpiredLinkError(e)) {
       return NextResponse.redirect(new URL('/login?reason=confirmation_link_used_or_expired', redirectBase));
     }

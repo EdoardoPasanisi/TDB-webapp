@@ -674,7 +674,10 @@ export function FissaDataModal({
                     ) : dogsState === 'error' ? (
                       <div className="ui-error mt-2">{dogsError}</div>
                     ) : dogs.length === 0 ? (
-                      <div className="ui-muted mt-2">Nessun cane disponibile. Creane uno prima.</div>
+                      <div className="mt-2 space-y-1">
+                        <div className="ui-body ui-accentText font-[var(--font-weight-semibold)]">Nessun cane nel tuo profilo.</div>
+                        <div className="ui-muted">Vai su <strong>Profilo → I miei cani</strong> e aggiungine uno per prenotare.</div>
+                      </div>
                     ) : (
                       <div className="mt-2 space-y-2">
                         {dogs.map((d) => {

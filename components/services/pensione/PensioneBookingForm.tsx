@@ -314,7 +314,21 @@ export function PensioneBookingForm(props: Props) {
         />
       ) : null}
 
-      {!isSingleDog ? (
+      {dogs.length === 0 ? (
+        <Card>
+          <CardContent className="space-y-2 ui-minw0">
+            <div className="ui-h2">Cani</div>
+            <p className="ui-body ui-accentText font-[var(--font-weight-semibold)]">
+              Non hai ancora aggiunto nessun cane al tuo profilo.
+            </p>
+            <p className="ui-muted">
+              Vai alla sezione <strong>Profilo → I miei cani</strong> e aggiungi almeno un cane per poter effettuare una prenotazione.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {!isSingleDog && dogs.length > 0 ? (
         <Card>
           <CardContent className="space-y-3 ui-minw0">
             <div className="ui-minw0">

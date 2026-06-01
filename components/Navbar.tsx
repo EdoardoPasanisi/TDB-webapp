@@ -93,7 +93,7 @@ export default function Navbar() {
       {/* DESKTOP */}
       <header data-app-chrome="desktop-top" className="hidden md:fixed md:inset-x-0 md:top-0 md:z-50 md:block">
         <div className="ui-desktopTopShell">
-          <nav className="mx-auto grid max-w-[1400px] grid-cols-[auto_1fr_auto] items-center gap-10 px-8 py-7">
+          <nav className="mx-auto grid max-w-[1400px] grid-cols-[auto_1fr_auto] items-center gap-10 px-8 py-3">
             <Link href="/services" className="ml-8 flex items-center justify-center" aria-label="Vai ai servizi">
               <Image
                 src="/tenuta-logo.png"
@@ -101,7 +101,7 @@ export default function Navbar() {
                 width={168}
                 height={52}
                 priority
-                className="h-[96px] w-auto"
+                className="h-[44px] w-auto"
               />
             </Link>
 
