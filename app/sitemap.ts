@@ -4,7 +4,7 @@ function getSiteUrl(): string {
   return (
     process.env.NEXT_PUBLIC_SITE_URL ||
     process.env.NEXT_PUBLIC_AUTH_REDIRECT_BASE_URL ||
-    'https://app.latenutadelbaroneroma.it'
+    'https://app.tenutadelbarone.com'
   ).replace(/\/+$/, '');
 }
 
