@@ -156,6 +156,22 @@ export function UserChatPage() {
     };
   }, [thread, sending]);
 
+  // Deve girare prima di tutto il resto: imposta data-chat-layout='immersive' sul body
+  // cosicché ui-appMain abbia l'altezza corretta (100dvh) quando le chrome heights
+  // vengono misurate nel prossimo useLayoutEffect (getBoundingClientRect forza un reflow
+  // che include i nuovi stili CSS).
+  useLayoutEffect(() => {
+    const previousChatLayout = document.body.dataset.chatLayout;
+    document.body.dataset.chatLayout = 'immersive';
+    return () => {
+      if (previousChatLayout) {
+        document.body.dataset.chatLayout = previousChatLayout;
+      } else {
+        delete document.body.dataset.chatLayout;
+      }
+    };
+  }, []);
+
   useLayoutEffect(() => {
     const node = scrollRef.current;
     if (!node) return;
@@ -205,19 +221,6 @@ export function UserChatPage() {
     textarea.style.height = `${Math.max(44, textarea.scrollHeight)}px`;
   }, [draft]);
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const previousChatLayout = document.body.dataset.chatLayout;
-    document.body.dataset.chatLayout = 'immersive';
-
-    return () => {
-      if (previousChatLayout) {
-        document.body.dataset.chatLayout = previousChatLayout;
-        return;
-      }
-      delete document.body.dataset.chatLayout;
-    };
-  }, []);
 
   async function sendMessage() {
     const message = draft.trim();
