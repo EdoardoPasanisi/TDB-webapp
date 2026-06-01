@@ -56,21 +56,85 @@ function buildEmailPayload(args: {
   const notificationUrl = buildNotificationUrl(args.data);
   const escapedTitle = escapeHtml(args.title.trim());
   const escapedBody = escapeHtml(args.body.trim());
+
   const ctaHtml = notificationUrl
-    ? `<p style="margin:20px 0 0;"><a href="${notificationUrl}" style="display:inline-block;padding:10px 16px;border-radius:10px;background:#ff8200;color:#111111;text-decoration:none;font-weight:700;">Apri nell'app</a></p>`
+    ? `<tr><td style="padding:24px 40px 0;">` +
+      `<a href="${notificationUrl}" style="display:inline-block;padding:12px 24px;background:#2f4f3f;color:#ffffff;text-decoration:none;font-family:Arial,sans-serif;font-size:15px;font-weight:700;border-radius:8px;">` +
+      `Apri nell&rsquo;app &rarr;</a></td></tr>`
     : '';
 
-  const html = [
-    '<div style="font-family:Arial,sans-serif;background:#0b0f0d;color:#f3f4f6;padding:24px;">',
-    '<div style="max-width:560px;margin:0 auto;background:#141817;border:1px solid rgba(255,255,255,0.08);border-radius:16px;padding:24px;">',
-    `<p style="margin:0 0 8px;color:#ffb061;font-size:13px;font-weight:700;letter-spacing:0.02em;">TENUTA DEL BARONE</p>`,
-    `<h1 style="margin:0 0 12px;font-size:24px;line-height:1.2;color:#f3f4f6;">${escapedTitle}</h1>`,
-    `<p style="margin:0;font-size:16px;line-height:1.55;color:#d1d5db;">${escapedBody}</p>`,
-    ctaHtml,
-    '<p style="margin:20px 0 0;font-size:12px;line-height:1.45;color:#9ca3af;">Ricevi questa email solo per aggiornamenti reali sul tuo account, mai per marketing.</p>',
-    '</div>',
-    '</div>',
-  ].join('');
+  const html = `<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>${escapedTitle}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f5f0e8;">
+  <div style="display:none;max-height:0;overflow:hidden;color:#f5f0e8;">${escapedBody.slice(0, 90)}&nbsp;&zwnj;&nbsp;&zwnj;</div>
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f0e8;padding:32px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+
+          <!-- Header -->
+          <tr>
+            <td style="padding:0 0 16px;">
+              <p style="margin:0;font-family:Arial,sans-serif;font-size:13px;font-weight:700;letter-spacing:0.08em;color:#2f4f3f;text-transform:uppercase;">Tenuta del Barone</p>
+            </td>
+          </tr>
+
+          <!-- Card -->
+          <tr>
+            <td style="background:#ffffff;border-radius:12px;border:1px solid #e5ddd0;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+
+                <!-- Accent bar -->
+                <tr>
+                  <td style="background:#2f4f3f;border-radius:12px 12px 0 0;height:4px;font-size:0;">&nbsp;</td>
+                </tr>
+
+                <!-- Body -->
+                <tr>
+                  <td style="padding:32px 40px 8px;">
+                    <h1 style="margin:0 0 16px;font-family:Arial,sans-serif;font-size:22px;line-height:1.3;font-weight:700;color:#1a1a1a;">${escapedTitle}</h1>
+                    <p style="margin:0;font-family:Arial,sans-serif;font-size:16px;line-height:1.6;color:#444444;">${escapedBody}</p>
+                  </td>
+                </tr>
+
+                <!-- CTA -->
+                ${ctaHtml}
+
+                <!-- Divider -->
+                <tr>
+                  <td style="padding:28px 40px 0;">
+                    <hr style="border:none;border-top:1px solid #e5ddd0;margin:0;" />
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="padding:16px 40px 28px;">
+                    <p style="margin:0;font-family:Arial,sans-serif;font-size:12px;line-height:1.6;color:#888888;">
+                      Ricevi questa email perché hai un account su app.tenutadelbarone.com.<br />
+                      Non utilizziamo la tua email per marketing o comunicazioni promozionali.<br /><br />
+                      <strong>Tenuta del Barone srls</strong> &mdash; Via Davide Passigli 60, 00054 Fiumicino RM<br />
+                      P.IVA 16378301002 &mdash; <a href="mailto:info@tenutadelbarone.com" style="color:#2f4f3f;text-decoration:none;">info@tenutadelbarone.com</a>
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
 
   const text = [
     args.title.trim(),
@@ -79,7 +143,10 @@ function buildEmailPayload(args: {
     notificationUrl ? '' : null,
     notificationUrl ? `Apri nell'app: ${notificationUrl}` : null,
     '',
-    'Ricevi questa email solo per aggiornamenti reali sul tuo account, mai per marketing.',
+    '---',
+    'Tenuta del Barone srls — Via Davide Passigli 60, 00054 Fiumicino RM',
+    'P.IVA 16378301002 — info@tenutadelbarone.com',
+    'Ricevi questa email perché hai un account su app.tenutadelbarone.com.',
   ]
     .filter((line) => line !== null)
     .join('\n');
@@ -87,7 +154,7 @@ function buildEmailPayload(args: {
   return {
     from: RESEND_FROM_EMAIL,
     to: [args.toEmail],
-    subject: args.title.trim(),
+    subject: `${args.title.trim()} — Tenuta del Barone`,
     html,
     text,
     reply_to: RESEND_REPLY_TO_EMAIL || undefined,
