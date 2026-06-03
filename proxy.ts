@@ -86,10 +86,16 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // Legge utente dal server
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Legge utente dal server — in caso di errore di rete lascia passare anziché crashare
+  let user: User | null = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // Supabase temporaneamente non raggiungibile: lasciamo passare la request.
+    // Il page component farà il suo auth check e gestirà il caso no-session.
+    return response;
+  }
 
   // 1) Non loggato → login
   if (!user) {
