@@ -240,6 +240,15 @@ button {
   body[data-chat-layout='immersive'] .ui-appMain {
     overflow: hidden;
   }
+  /* Altezza esplicita per il container chat: bypassa h-full + data-attribute chain */
+  .ui-chatPage {
+    height: calc(100dvh - var(--topbar-h) - var(--bottom-nav-h) - var(--safe-bottom));
+  }
+  @media (min-width: 768px) {
+    .ui-chatPage {
+      height: calc(100dvh - var(--desktop-main-offset));
+    }
+  }
   .ui-chatComposerDock {
     background: var(--brand-bg);
     padding-left: 16px;
@@ -911,6 +920,14 @@ button {
     padding: 16px;
     overflow-y: auto;
   }
+  .ui-modalBody--mobile-safe {
+    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 16px);
+  }
+  @media (min-width: 768px) {
+    .ui-modalBody--mobile-safe {
+      padding-bottom: 16px;
+    }
+  }
   .ui-modalFooter {
     padding: 16px;
     border-top: 1px solid var(--border);
@@ -1263,6 +1280,14 @@ button {
   .ui-notificationPanel--desktop {
     right: 24px;
     top: calc(var(--desktop-topbar-h) + 16px);
+  }
+  @media (max-width: 767px) {
+    .ui-notificationPanel--desktop {
+      left: 12px;
+      right: 12px;
+      top: 80px;
+      width: auto;
+    }
   }
   .ui-notificationPanel__header {
     display: flex;

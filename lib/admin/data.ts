@@ -1871,7 +1871,7 @@ export async function getAdminOverview(
 ): Promise<AdminOverview> {
   const now = new Date();
   const startDate = now.toISOString().slice(0, 10);
-  const endDate = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 14).toISOString().slice(0, 10);
+  const endDate = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 180).toISOString().slice(0, 10);
   const urgentEndDate = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10);
 
   const [usersRes, dogsRes, pendingDocsRes, agendaData] = await Promise.all([

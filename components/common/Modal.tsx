@@ -57,8 +57,8 @@ export function Modal({ open, title, onClose, children }: Props) {
           </Button>
         </div>
 
-        {/* body scrollable */}
-        <div className="ui-modalBody">{children}</div>
+        {/* body scrollable — padding-bottom per non finire sotto la bottom nav su mobile */}
+        <div className="ui-modalBody ui-modalBody--mobile-safe">{children}</div>
       </div>
     </div>
   );

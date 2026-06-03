@@ -33,7 +33,7 @@ function firstNonEmpty(...values: Array<string | null | undefined>): string {
   return '';
 }
 
-function buildAddressLine(address: NominatimAddress, displayName?: string): string {
+function buildAddressLine(address: NominatimAddress, displayName?: string, queryHint?: string): string {
   const road = firstNonEmpty(
     address.road,
     address.pedestrian,
@@ -49,7 +49,17 @@ function buildAddressLine(address: NominatimAddress, displayName?: string): stri
     .filter(Boolean)[0] ?? '';
 
   const line = [road, houseNumber].filter(Boolean).join(' ').trim();
-  return line || fallback;
+  const result = line || fallback;
+
+  // Se Nominatim non ha restituito il numero civico ma l'utente lo aveva digitato, lo appendiamo.
+  if (!houseNumber && queryHint) {
+    const trailingNumber = queryHint.trim().match(/\s+(\d+[a-zA-Z]?)$/);
+    if (trailingNumber?.[1] && !result.match(/\d/)) {
+      return `${result} ${trailingNumber[1]}`.trim();
+    }
+  }
+
+  return result;
 }
 
 function extractCity(address: NominatimAddress): string {
@@ -74,9 +84,9 @@ function extractProvince(address: NominatimAddress): string {
   return '';
 }
 
-function mapSuggestion(item: NominatimSearchItem): AddressSuggestion | null {
+function mapSuggestion(item: NominatimSearchItem, queryHint?: string): AddressSuggestion | null {
   const address = item.address ?? {};
-  const dog_address_line = buildAddressLine(address, item.display_name);
+  const dog_address_line = buildAddressLine(address, item.display_name, queryHint);
   const dog_city = extractCity(address);
   const dog_zip_code = firstNonEmpty(address.postcode);
   const dog_province = extractProvince(address);
@@ -137,7 +147,7 @@ async function searchItalianAddresses(query: string): Promise<AddressSuggestion[
   const unique = new Set<string>();
 
   return payload
-    .map(mapSuggestion)
+    .map((item) => mapSuggestion(item, query))
     .filter((item): item is AddressSuggestion => {
       if (!item) return false;
       const key = [

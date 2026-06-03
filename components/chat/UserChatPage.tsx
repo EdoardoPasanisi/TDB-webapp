@@ -328,7 +328,7 @@ export function UserChatPage() {
     : [];
 
   return (
-    <main className="-mx-4 h-full min-h-0 overflow-hidden bg-[var(--brand-bg)] text-[var(--text)] md:mx-0">
+    <main className="-mx-4 ui-chatPage min-h-0 overflow-hidden bg-[var(--brand-bg)] text-[var(--text)] md:mx-0">
       <div className="relative mx-auto h-full min-h-0 w-full max-w-5xl overflow-hidden bg-[var(--brand-bg)] md:h-full md:min-h-0 md:px-4">
         <div
           ref={headerRef}

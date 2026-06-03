@@ -624,7 +624,7 @@ export function DogForm({
         </CardContent>
       </Card> 
 
-      <div className="sticky bottom-0 -mx-4 mt-6 ui-stickyFooter px-4 py-3">
+      <div className="mt-6 pt-4 border-t border-[var(--border)]">
         <div className="grid gap-2 sm:grid-cols-2">
           <Button
             type="submit"
