@@ -133,11 +133,21 @@ export async function proxy(request: NextRequest) {
   }
 
   if (pathname.startsWith('/admin')) {
-    const { data: staffAccess, error: staffError } = await supabase
-      .from('staff_accounts')
-      .select('role, is_active')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    let staffAccess: { role: string; is_active: boolean } | null = null;
+    let staffError: unknown = null;
+    try {
+      const result = await supabase
+        .from('staff_accounts')
+        .select('role, is_active')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      staffAccess = result.data;
+      staffError = result.error;
+    } catch {
+      // Supabase temporaneamente non raggiungibile: lasciamo passare.
+      // La pagina admin farà il suo check via API routes.
+      return response;
+    }
 
     if (staffError || !staffAccess || staffAccess.is_active === false) {
       const url = request.nextUrl.clone();
