@@ -253,7 +253,7 @@ button {
     background: var(--brand-bg);
     padding-left: 16px;
     padding-right: 16px;
-    padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 90px);
+    padding-bottom: 6px;
   }
   .ui-panel {
     border: 1px solid var(--border);
