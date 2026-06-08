@@ -42,7 +42,7 @@ export default function LoginClient() {
     if (justVerified === '1') setMessage('Email verificata. Ora puoi accedere.');
     if (reason === 'email_not_confirmed') setMessage('Conferma l’email per poter accedere.');
     if (reason === 'confirmation_link_used_or_expired') {
-      setMessage('Link già usato o scaduto. Se la conferma è andata a buon fine, prova ad accedere.');
+      setMessage('La tua email è quasi certamente già confermata: prova ad accedere qui sotto. Il link di conferma è valido una sola volta.');
     }
     if (callbackError === 'callback_failed' || callbackError === 'callback_session_invalid') {
       setMessage('Non sono riuscito a completare la conferma da questo link. Prova ad accedere o richiedi un nuovo invio.');

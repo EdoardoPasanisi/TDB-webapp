@@ -2,7 +2,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { getAuthRedirectBaseFromRequest } from '@/lib/auth/getAuthRedirectBase';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -94,20 +93,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL('/login?reason=confirmation_link_used_or_expired', redirectBase));
     }
 
-    // ✅ CREA profilo SOLO DOPO conferma email (qui)
-    const { data: existing } = await supabase
-      .from('profiles')
-      .select('user_id')
-      .eq('user_id', resolvedUser.id)
-      .maybeSingle();
-
-    if (!existing) {
-      await supabaseAdmin.from('profiles').insert({
-        user_id: resolvedUser.id,
-        email: resolvedUser.email ?? null,
-      });
-    }
-
+    // Il profilo viene creato automaticamente dal trigger DB `on_auth_user_created`
+    // su auth.users (vedi supabase/legacy_migrations/20260608_auto_create_profile_on_signup.sql),
+    // quindi qui non serve più crearlo: esiste sempre, anche se questo callback fallisce.
     return response;
   } catch (e) {
     console.error('[auth callback route] error:', e);
