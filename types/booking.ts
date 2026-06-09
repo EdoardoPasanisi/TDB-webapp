@@ -31,9 +31,10 @@ export type AccommodationKey =
 export interface BookingDogExtras {
   grooming?: boolean;
   vaccine?: boolean;
-  trackingSessions?: number;
+  trackingSessions?: number; // Ricerca olfattiva
   fitnessSessions?: number;
   walkSessions?: number;
+  trekkingSessions?: number; // Trekking in campagna
   therapyActive?: boolean;
   therapyNotes?: string;
 }

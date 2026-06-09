@@ -88,6 +88,7 @@ function summarizeExtras(extrasList: Array<BookingDogExtras | null | undefined>)
   let tracking = 0;
   let fitness = 0;
   let walk = 0;
+  let trekking = 0;
 
   for (const ex of extrasList) {
     if (!ex) continue;
@@ -96,14 +97,16 @@ function summarizeExtras(extrasList: Array<BookingDogExtras | null | undefined>)
     if (typeof ex.trackingSessions === 'number') tracking += ex.trackingSessions;
     if (typeof ex.fitnessSessions === 'number') fitness += ex.fitnessSessions;
     if (typeof ex.walkSessions === 'number') walk += ex.walkSessions;
+    if (typeof ex.trekkingSessions === 'number') trekking += ex.trekkingSessions;
   }
 
   const parts: string[] = [];
   if (grooming > 0) parts.push('Toelettatura');
   if (vaccine > 0) parts.push('Vaccino');
-  if (tracking > 0) parts.push(`Tracking (${tracking})`);
+  if (tracking > 0) parts.push(`Ricerca olfattiva (${tracking})`);
   if (fitness > 0) parts.push(`Fitness (${fitness})`);
   if (walk > 0) parts.push(`Passeggiate (${walk})`);
+  if (trekking > 0) parts.push(`Trekking (${trekking})`);
 
   return parts.length > 0 ? parts.join(', ') : 'Nessun extra';
 }

@@ -20,6 +20,7 @@ const ADMIN_SERVICE_KEY_SET = new Set<AdminServiceKey>([
   'TRACKING',
   'FITNESS',
   'PASSEGGIATA',
+  'TREKKING',
   'TERAPIA',
   'TAXI_DOG',
 ]);

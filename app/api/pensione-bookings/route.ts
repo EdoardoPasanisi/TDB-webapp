@@ -131,12 +131,16 @@ function parsePerDogForm(value: unknown): PerDogForm | null {
   const trackingSessions = normalizeNonNegativeInteger(value.trackingSessions);
   const fitnessSessions = normalizeNonNegativeInteger(value.fitnessSessions);
   const walkSessions = normalizeNonNegativeInteger(value.walkSessions);
+  // Retrocompatibilità: prenotazioni salvate prima del trekking possono non avere il campo.
+  const trekkingSessions =
+    value.trekkingSessions === undefined ? 0 : normalizeNonNegativeInteger(value.trekkingSessions);
   const therapy = normalizeTherapy(value.therapy);
   const therapyNotes = String(value.therapyNotes ?? '');
 
   if (!ACCOMMODATION_KEYS.has(accommodationType)) return null;
   if (grooming === null || vaccine === null) return null;
   if (trackingSessions === null || fitnessSessions === null || walkSessions === null) return null;
+  if (trekkingSessions === null) return null;
   if (therapy === null || therapy === '') return null;
   if (therapy === 'YES' && !therapyNotes.trim()) return null;
 
@@ -147,6 +151,7 @@ function parsePerDogForm(value: unknown): PerDogForm | null {
     trackingSessions,
     fitnessSessions,
     walkSessions,
+    trekkingSessions,
     therapy,
     therapyNotes,
   };

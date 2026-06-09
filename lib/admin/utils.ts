@@ -13,9 +13,10 @@ export const ADMIN_SERVICE_OPTIONS: Array<{ key: AdminServiceKey; label: string 
   { key: 'CONSULENZA', label: 'Consulenza' },
   { key: 'TOELETTATURA', label: 'Toelettatura' },
   { key: 'VACCINAZIONE', label: 'Vaccinazione' },
-  { key: 'TRACKING', label: 'Tracking' },
+  { key: 'TRACKING', label: 'Ricerca olfattiva' },
   { key: 'FITNESS', label: 'Fitness' },
   { key: 'PASSEGGIATA', label: 'Passeggiata' },
+  { key: 'TREKKING', label: 'Trekking' },
   { key: 'TERAPIA', label: 'Terapia' },
   { key: 'TAXI_DOG', label: 'Taxi dog' },
 ];
@@ -94,9 +95,10 @@ export function getAdminServiceLabel(
   if (serviceKey === 'CONSULENZA') return getServiceLabel('CONSULENZA', serviceVariant ?? null);
   if (serviceKey === 'TOELETTATURA') return 'Toelettatura';
   if (serviceKey === 'VACCINAZIONE') return 'Vaccinazione';
-  if (serviceKey === 'TRACKING') return 'Tracking';
+  if (serviceKey === 'TRACKING') return 'Ricerca olfattiva';
   if (serviceKey === 'FITNESS') return 'Fitness';
   if (serviceKey === 'PASSEGGIATA') return 'Passeggiata';
+  if (serviceKey === 'TREKKING') return 'Trekking';
   if (serviceKey === 'TERAPIA') return 'Terapia';
   if (serviceKey === 'TAXI_DOG') return 'Taxi dog';
 
@@ -129,6 +131,7 @@ export function bookingMatchesServiceKey(args: {
   if (filterKey === 'TRACKING') return Boolean((extras?.trackingSessions ?? 0) > 0);
   if (filterKey === 'FITNESS') return Boolean((extras?.fitnessSessions ?? 0) > 0);
   if (filterKey === 'PASSEGGIATA') return Boolean((extras?.walkSessions ?? 0) > 0);
+  if (filterKey === 'TREKKING') return Boolean((extras?.trekkingSessions ?? 0) > 0);
   if (filterKey === 'TERAPIA') return Boolean(extras?.therapyActive);
   if (filterKey === 'TAXI_DOG') return taxiOption ? taxiOption !== 'NONE' : Boolean(taxiEnabled);
 

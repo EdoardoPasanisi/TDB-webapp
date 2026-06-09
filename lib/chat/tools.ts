@@ -318,9 +318,10 @@ async function getServicePricingReference(args: { serviceKey: unknown }) {
       })),
       extras: {
         vaccine: EXTRA_PRICES.VACCINE,
-        tracking: EXTRA_PRICES.TRACKING,
+        ricercaOlfattiva: EXTRA_PRICES.TRACKING, // 20€ / 15 min
         fitness: EXTRA_PRICES.FITNESS,
         walk: EXTRA_PRICES.WALK,
+        trekking: EXTRA_PRICES.TREKKING, // 30€ / 45 min
       },
       discounts: [
         { dogsCount: 1, accommodationDiscountPercent: 0 },

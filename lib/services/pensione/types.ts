@@ -18,9 +18,10 @@ export interface PerDogForm {
   accommodationType: AccommodationKey;
   grooming: boolean;
   vaccine: boolean;
-  trackingSessions: number;
+  trackingSessions: number; // Ricerca olfattiva
   fitnessSessions: number;
   walkSessions: number;
+  trekkingSessions: number; // Trekking in campagna
 
   therapy: TherapyAnswer;
   therapyNotes: string;

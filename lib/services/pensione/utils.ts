@@ -173,7 +173,8 @@ export function computePricing(args: {
       (form.vaccine ? EXTRA_PRICES.VACCINE : 0) +
       form.trackingSessions * EXTRA_PRICES.TRACKING +
       form.fitnessSessions * EXTRA_PRICES.FITNESS +
-      form.walkSessions * EXTRA_PRICES.WALK;
+      form.walkSessions * EXTRA_PRICES.WALK +
+      form.trekkingSessions * EXTRA_PRICES.TREKKING;
   }
 
   const taxiPrice = computeTaxiPrice(taxiOption, taxiDistanceBand);
@@ -202,6 +203,7 @@ export function buildExtrasPayload(form: PerDogForm): BookingDogExtras {
     trackingSessions: form.trackingSessions,
     fitnessSessions: form.fitnessSessions,
     walkSessions: form.walkSessions,
+    trekkingSessions: form.trekkingSessions,
     therapyActive: form.therapy === 'YES',
     therapyNotes: form.therapy === 'YES' ? form.therapyNotes : '',
   };
@@ -230,7 +232,8 @@ export function computePerDogTotals(args: {
     (form.vaccine ? EXTRA_PRICES.VACCINE : 0) +
     form.trackingSessions * EXTRA_PRICES.TRACKING +
     form.fitnessSessions * EXTRA_PRICES.FITNESS +
-    form.walkSessions * EXTRA_PRICES.WALK;
+    form.walkSessions * EXTRA_PRICES.WALK +
+    form.trekkingSessions * EXTRA_PRICES.TREKKING;
 
   return {
     accommodation_price_per_day: acc.pricePerDay,

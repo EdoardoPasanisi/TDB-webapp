@@ -537,7 +537,7 @@ export function BookingDetailModal({
                                   items={[
                                     { label: 'Vaccinazione', value: dog.extras?.vaccine ? 'Richiesta' : null },
                                     {
-                                      label: 'Tracking',
+                                      label: 'Ricerca olfattiva',
                                       value:
                                         (dog.extras?.trackingSessions ?? 0) > 0
                                           ? `${dog.extras?.trackingSessions} sessioni`
@@ -555,6 +555,13 @@ export function BookingDetailModal({
                                       value:
                                         (dog.extras?.walkSessions ?? 0) > 0
                                           ? `${dog.extras?.walkSessions} uscite`
+                                          : null,
+                                    },
+                                    {
+                                      label: 'Trekking',
+                                      value:
+                                        (dog.extras?.trekkingSessions ?? 0) > 0
+                                          ? `${dog.extras?.trekkingSessions} sessioni`
                                           : null,
                                     },
                                   ]}

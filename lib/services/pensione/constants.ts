@@ -38,11 +38,14 @@ export const TAXI_PRICES_WITH_DISTANCE: Record<
 };
 
 // Prezzi extra “semplici”
+// NB: la chiave interna TRACKING è mantenuta per compatibilità con le prenotazioni
+// già salvate; corrisponde al servizio “Ricerca olfattiva” (15 min).
 export const EXTRA_PRICES = {
   VACCINE: 70,
-  TRACKING: 30,
+  TRACKING: 20, // Ricerca olfattiva (15 min)
   FITNESS: 25,
   WALK: 15,
+  TREKKING: 30, // Trekking in campagna (45 min)
 } as const;
 
 /**

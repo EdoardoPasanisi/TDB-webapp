@@ -77,6 +77,7 @@ test('computePricing applies dog discount, extras and taxi correctly', () => {
         trackingSessions: 1,
         fitnessSessions: 0,
         walkSessions: 2,
+        trekkingSessions: 0,
         therapy: 'NO',
         therapyNotes: '',
       },
@@ -87,6 +88,7 @@ test('computePricing applies dog discount, extras and taxi correctly', () => {
         trackingSessions: 0,
         fitnessSessions: 0,
         walkSessions: 0,
+        trekkingSessions: 0,
         therapy: '',
         therapyNotes: '',
       },
@@ -99,9 +101,10 @@ test('computePricing applies dog discount, extras and taxi correctly', () => {
   assert.equal(pricing.discountPercent, 15);
   assert.equal(pricing.alloggioTotalFull, 126);
   assert.ok(Math.abs(pricing.alloggioTotalDiscounted - 107.1) < 1e-9);
-  assert.equal(pricing.extrasTotal, 235);
+  // extras dog-1: toelettatura 35 + vaccino 70 + ricerca olfattiva 1×20 + passeggiate 2×15 = 155
+  assert.equal(pricing.extrasTotal, 225);
   assert.equal(pricing.taxiPrice, 70);
-  assert.ok(Math.abs(pricing.totalPrice - 342.1) < 1e-9);
+  assert.ok(Math.abs(pricing.totalPrice - 332.1) < 1e-9);
 });
 
 test('computePerDogTotals and buildExtrasPayload keep per-dog bookkeeping aligned', () => {
@@ -112,6 +115,7 @@ test('computePerDogTotals and buildExtrasPayload keep per-dog bookkeeping aligne
     trackingSessions: 1,
     fitnessSessions: 2,
     walkSessions: 1,
+    trekkingSessions: 1,
     therapy: 'YES',
     therapyNotes: 'Controllare zampa posteriore',
   };
@@ -129,11 +133,12 @@ test('computePerDogTotals and buildExtrasPayload keep per-dog bookkeeping aligne
     daysCount: 3,
   });
 
+  // extras: toelettatura 50 + vaccino 70 + ricerca olfattiva 1×20 + fitness 2×25 + passeggiata 1×15 + trekking 1×30 = 235
   assert.deepEqual(totals, {
     accommodation_price_per_day: 35,
     accommodation_subtotal: 105,
-    extras_subtotal: 215,
-    per_dog_total: 320,
+    extras_subtotal: 235,
+    per_dog_total: 340,
     grooming_price: 50,
   });
 
@@ -143,6 +148,7 @@ test('computePerDogTotals and buildExtrasPayload keep per-dog bookkeeping aligne
     trackingSessions: 1,
     fitnessSessions: 2,
     walkSessions: 1,
+    trekkingSessions: 1,
     therapyActive: true,
     therapyNotes: 'Controllare zampa posteriore',
   });

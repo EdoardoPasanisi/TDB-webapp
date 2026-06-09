@@ -12,13 +12,16 @@ function extrasToLines(extras: BookingDogExtras | null | undefined): string[] {
   if (extras.vaccine) lines.push('Vaccino');
 
   if (typeof extras.trackingSessions === 'number' && extras.trackingSessions > 0) {
-    lines.push(`Tracking: ${extras.trackingSessions}`);
+    lines.push(`Ricerca olfattiva: ${extras.trackingSessions}`);
   }
   if (typeof extras.fitnessSessions === 'number' && extras.fitnessSessions > 0) {
     lines.push(`Fitness: ${extras.fitnessSessions}`);
   }
   if (typeof extras.walkSessions === 'number' && extras.walkSessions > 0) {
     lines.push(`Passeggiate: ${extras.walkSessions}`);
+  }
+  if (typeof extras.trekkingSessions === 'number' && extras.trekkingSessions > 0) {
+    lines.push(`Trekking: ${extras.trekkingSessions}`);
   }
 
   return lines;

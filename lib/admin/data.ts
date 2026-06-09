@@ -456,9 +456,10 @@ function bookingExtraLabels(extrasList: Array<BookingDogExtras | null | undefine
     if (!extras) continue;
     if (extras.grooming) labels.add('Toelettatura');
     if (extras.vaccine) labels.add('Vaccinazione');
-    if ((extras.trackingSessions ?? 0) > 0) labels.add(`Tracking x${extras.trackingSessions}`);
+    if ((extras.trackingSessions ?? 0) > 0) labels.add(`Ricerca olfattiva x${extras.trackingSessions}`);
     if ((extras.fitnessSessions ?? 0) > 0) labels.add(`Fitness x${extras.fitnessSessions}`);
     if ((extras.walkSessions ?? 0) > 0) labels.add(`Passeggiate x${extras.walkSessions}`);
+    if ((extras.trekkingSessions ?? 0) > 0) labels.add(`Trekking x${extras.trekkingSessions}`);
     if (extras.therapyActive) labels.add('Terapia');
   }
 
@@ -512,7 +513,7 @@ function buildSingleDogServiceSummaryLines(args: {
 
   if (serviceKey === 'TRACKING' && (extras?.trackingSessions ?? 0) > 0) {
     const count = extras?.trackingSessions ?? 0;
-    lines.push(`${count} session${count === 1 ? 'e' : 'i'} tracking`);
+    lines.push(`${count} session${count === 1 ? 'e' : 'i'} ricerca olfattiva`);
   }
 
   if (serviceKey === 'FITNESS' && (extras?.fitnessSessions ?? 0) > 0) {
@@ -523,6 +524,11 @@ function buildSingleDogServiceSummaryLines(args: {
   if (serviceKey === 'PASSEGGIATA' && (extras?.walkSessions ?? 0) > 0) {
     const count = extras?.walkSessions ?? 0;
     lines.push(`${count} passeggiat${count === 1 ? 'a' : 'e'}`);
+  }
+
+  if (serviceKey === 'TREKKING' && (extras?.trekkingSessions ?? 0) > 0) {
+    const count = extras?.trekkingSessions ?? 0;
+    lines.push(`${count} session${count === 1 ? 'e' : 'i'} trekking`);
   }
 
   if (serviceKey === 'TERAPIA' && extras?.therapyActive) {

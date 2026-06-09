@@ -50,9 +50,10 @@ Tutti i servizi emersi finora sono considerati attivi:
 - Taxi Dog
 - Toelettatura
 - Richiamo vaccinazione
-- Tracking
+- Ricerca olfattiva
 - Dog Fitness
 - Passeggiata nel bosco
+- Trekking in campagna
 - Piscina per cani (stagionale, quando fa caldo)
 
 **Nota:** potrebbero esistere altri servizi non ancora consolidati nella knowledge base.
@@ -89,9 +90,18 @@ Le sistemazioni da considerare oggi sono:
 - Appartamento con presenza
 - Hotel
 
+### Descrizioni sistemazioni (confermate)
+- **Chalet**: una casetta in legno recintata con giardino privato. È riservata **solo ai cani di piccola taglia**.
+- **Appartamento con presenza**: indica la **presenza della persona durante la notte**, accanto al cane.
+
+### Presenza della persona — chiarimento importante
+- **Durante il giorno, tutti i cani di tutti gli alloggi hanno la presenza della persona**: è presente tutto il personale che li segue e fa fare loro attività.
+- La dicitura “con presenza” riferita all’appartamento riguarda **solo la notte**: non significa che gli altri cani siano lasciati soli di giorno.
+- Il chatbot deve evitare di far intendere che, negli altri alloggi, manchi attenzione o cura durante il giorno: la cura quotidiana è garantita per tutti.
+
 **Da validare con amministrazione:**
 - prezzi aggiornati di tutte le sistemazioni
-- descrizione ufficiale delle differenze tra le varie sistemazioni
+- descrizione ufficiale delle differenze tra Box, Box con giardino, Appartamento e Hotel
 
 ### Regole già confermate
 - Gli sconti per più animali esistono e funzionano a percentuale come indicato nell’app.
@@ -215,21 +225,30 @@ La consulenza cinofila serve per supportare il cliente su dubbi generali legati 
 - Si applica quando viene richiesto e accettato dal veterinario
 - Il veterinario valuta sempre prima la condizione del cane
 
-### Tracking
+### Ricerca olfattiva
 - Servizio attivo
+- Durata: **15 minuti** — Prezzo: **20€** a sessione
+- È l’attività precedentemente chiamata “Tracking”
 
 ### Dog Fitness
 - Servizio attivo
+- Durata: **30 minuti** — Prezzo: **25€** a sessione
 
 ### Passeggiata nel bosco
 - Servizio attivo
+- Durata: **15 minuti** — Prezzo: **15€** a sessione
+
+### Trekking in campagna
+- Servizio attivo
+- È un’escursione in campagna nei dintorni della struttura
+- Durata: **45 minuti** — Prezzo: **30€** a sessione
 
 ### Piscina per cani
 - Servizio attivo solo quando fa caldo
 - Va trattata come attività stagionale
 
 **Da validare con amministrazione:**
-- descrizione ufficiale breve di tracking, dog fitness, passeggiata nel bosco e piscina per cani
+- descrizione ufficiale breve di piscina per cani
 
 ---
 
@@ -409,9 +428,10 @@ Il chatbot deve essere prudente su:
 11. Il prezzo corretto della **consulenza cinofila** è quello attuale oppure **40 €**?
 
 12. Potete fornire una **descrizione ufficiale breve** per:
-   - Tracking
+   - Ricerca olfattiva
    - Dog Fitness
    - Passeggiata nel bosco
+   - Trekking in campagna
    - Piscina per cani
 
 13. Qual è la **distanza massima ufficiale** coperta dal Taxi Dog?

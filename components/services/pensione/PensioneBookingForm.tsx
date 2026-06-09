@@ -653,8 +653,8 @@ export function PensioneBookingForm(props: Props) {
                     <div className="ui-body font-[var(--font-weight-semibold)]">Attività</div>
                     <div className="grid grid-cols-1 gap-2 ui-minw0">
                       <Stepper
-                        label="Tracking"
-                        hint="30€ / 45 min"
+                        label="Ricerca olfattiva"
+                        hint="20€ / 15 min"
                         value={form.trackingSessions}
                         onChange={(v) => onUpdatePerDogField(dogId, 'trackingSessions', v)}
                       />
@@ -669,6 +669,12 @@ export function PensioneBookingForm(props: Props) {
                         hint="15€ / 15 min"
                         value={form.walkSessions}
                         onChange={(v) => onUpdatePerDogField(dogId, 'walkSessions', v)}
+                      />
+                      <Stepper
+                        label="Trekking in campagna"
+                        hint="30€ / 45 min"
+                        value={form.trekkingSessions}
+                        onChange={(v) => onUpdatePerDogField(dogId, 'trekkingSessions', v)}
                       />
                     </div>
                   </div>

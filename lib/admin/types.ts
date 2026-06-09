@@ -26,6 +26,7 @@ export type AdminServiceKey =
   | 'TRACKING'
   | 'FITNESS'
   | 'PASSEGGIATA'
+  | 'TREKKING'
   | 'TERAPIA'
   | 'TAXI_DOG';
 

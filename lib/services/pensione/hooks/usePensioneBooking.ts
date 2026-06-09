@@ -266,6 +266,7 @@ export function usePensioneBooking() {
           trackingSessions: 0,
           fitnessSessions: 0,
           walkSessions: 0,
+          trekkingSessions: 0,
           therapy: '',
           therapyNotes: '',
         };
@@ -445,6 +446,7 @@ export function usePensioneBooking() {
           trackingSessions: extras.trackingSessions ?? 0,
           fitnessSessions: extras.fitnessSessions ?? 0,
           walkSessions: extras.walkSessions ?? 0,
+          trekkingSessions: extras.trekkingSessions ?? 0,
           therapy: extras.therapyActive ? 'YES' : 'NO',
           therapyNotes: extras.therapyNotes ?? '',
         };
