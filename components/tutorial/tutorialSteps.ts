@@ -145,20 +145,20 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   {
     id: 'chat',
     scene: 'chat',
-    spot: 'chat-area',
+    spot: 'nav-chat',
     chip: 'Assistenza',
     title: 'La chat di assistenza',
-    body: 'Hai una domanda? Aprila dall’icona Chat e scrivici: ti rispondiamo qui dentro. È il modo più veloce per avere assistenza.',
+    body: 'La chat si apre da qui: scrivici per qualsiasi domanda e ti rispondiamo dentro l’app. È il modo più veloce per avere assistenza.',
   },
 
   // --- IMPOSTAZIONI ---
   {
     id: 'settings',
     scene: 'settings',
-    spot: 'settings-list',
+    spot: 'nav-settings',
     chip: 'Impostazioni',
     title: 'Le impostazioni',
-    body: 'Dall’icona Impostazioni gestisci account, documenti, password e notifiche. Da qui puoi anche rivedere questo tutorial quando vuoi.',
+    body: 'Le impostazioni si aprono da qui: account, documenti, password e notifiche. Da qui puoi anche rivedere questo tutorial quando vuoi.',
   },
 
   {

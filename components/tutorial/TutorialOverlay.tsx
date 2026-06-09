@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { TutorialScene } from './TutorialScene';
 import type { TutorialStep } from './tutorialSteps';
@@ -9,14 +9,14 @@ type Rect = { top: number; left: number; width: number; height: number };
 
 const SPOT_PADDING = 8;
 
-/** Tra più elementi con lo stesso data-spot (mobile + desktop), prende quello visibile. */
+/** Restituisce l'elemento data-spot effettivamente VISIBILE (mobile o desktop), o null. */
 function findVisibleSpot(container: HTMLElement, spot: string): HTMLElement | null {
   const els = Array.from(container.querySelectorAll<HTMLElement>(`[data-spot="${spot}"]`));
   for (const el of els) {
     const r = el.getBoundingClientRect();
     if (r.width > 0 && r.height > 0 && el.offsetParent !== null) return el;
   }
-  return els[0] ?? null;
+  return null;
 }
 
 /** Centra l'elemento nella scena agendo su scrollTop (la scena ha overflow:hidden). */
@@ -46,64 +46,57 @@ export function TutorialOverlay({
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [rect, setRect] = useState<Rect | null>(null);
   const [placement, setPlacement] = useState<'top' | 'bottom'>('bottom');
-  const [mounted, setMounted] = useState(false);
+  // client-only (per createPortal) senza setState in effect → SSR-safe e lint-clean
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
 
-  useEffect(() => setMounted(true), []);
-
-  const measure = useCallback(() => {
-    if (!step.spot) {
-      setRect(null);
-      return;
-    }
-    const container = sceneRef.current;
-    if (!container) return;
-    const el = findVisibleSpot(container, step.spot);
-    if (!el) {
-      setRect(null);
-      return;
-    }
-    const r = el.getBoundingClientRect();
-    setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-    // Se l'elemento è nella metà bassa dello schermo, sposta la card in alto.
-    const centerY = r.top + r.height / 2;
-    setPlacement(centerY > window.innerHeight * 0.52 ? 'top' : 'bottom');
-  }, [step.spot]);
-
-  // Centra l'elemento e misura quando cambia lo step.
+  // Trova / centra (una volta) / misura l'elemento. Ri-misura di continuo finché lo
+  // step è attivo: auto-correttivo contro layout tardivo, caricamento icone, sticky.
+  // Ogni setState avviene dentro la callback (rAF/interval/resize), mai sincrono
+  // nel corpo dell'effect.
   useLayoutEffect(() => {
-    setRect(null);
-    if (!step.spot) return;
+    let centered = false;
+    let lastKey = '';
 
-    let raf = 0;
-    let tries = 0;
-
-    const run = () => {
-      const container = sceneRef.current;
-      const el = container ? findVisibleSpot(container, step.spot!) : null;
-      if (el && container) {
-        centerTargetInScene(container, el);
-        measure();
+    const measureOnce = () => {
+      if (!step.spot) {
+        if (lastKey !== 'none') {
+          lastKey = 'none';
+          setRect(null);
+        }
         return;
       }
-      if (tries++ < 12) raf = requestAnimationFrame(run);
+      const container = sceneRef.current;
+      if (!container) return;
+      const el = findVisibleSpot(container, step.spot);
+      if (!el) return; // non azzerare: evita flicker mentre la scena si monta
+      if (!centered) {
+        centerTargetInScene(container, el);
+        centered = true;
+      }
+      const r = el.getBoundingClientRect();
+      const nextPlacement = r.top + r.height / 2 > window.innerHeight * 0.52 ? 'top' : 'bottom';
+      const key = `${Math.round(r.top)}:${Math.round(r.left)}:${Math.round(r.width)}:${Math.round(
+        r.height
+      )}:${nextPlacement}`;
+      if (key === lastKey) return; // evita re-render inutili
+      lastKey = key;
+      setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+      setPlacement(nextPlacement);
     };
 
-    raf = requestAnimationFrame(run);
-    return () => cancelAnimationFrame(raf);
-  }, [step.id, step.spot, measure]);
-
-  // Riallinea lo spotlight su scroll/resize.
-  useEffect(() => {
-    if (!step.spot) return;
-    const container = sceneRef.current;
-    const onChange = () => measure();
-    window.addEventListener('resize', onChange);
-    container?.addEventListener('scroll', onChange, { passive: true });
+    const raf = requestAnimationFrame(measureOnce);
+    const id = window.setInterval(measureOnce, 60);
+    window.addEventListener('resize', measureOnce);
     return () => {
-      window.removeEventListener('resize', onChange);
-      container?.removeEventListener('scroll', onChange);
+      cancelAnimationFrame(raf);
+      window.clearInterval(id);
+      window.removeEventListener('resize', measureOnce);
     };
-  }, [step.spot, measure]);
+  }, [step.id, step.spot]);
 
   // Blocca lo scroll della pagina sottostante + scorciatoie tastiera.
   useEffect(() => {
@@ -129,7 +122,7 @@ export function TutorialOverlay({
 
   return createPortal(
     <div className="tut-root" role="dialog" aria-modal="true" aria-label="Tutorial">
-      {/* Scena mock scorribile (sfondo) */}
+      {/* Scena mock (sfondo, immagine statica) */}
       <div ref={sceneRef} className="tut-scene">
         <TutorialScene scene={step.scene} />
       </div>

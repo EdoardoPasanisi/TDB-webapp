@@ -1849,6 +1849,9 @@ input[type="time"] {
     background: var(--brand-bg);
     padding: 0;
     pointer-events: none;
+    /* isola lo stacking context così il velo+spotlight coprono anche la chrome
+       sticky (z-index interno), e l'arancione illumina solo il tasto target. */
+    isolation: isolate;
   }
 
   /* Mock app shell con chrome di navigazione */
