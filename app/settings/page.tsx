@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { fetchAdminJson } from '@/lib/admin/client';
 import type { AdminStaffAccess } from '@/lib/admin/types';
+import { useTutorial } from '@/components/tutorial/TutorialProvider';
 
 function SettingActionCard({
   title,
@@ -30,6 +31,7 @@ function SettingActionCard({
 
 export default function SettingsPage() {
   const router = useRouter();
+  const { start: startTutorial } = useTutorial();
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [staffAccess, setStaffAccess] = useState<AdminStaffAccess | null>(null);
 
@@ -118,6 +120,21 @@ export default function SettingsPage() {
               title="Preferenze notifiche"
               subtitle="Scegli quali notifiche operative ricevere nell’app e, in futuro, anche via email."
               onClick={() => router.push('/settings/notifications')}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-3">
+            <SectionHeader
+              title="Guida"
+              subtitle="Riguarda l’introduzione alle funzioni dell’app."
+            />
+
+            <SettingActionCard
+              title="Rivedi il tutorial"
+              subtitle="Profilo, cani, prenotazioni, calendario e chat in un giro guidato."
+              onClick={() => startTutorial()}
             />
           </CardContent>
         </Card>
