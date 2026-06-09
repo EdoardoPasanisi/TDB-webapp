@@ -19,6 +19,15 @@ function findVisibleSpot(container: HTMLElement, spot: string): HTMLElement | nu
   return els[0] ?? null;
 }
 
+/** Centra l'elemento nella scena agendo su scrollTop (la scena ha overflow:hidden). */
+function centerTargetInScene(container: HTMLElement, el: HTMLElement) {
+  const cRect = container.getBoundingClientRect();
+  const elRect = el.getBoundingClientRect();
+  const elTopInContent = elRect.top - cRect.top + container.scrollTop;
+  const target = elTopInContent - (container.clientHeight - elRect.height) / 2;
+  container.scrollTop = Math.max(0, target);
+}
+
 export function TutorialOverlay({
   step,
   index,
@@ -71,8 +80,8 @@ export function TutorialOverlay({
     const run = () => {
       const container = sceneRef.current;
       const el = container ? findVisibleSpot(container, step.spot!) : null;
-      if (el) {
-        el.scrollIntoView({ block: 'center', behavior: 'auto' });
+      if (el && container) {
+        centerTargetInScene(container, el);
         measure();
         return;
       }

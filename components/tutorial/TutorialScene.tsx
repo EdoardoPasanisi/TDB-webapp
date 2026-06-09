@@ -95,6 +95,28 @@ function IconCalendar() {
   );
 }
 
+function BellIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-6 w-6">
+      <path
+        d="M12 4.75a4 4 0 0 0-4 4v1.19c0 .88-.29 1.74-.84 2.43l-1.1 1.4a1.75 1.75 0 0 0 1.37 2.83h9.14a1.75 1.75 0 0 0 1.37-2.83l-1.1-1.4A3.9 3.9 0 0 1 16 9.94V8.75a4 4 0 0 0-4-4Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M9.75 18.25a2.25 2.25 0 0 0 4.5 0"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.9"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 /**
  * Chrome di navigazione mock, responsive (come l'app reale):
  * - mobile: top bar (impostazioni/profilo) + bottom nav (chat / home / calendario)
@@ -112,7 +134,7 @@ function MockChrome({ children, title = 'Tenuta del Barone' }: { children: React
             <span data-spot="nav-settings" className="ui-topbarIconBtn">
               <img src="/icon-settings.png" alt="" width={24} height={24} className="h-6 w-6" />
             </span>
-            <span className="ui-topbarIconBtn" aria-hidden>🔔</span>
+            <span className="ui-topbarIconBtn" aria-hidden><BellIcon /></span>
           </div>
           <div className="ui-topbarTitle">{title}</div>
           <div className="ui-topbarSide ui-topbarSide--right">
@@ -137,7 +159,7 @@ function MockChrome({ children, title = 'Tenuta del Barone' }: { children: React
               <span data-spot="nav-settings" className="ui-desktopTopIconBtn">
                 <img src="/icon-settings.png" alt="" width={24} height={24} className="h-6 w-6" />
               </span>
-              <span className="ui-desktopTopIconBtn" aria-hidden>🔔</span>
+              <span className="ui-desktopTopIconBtn" aria-hidden><BellIcon /></span>
               <span data-spot="nav-profile" className="ui-desktopTopIconBtn">
                 <img src="/icon-user.png" alt="" width={24} height={24} className="h-6 w-6" />
               </span>
@@ -199,22 +221,6 @@ function ProfileScene() {
             </div>
           </div>
         </div>
-      </Spot>
-
-      {/* Indirizzo / contatti */}
-      <Spot id="address">
-        <Card>
-          <CardContent className="space-y-2">
-            <div className="ui-panelInset p-3">
-              <p className="ui-muted">Telefono</p>
-              <p className="ui-body mt-1">+39 333 1234567</p>
-            </div>
-            <div className="ui-panelInset p-3">
-              <p className="ui-muted">Residenza</p>
-              <p className="ui-body mt-1">Via Roma 10, 73100 Lecce (LE)</p>
-            </div>
-          </CardContent>
-        </Card>
       </Spot>
 
       {/* Indirizzo servizi */}

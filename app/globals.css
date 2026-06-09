@@ -1840,14 +1840,15 @@ input[type="time"] {
     overscroll-behavior: contain;
   }
 
-  /* Scena mock (sfondo scorribile, in stile pagina app) */
+  /* Scena mock: immagine statica, non interattiva e non scorribile dall'utente
+     (lo spostamento tra gli elementi è gestito dal tutorial via scrollTop). */
   .tut-scene {
     position: absolute;
     inset: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
     background: var(--brand-bg);
     padding: 0;
+    pointer-events: none;
   }
 
   /* Mock app shell con chrome di navigazione */

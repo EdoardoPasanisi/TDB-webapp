@@ -47,14 +47,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'Qui trovi nome, contatti, documento d’identità e liberatoria. Tienili aggiornati: ci servono per gestire le prenotazioni.',
   },
   {
-    id: 'profile-address',
-    scene: 'profile',
-    spot: 'address',
-    chip: 'Profilo',
-    title: 'Residenza e contatti',
-    body: 'Il telefono e l’indirizzo di residenza vengono usati per contattarti e per la fatturazione delle prenotazioni.',
-  },
-  {
     id: 'profile-service-address',
     scene: 'profile',
     spot: 'service-address',
