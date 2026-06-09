@@ -1847,9 +1847,31 @@ input[type="time"] {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     background: var(--brand-bg);
-    padding-top: max(24px, var(--safe-top));
-    /* spazio per non finire sotto la card del tutorial */
-    padding-bottom: 320px;
+    padding: 0;
+  }
+
+  /* Mock app shell con chrome di navigazione */
+  .tut-app {
+    position: relative;
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .tut-topbar,
+  .tut-desktopTop {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+  }
+  .tut-body {
+    flex: 1 1 auto;
+  }
+  .tut-bottomnav {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    margin-top: auto;
+    padding-bottom: var(--safe-bottom);
   }
 
   /* Velo pieno (step senza elemento da illuminare) */
@@ -1870,11 +1892,10 @@ input[type="time"] {
     transition: top 0.25s ease, left 0.25s ease, width 0.25s ease, height 0.25s ease;
   }
 
-  /* Card esplicativa (in basso, centrata) */
+  /* Card esplicativa (in alto o in basso, in base all'elemento illuminato) */
   .tut-card {
     position: fixed;
     left: 50%;
-    bottom: calc(16px + var(--safe-bottom));
     transform: translateX(-50%);
     width: calc(100% - 24px);
     max-width: 460px;
@@ -1884,6 +1905,14 @@ input[type="time"] {
     border-radius: calc(var(--radius) + 4px);
     box-shadow: var(--shadow);
     padding: 18px;
+  }
+  .tut-card--bottom {
+    bottom: calc(16px + var(--safe-bottom));
+    top: auto;
+  }
+  .tut-card--top {
+    top: calc(16px + var(--safe-top));
+    bottom: auto;
   }
 
   .tut-chip {

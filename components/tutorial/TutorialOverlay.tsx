@@ -9,6 +9,16 @@ type Rect = { top: number; left: number; width: number; height: number };
 
 const SPOT_PADDING = 8;
 
+/** Tra più elementi con lo stesso data-spot (mobile + desktop), prende quello visibile. */
+function findVisibleSpot(container: HTMLElement, spot: string): HTMLElement | null {
+  const els = Array.from(container.querySelectorAll<HTMLElement>(`[data-spot="${spot}"]`));
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0 && el.offsetParent !== null) return el;
+  }
+  return els[0] ?? null;
+}
+
 export function TutorialOverlay({
   step,
   index,
@@ -26,6 +36,7 @@ export function TutorialOverlay({
 }) {
   const sceneRef = useRef<HTMLDivElement | null>(null);
   const [rect, setRect] = useState<Rect | null>(null);
+  const [placement, setPlacement] = useState<'top' | 'bottom'>('bottom');
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -37,13 +48,16 @@ export function TutorialOverlay({
     }
     const container = sceneRef.current;
     if (!container) return;
-    const el = container.querySelector<HTMLElement>(`[data-spot="${step.spot}"]`);
+    const el = findVisibleSpot(container, step.spot);
     if (!el) {
       setRect(null);
       return;
     }
     const r = el.getBoundingClientRect();
     setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    // Se l'elemento è nella metà bassa dello schermo, sposta la card in alto.
+    const centerY = r.top + r.height / 2;
+    setPlacement(centerY > window.innerHeight * 0.52 ? 'top' : 'bottom');
   }, [step.spot]);
 
   // Centra l'elemento e misura quando cambia lo step.
@@ -56,13 +70,13 @@ export function TutorialOverlay({
 
     const run = () => {
       const container = sceneRef.current;
-      const el = container?.querySelector<HTMLElement>(`[data-spot="${step.spot}"]`);
+      const el = container ? findVisibleSpot(container, step.spot!) : null;
       if (el) {
         el.scrollIntoView({ block: 'center', behavior: 'auto' });
         measure();
         return;
       }
-      if (tries++ < 10) raf = requestAnimationFrame(run);
+      if (tries++ < 12) raf = requestAnimationFrame(run);
     };
 
     raf = requestAnimationFrame(run);
@@ -82,7 +96,7 @@ export function TutorialOverlay({
     };
   }, [step.spot, measure]);
 
-  // Blocca lo scroll della pagina sottostante + tastiera.
+  // Blocca lo scroll della pagina sottostante + scorciatoie tastiera.
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -102,6 +116,7 @@ export function TutorialOverlay({
 
   const isFirst = index === 0;
   const isLast = index === total - 1;
+  const cardPos = rect ? placement : 'bottom';
 
   return createPortal(
     <div className="tut-root" role="dialog" aria-modal="true" aria-label="Tutorial">
@@ -125,8 +140,8 @@ export function TutorialOverlay({
         <div className="tut-veil" />
       )}
 
-      {/* Tooltip */}
-      <div className="tut-card">
+      {/* Card esplicativa */}
+      <div className={`tut-card tut-card--${cardPos}`}>
         {step.chip ? <div className="tut-chip">{step.chip}</div> : null}
         <h3 className="tut-title">{step.title}</h3>
         <p className="tut-body">{step.body}</p>

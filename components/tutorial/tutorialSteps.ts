@@ -4,8 +4,8 @@ export type TutorialScene =
   | 'dog'
   | 'services'
   | 'calendar'
-  | 'settings'
   | 'chat'
+  | 'settings'
   | 'outro';
 
 export type TutorialStep = {
@@ -26,25 +26,41 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     scene: 'intro',
     chip: 'Benvenuto',
     title: 'Ti facciamo fare un giro 👋',
-    body: 'In meno di un minuto ti mostriamo come funziona l’app: profilo, cani, prenotazioni, calendario e chat. Puoi saltare quando vuoi e rivederlo dalle Impostazioni.',
+    body: 'In un minuto ti mostriamo come funziona l’app e dove trovare ogni cosa. Puoi saltare quando vuoi e rivedere il tutorial dalle Impostazioni.',
   },
 
   // --- PROFILO ---
+  {
+    id: 'open-profile',
+    scene: 'services',
+    spot: 'nav-profile',
+    chip: 'Profilo',
+    title: 'Apri il tuo profilo',
+    body: 'Tocca l’icona del profilo per aprire la tua area personale: dati, documenti e i tuoi cani. È il primo posto da sistemare.',
+  },
   {
     id: 'profile-account',
     scene: 'profile',
     spot: 'account',
     chip: 'Profilo',
     title: 'I tuoi dati personali',
-    body: 'Qui trovi il tuo profilo: nome, contatti, documento d’identità e liberatoria. Tieni questi dati aggiornati: ci servono per gestire le prenotazioni.',
+    body: 'Qui trovi nome, contatti, documento d’identità e liberatoria. Tienili aggiornati: ci servono per gestire le prenotazioni.',
   },
   {
     id: 'profile-address',
     scene: 'profile',
     spot: 'address',
     chip: 'Profilo',
-    title: 'Indirizzo e contatti',
-    body: 'L’indirizzo e il telefono vengono usati durante le prenotazioni (ad esempio per il servizio taxi o per contattarti). Compilali una volta e li ritrovi pronti.',
+    title: 'Residenza e contatti',
+    body: 'Il telefono e l’indirizzo di residenza vengono usati per contattarti e per la fatturazione delle prenotazioni.',
+  },
+  {
+    id: 'profile-service-address',
+    scene: 'profile',
+    spot: 'service-address',
+    chip: 'Profilo',
+    title: 'Cos’è l’“indirizzo servizi”',
+    body: 'È l’indirizzo dove ritiriamo e riportiamo il tuo cane per i servizi a domicilio (ad esempio il Taxi Dog). Può essere diverso dalla tua residenza: per questo lo gestisci a parte.',
   },
   {
     id: 'profile-dogs',
@@ -52,7 +68,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     spot: 'dogs',
     chip: 'Profilo',
     title: 'I tuoi cani',
-    body: 'Aggiungi qui i tuoi cani. Per ognuno potrai inserire le informazioni e aprire la sua scheda. Tocca “+ Aggiungi” per crearne uno.',
+    body: 'Aggiungi qui i tuoi cani con il pulsante “+ Aggiungi”. Per ognuno potrai inserire le informazioni e aprire la sua scheda.',
   },
 
   // --- SCHEDA CANE ---
@@ -78,45 +94,59 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     spot: 'dog-qr',
     chip: 'Scheda cane',
     title: 'Il QR da condividere',
-    body: 'Ogni scheda ha un QR code: chi lo scansiona (o riceve il link) vede subito la scheda pubblica del cane. Comodo per il dog sitter, il veterinario o in caso di smarrimento.',
+    body: 'Ogni scheda ha un QR code: chi lo scansiona (o riceve il link) vede subito la scheda pubblica del cane. Comodo da dare a amici o parenti che lo accudiscono, al veterinario o in caso di smarrimento.',
   },
 
   // --- SERVIZI ---
   {
-    id: 'services',
+    id: 'open-services',
+    scene: 'services',
+    spot: 'nav-home',
+    chip: 'Servizi',
+    title: 'Dove prenotare i servizi',
+    body: 'Il pulsante centrale (o “Servizi” su computer) ti porta alla home dei servizi: è da qui che parte ogni prenotazione.',
+  },
+  {
+    id: 'services-grid',
     scene: 'services',
     spot: 'services-grid',
-    chip: 'Prenotazioni',
+    chip: 'Servizi',
     title: 'Prenota un servizio',
-    body: 'Da qui prenoti Pensione, Asilo, Addestramento e Consulenza. Scegli il servizio, segui i passaggi, indica le date e il tuo cane: ti guidiamo fino alla conferma.',
+    body: 'Pensione, Asilo, Addestramento e Consulenza. Tocca un servizio, segui i passaggi guidati (date, cane, eventuali extra) e arrivi fino alla conferma.',
+  },
+  {
+    id: 'services-credits',
+    scene: 'services',
+    spot: 'credits',
+    chip: 'Crediti',
+    title: 'I crediti dei servizi',
+    body: 'Alcuni servizi si acquistano a pacchetti di crediti: ogni tessera mostra i crediti rimasti. Quando vuoi usarne uno, tocca la tessera e fissi la data della sessione, senza ripagare ogni volta.',
   },
 
   // --- CALENDARIO ---
+  {
+    id: 'open-calendar',
+    scene: 'services',
+    spot: 'nav-calendar',
+    chip: 'Calendario',
+    title: 'Dove vedere il calendario',
+    body: 'Da “Calendario” trovi tutte le tue prenotazioni e il saldo da pagare.',
+  },
   {
     id: 'calendar-grid',
     scene: 'calendar',
     spot: 'calendar-grid',
     chip: 'Calendario',
-    title: 'Il tuo calendario',
-    body: 'Nel calendario vedi a colpo d’occhio i giorni con prenotazioni. Tocca un giorno per vedere i dettagli dei servizi prenotati.',
+    title: 'I giorni prenotati',
+    body: 'I giorni con un servizio sono evidenziati. Tocca un giorno per vederne i dettagli.',
   },
   {
-    id: 'calendar-list',
+    id: 'calendar-saldo',
     scene: 'calendar',
-    spot: 'calendar-list',
+    spot: 'calendar-saldo',
     chip: 'Calendario',
     title: 'Prossime prenotazioni e saldo',
-    body: 'Sotto al calendario trovi l’elenco delle prossime prenotazioni e il saldo da pagare. Tutto sempre sotto controllo.',
-  },
-
-  // --- IMPOSTAZIONI ---
-  {
-    id: 'settings',
-    scene: 'settings',
-    spot: 'settings-list',
-    chip: 'Impostazioni',
-    title: 'Impostazioni',
-    body: 'Qui gestisci account, documenti, password e le preferenze di notifica. Da qui puoi anche rivedere questo tutorial quando vuoi.',
+    body: 'Sotto al calendario trovi l’elenco delle prossime prenotazioni e, in alto a destra, il saldo ancora da pagare.',
   },
 
   // --- CHAT ---
@@ -125,8 +155,18 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     scene: 'chat',
     spot: 'chat-area',
     chip: 'Assistenza',
-    title: 'La chat',
-    body: 'Hai una domanda? Scrivici dalla chat: ti rispondiamo qui dentro. È il modo più veloce per ricevere assistenza.',
+    title: 'La chat di assistenza',
+    body: 'Hai una domanda? Aprila dall’icona Chat e scrivici: ti rispondiamo qui dentro. È il modo più veloce per avere assistenza.',
+  },
+
+  // --- IMPOSTAZIONI ---
+  {
+    id: 'settings',
+    scene: 'settings',
+    spot: 'settings-list',
+    chip: 'Impostazioni',
+    title: 'Le impostazioni',
+    body: 'Dall’icona Impostazioni gestisci account, documenti, password e notifiche. Da qui puoi anche rivedere questo tutorial quando vuoi.',
   },
 
   {
@@ -134,6 +174,6 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     scene: 'outro',
     chip: 'Tutto qui!',
     title: 'Sei pronto 🐾',
-    body: 'Ora conosci le funzioni principali. Inizia completando il tuo profilo e aggiungendo il tuo primo cane. Buona permanenza alla Tenuta del Barone!',
+    body: 'Ora sai dove trovare ogni cosa. Inizia completando il profilo e aggiungendo il tuo primo cane. Buona permanenza alla Tenuta del Barone!',
   },
 ];
