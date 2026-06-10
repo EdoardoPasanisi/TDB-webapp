@@ -138,7 +138,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     spot: 'calendar-saldo',
     chip: 'Calendario',
     title: 'Prossime prenotazioni e saldo',
-    body: 'Sotto al calendario trovi l’elenco delle prossime prenotazioni e, in alto a destra, il saldo ancora da pagare.',
+    body: 'Sotto al calendario trovi l’elenco delle prossime prenotazioni. Il prezzo nella singola card è di quel servizio; in fondo trovi il saldo totale ancora da pagare.',
   },
 
   // --- CHAT ---

@@ -454,13 +454,10 @@ function CalendarScene() {
         </section>
       </Spot>
 
-      {/* Saldo + prossime prenotazioni */}
+      {/* Prossime prenotazioni + saldo totale in fondo */}
       <Spot id="calendar-saldo">
         <section className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="ui-h2">Prenotazioni</div>
-            <div className="ui-accentPill ui-accentPill--saldo">Saldo: € 120,00</div>
-          </div>
+          <div className="ui-h2">Prenotazioni</div>
           <Card>
             <CardContent className="flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -479,6 +476,10 @@ function CalendarScene() {
               <div className="ui-accentPill">€ 30</div>
             </CardContent>
           </Card>
+          {/* il prezzo nella card è del singolo servizio; il saldo totale è in fondo */}
+          <div className="ui-accentPill ui-accentPill--saldo w-full justify-center py-3 text-center font-[var(--font-weight-bold)]">
+            Saldo: € 120,00
+          </div>
         </section>
       </Spot>
     </MockChrome>
