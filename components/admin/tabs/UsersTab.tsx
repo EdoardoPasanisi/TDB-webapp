@@ -31,6 +31,7 @@ import {
 } from '@/components/admin/shared';
 import { BookingDetailModal, DogDetailModal } from '@/components/admin/modals';
 import { DocumentCard } from '@/components/admin/shared';
+import { Modal } from '@/components/common/Modal';
 
 function formatServicePassStatusLabel(status: string): string {
   if (status === 'LOCKED') return 'Da sbloccare';
@@ -55,7 +56,15 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
   const [savingProfile, setSavingProfile] = useState(false);
   const [selectedDogId, setSelectedDogId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<AdminAgendaItem | null>(null);
+  const [settleOpen, setSettleOpen] = useState(false);
+  const [settleAmount, setSettleAmount] = useState('');
+  const [settleSubmitting, setSettleSubmitting] = useState(false);
+  const [settleError, setSettleError] = useState<string | null>(null);
   const hasQuery = debouncedQuery.trim().length > 0;
+
+  const walletDue = Number(
+    (detail?.profile as { wallet_due_eur?: number | null } | null)?.wallet_due_eur ?? 0
+  );
 
   const loadUsers = async () => {
     if (!hasQuery) {
@@ -214,6 +223,35 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
       body: JSON.stringify({}),
     });
     await loadDetail(selectedUserId);
+  };
+
+  const openSettle = () => {
+    setSettleError(null);
+    setSettleAmount(walletDue > 0 ? walletDue.toFixed(2) : '0');
+    setSettleOpen(true);
+  };
+
+  const handleSettleWallet = async () => {
+    if (!selectedUserId) return;
+    const amount = Number(String(settleAmount).replace(',', '.'));
+    if (!Number.isFinite(amount) || amount < 0) {
+      setSettleError('Inserisci un importo valido.');
+      return;
+    }
+    setSettleSubmitting(true);
+    setSettleError(null);
+    try {
+      await fetchAdminJson(`/api/admin/users/${selectedUserId}/settle`, {
+        method: 'POST',
+        body: JSON.stringify({ amountEur: amount }),
+      });
+      setSettleOpen(false);
+      await loadDetail(selectedUserId);
+    } catch (err) {
+      setSettleError(humanizeErrorMessage(err, 'Impossibile registrare il pagamento.'));
+    } finally {
+      setSettleSubmitting(false);
+    }
   };
 
   return (
@@ -392,6 +430,31 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
 
                 <Card>
                   <CardContent className="space-y-3">
+                    <SectionHeader
+                      title="Saldo e pagamenti"
+                      subtitle="Conferma l'incasso per azzerare il saldo e sbloccare i pacchetti."
+                    />
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="ui-body">
+                        Saldo attuale:{' '}
+                        <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>
+                      </div>
+                      {canManage ? (
+                        <button
+                          type="button"
+                          className="ui-btn ui-btnTone-primary ui-btnCompact"
+                          disabled={walletDue <= 0}
+                          onClick={openSettle}
+                        >
+                          Segna come pagato
+                        </button>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardContent className="space-y-3">
                     <SectionHeader title="Pacchetti e crediti" subtitle="Pass attivi, consumati o scaduti collegati al cliente." />
                     {detail.servicePasses.length ? (
                       <div className="grid gap-3 md:grid-cols-2">
@@ -507,6 +570,47 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
               open={Boolean(selectedBooking)}
               onClose={() => setSelectedBooking(null)}
             />
+
+            <Modal open={settleOpen} title="Conferma pagamento" onClose={() => setSettleOpen(false)}>
+              <div className="space-y-4">
+                <div className="ui-muted">
+                  Saldo da pagare: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>.
+                  Conferma l&apos;importo effettivamente incassato (modificabile in caso di sconto). Il saldo verrà
+                  azzerato e i pacchetti in attesa verranno sbloccati.
+                </div>
+                <div className="space-y-1">
+                  <label className="ui-muted">Importo incassato (€)</label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.01"
+                    value={settleAmount}
+                    onChange={(event) => setSettleAmount(event.target.value)}
+                    className="ui-control ui-input"
+                  />
+                </div>
+                {settleError ? <div className="ui-error">{settleError}</div> : null}
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="ui-btn ui-btnTone-secondary ui-btnCompact"
+                    onClick={() => setSettleOpen(false)}
+                    disabled={settleSubmitting}
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btnTone-primary ui-btnCompact"
+                    onClick={() => void handleSettleWallet()}
+                    disabled={settleSubmitting}
+                  >
+                    {settleSubmitting ? 'Salvataggio…' : 'Conferma pagamento'}
+                  </button>
+                </div>
+              </div>
+            </Modal>
           </>
         )}
       </div>

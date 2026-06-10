@@ -44,7 +44,7 @@ import type {
 } from '@/types/services';
 
 const PROFILE_SELECT =
-  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
+  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, wallet_due_eur, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOG_SELECT =
   'id, owner_id, created_at, updated_at, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament';
 const IDENTITY_BUCKET = 'identity-documents';
@@ -2242,6 +2242,43 @@ export async function unlockAdminServicePass(args: {
   return data as ServicePassRow;
 }
 
+/**
+ * Conferma pagamento: registra l'importo incassato, azzera il saldo dell'utente e
+ * sblocca i pacchetti in attesa. Tutto atomico nella RPC settle_user_wallet.
+ */
+export async function settleAdminUserWallet(args: {
+  userId: string;
+  amountEur: number;
+  staffUserId: string;
+}): Promise<{ amountEur: number; balanceBefore: number; paidAt: string }> {
+  const { userId, amountEur, staffUserId } = args;
+
+  const normalizedAmount = Number(amountEur);
+  if (!Number.isFinite(normalizedAmount) || normalizedAmount < 0) {
+    throw new Error('Importo non valido.');
+  }
+
+  const { data, error } = await supabaseAdmin.rpc('settle_user_wallet', {
+    p_user_id: userId,
+    p_amount_eur: normalizedAmount,
+    p_staff_id: staffUserId,
+  });
+
+  if (error) {
+    throw new Error(error.message ?? 'Impossibile registrare il pagamento.');
+  }
+
+  const row = (data ?? null) as
+    | { amount_eur?: number | null; balance_before?: number | null; paid_at?: string | null }
+    | null;
+
+  return {
+    amountEur: Number(row?.amount_eur ?? normalizedAmount),
+    balanceBefore: Number(row?.balance_before ?? 0),
+    paidAt: String(row?.paid_at ?? new Date().toISOString()),
+  };
+}
+
 export async function updateAdminDog(dogId: string, input: DogInput): Promise<Dog> {
   const { data, error } = await supabaseAdmin
     .from('dogs')
@@ -2333,9 +2370,12 @@ export async function updateAdminBookingStatus(args: {
 }> {
   const { kind, bookingId, status } = args;
   const table = kind === 'PENSIONE' ? 'bookings' : 'service_slot_bookings';
+  // Per la pensione il totale entra nel saldo solo quando la prenotazione è confermata:
+  // ci serve total_price per aggiornare il wallet alla transizione di stato (presente
+  // su entrambe le tabelle).
   const { data: current, error: currentError } = await supabaseAdmin
     .from(table)
-    .select('user_id, service_type, status')
+    .select('user_id, service_type, status, total_price')
     .eq('id', bookingId)
     .single();
 
@@ -2350,6 +2390,23 @@ export async function updateAdminBookingStatus(args: {
 
   if (error) {
     throw new Error(error.message);
+  }
+
+  // Pensione → saldo: addebita alla conferma, storna se esce dagli stati confermati.
+  if (kind === 'PENSIONE') {
+    const wasCharged = isConfirmedRevenueStatus(current.status as BookingStatus | null);
+    const isCharged = isConfirmedRevenueStatus(status);
+    const total = Number((current as { total_price?: number | null }).total_price ?? 0);
+    if (Number.isFinite(total) && total > 0 && wasCharged !== isCharged) {
+      const delta = isCharged ? total : -total;
+      const { error: walletError } = await supabaseAdmin.rpc('add_wallet_due', {
+        p_user_id: String(current.user_id),
+        p_amount_eur: delta,
+      });
+      if (walletError) {
+        throw new Error(walletError.message);
+      }
+    }
   }
 
   return {

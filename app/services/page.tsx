@@ -10,7 +10,11 @@ import { ServiceCards } from '@/components/services/ServiceCards';
 import { ServicePassCards } from '@/components/services/ServicePassCards';
 import { FissaDataModal } from '@/components/services/FissaDataModal';
 
-import { getUserServicePasses, buildPassSummaries } from '@/lib/services/servicePassesApi';
+import {
+  getUserServicePasses,
+  buildPassSummaries,
+  buildPendingPassSummaries,
+} from '@/lib/services/servicePassesApi';
 
 import { Card, CardContent } from '@/components/ui/Card';
 
@@ -29,6 +33,9 @@ export default function ServicesPage() {
   const [passesState, setPassesState] = useState<LoadState>('idle');
   const [passesError, setPassesError] = useState<string | null>(null);
   const [passSummaries, setPassSummaries] = useState<ReturnType<typeof buildPassSummaries>>([]);
+  const [pendingPassSummaries, setPendingPassSummaries] = useState<
+    ReturnType<typeof buildPendingPassSummaries>
+  >([]);
 
   const [fixDateOpen, setFixDateOpen] = useState(false);
   const [selectedPassGroupKey, setSelectedPassGroupKey] = useState<string | null>(null);
@@ -54,6 +61,7 @@ export default function ServicesPage() {
         if (cancelled) return;
 
         setPassSummaries(buildPassSummaries(passes));
+        setPendingPassSummaries(buildPendingPassSummaries(passes));
         setPassesState('ready');
       } catch (error) {
         console.error(error);
@@ -99,8 +107,12 @@ export default function ServicesPage() {
           <Card>
             <CardContent className="ui-muted">Caricamento crediti…</CardContent>
           </Card>
-        ) : passSummaries.length > 0 ? (
-          <ServicePassCards passes={passSummaries} onFixDate={handleFixDate} />
+        ) : passSummaries.length > 0 || pendingPassSummaries.length > 0 ? (
+          <ServicePassCards
+            passes={passSummaries}
+            pendingPasses={pendingPassSummaries}
+            onFixDate={handleFixDate}
+          />
         ) : null}
 
         <FissaDataModal
@@ -112,6 +124,7 @@ export default function ServicesPage() {
             try {
               const passes = await getUserServicePasses(user.id);
               setPassSummaries(buildPassSummaries(passes));
+              setPendingPassSummaries(buildPendingPassSummaries(passes));
             } catch {}
 
           }}

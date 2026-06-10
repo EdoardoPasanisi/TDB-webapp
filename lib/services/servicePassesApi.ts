@@ -76,6 +76,53 @@ export function buildPassSummaries(passes: ServicePassRow[]): ServicePassGroupSu
 }
 
 /**
+ * Pacchetti acquistati ma ancora BLOCCATI (in attesa che il gestionale confermi il
+ * pagamento). Stessa forma dei gruppi attivi, mostrati in app come "in attesa".
+ */
+export function buildPendingPassSummaries(passes: ServicePassRow[]): ServicePassGroupSummary[] {
+  const locked = passes.filter((p) => p.status === 'LOCKED');
+
+  const map = new Map<string, ServicePassGroupSummary>();
+
+  for (const p of locked) {
+    const remaining = getCreditsRemaining(p.credits_total, p.credits_used);
+    if (remaining <= 0) continue;
+
+    const leaf: ServicePassLeafSummary = {
+      passId: p.id,
+      purchasedAt: p.purchased_at,
+      expiresAt: p.expires_at,
+      creditsTotal: p.credits_total,
+      creditsUsed: p.credits_used,
+      creditsRemaining: remaining,
+      status: p.status,
+    };
+
+    const key = buildPassGroupKey(p.service_type, p.service_variant);
+    const existing = map.get(key);
+
+    if (!existing) {
+      map.set(key, {
+        groupKey: key,
+        serviceType: p.service_type,
+        serviceVariant: p.service_variant,
+        creditsTotal: leaf.creditsTotal,
+        creditsRemaining: leaf.creditsRemaining,
+        passes: [leaf],
+      });
+    } else {
+      existing.creditsTotal += leaf.creditsTotal;
+      existing.creditsRemaining += leaf.creditsRemaining;
+      existing.passes.push(leaf);
+    }
+  }
+
+  const groups = Array.from(map.values());
+  groups.sort((a, b) => b.creditsRemaining - a.creditsRemaining);
+  return groups;
+}
+
+/**
  * Acquisto pass atomico lato DB:
  * - valida il prodotto server-side
  * - crea il pass
