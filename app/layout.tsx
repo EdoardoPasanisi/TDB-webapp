@@ -1,5 +1,5 @@
 // FILE: app/layout.tsx
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AppChromeGate } from '@/components/AppChromeGate';
 
@@ -12,10 +12,22 @@ export const metadata: Metadata = {
     index: false,
     follow: false,
   },
+  appleWebApp: {
+    capable: true,
+    title: 'Tenuta del Barone',
+    statusBarStyle: 'black-translucent',
+  },
   icons: {
     icon: '/icon.png',
     apple: '/apple-icon.png',
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#060807',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({

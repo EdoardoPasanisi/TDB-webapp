@@ -28,6 +28,8 @@ function isPublicPath(pathname: string) {
   if (pathname.startsWith('/_next')) return true;
   if (pathname.startsWith('/favicon')) return true;
   if (pathname.startsWith('/public')) return true;
+  // Digital Asset Links / app-site-association: devono essere pubblici (TWA / Universal Links).
+  if (pathname.startsWith('/.well-known/')) return true;
   // Public assets from /public are served from root (e.g. /icon-pensione.png)
   if (/\.(?:png|jpe?g|gif|webp|svg|ico|css|js|map|txt|xml|webmanifest|woff2?|ttf|eot)$/i.test(pathname)) {
     return true;
