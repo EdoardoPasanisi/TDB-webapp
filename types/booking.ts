@@ -26,6 +26,7 @@ export type AccommodationKey =
   | 'CHALET'
   | 'APT_GARDEN'
   | 'APT_GARDEN_NIGHT_PERSON'
+  | 'HOTEL'
   | 'CATTERY';
 
 export interface BookingDogExtras {

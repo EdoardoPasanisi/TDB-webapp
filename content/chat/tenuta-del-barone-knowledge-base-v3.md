@@ -93,6 +93,7 @@ Le sistemazioni da considerare oggi sono:
 ### Descrizioni sistemazioni (confermate)
 - **Chalet**: una casetta in legno recintata con giardino privato. È riservata **solo ai cani di piccola taglia**.
 - **Appartamento con presenza**: indica la **presenza della persona durante la notte**, accanto al cane.
+- **Hotel**: stanza luxury con giardino privato e aria condizionata.
 
 ### Presenza della persona — chiarimento importante
 - **Durante il giorno, tutti i cani di tutti gli alloggi hanno la presenza della persona**: è presente tutto il personale che li segue e fa fare loro attività.

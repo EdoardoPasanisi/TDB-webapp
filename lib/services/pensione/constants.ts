@@ -20,10 +20,14 @@ export const ACCOMMODATION_PRICES: Record<
   BOX: { label: 'Box', pricePerDay: 28 },
   BOX_GARDEN: { label: 'Box con giardino', pricePerDay: 35 },
   CHALET: { label: 'Chalet', pricePerDay: 35 },
-  APT_GARDEN: { label: 'Appartamento con giardino', pricePerDay: 45 },
+  APT_GARDEN: { label: 'Appartamento con giardino', pricePerDay: 50 },
   APT_GARDEN_NIGHT_PERSON: {
     label: 'Appartamento con giardino (presenza notturna)',
     pricePerDay: 100,
+  },
+  HOTEL: {
+    label: 'Hotel - stanza luxury con giardino e aria condizionata',
+    pricePerDay: 45,
   },
   CATTERY: { label: 'Gattile', pricePerDay: 25 },
 };

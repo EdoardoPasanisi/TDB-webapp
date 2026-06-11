@@ -41,6 +41,7 @@ const ACCOMMODATION_KEYS = new Set<AccommodationKey>([
   'CHALET',
   'APT_GARDEN',
   'APT_GARDEN_NIGHT_PERSON',
+  'HOTEL',
   'CATTERY',
 ]);
 const EDITABLE_STATUSES = new Set<BookingStatus>(['PENDING', 'CONFIRMED']);
