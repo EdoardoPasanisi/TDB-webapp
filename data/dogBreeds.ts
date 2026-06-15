@@ -7,6 +7,11 @@ export type GroomingDifficulty = WashDifficulty;
 export type DogBreed = {
   name: string;
   aliases: string[];
+  /**
+   * Sinonimi cercabili ma MAI mostrati nell'interfaccia (es. termini volgari).
+   * Servono solo allo scoring di ricerca.
+   */
+  hiddenAliases?: string[];
   size: DogSize;
   coat: string;
   washDifficulty: WashDifficulty;
@@ -31,7 +36,7 @@ export function getDogBreedSearchScore(breed: DogBreed, query: string | null | u
   if (normalizedName.includes(normalizedQuery)) return 300;
 
   let bestAliasScore = 0;
-  for (const alias of breed.aliases) {
+  for (const alias of [...breed.aliases, ...(breed.hiddenAliases ?? [])]) {
     const normalizedAlias = normalizeDogBreedLookupKey(alias);
     if (normalizedAlias === normalizedQuery) return 350;
     if (normalizedAlias.startsWith(normalizedQuery)) bestAliasScore = Math.max(bestAliasScore, 260);
@@ -3668,6 +3673,15 @@ export const DOG_BREEDS: DogBreed[] = [
     size: "piccola",
     coat: "Lungo/Riccio",
     washDifficulty: 3,
+  },
+  {
+    name: "Meticcio",
+    aliases: ["Meticcia", "Incrocio", "Mixed breed", "Mongrel"],
+    // sinonimi cercabili ma mai mostrati nell'interfaccia
+    hiddenAliases: ["Bastardo", "Bastarda", "Bastardino", "Bastardina"],
+    size: "media",
+    coat: "Variabile",
+    washDifficulty: 1,
   },
 ];
 

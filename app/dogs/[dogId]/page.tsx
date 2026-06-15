@@ -292,6 +292,8 @@ function DogDetailInner() {
       show_notes: boolean;
       show_coat_color: boolean;
       show_temperament: boolean;
+      show_weight: boolean;
+      show_origin_breeds: boolean;
     },
     nextOwnerPrefs: {
       show_first_name_on_dog_card: boolean;
@@ -317,6 +319,8 @@ function DogDetailInner() {
         show_notes: nextDogPrefs.show_notes,
         show_coat_color: nextDogPrefs.show_coat_color,
         show_temperament: nextDogPrefs.show_temperament,
+        show_weight: nextDogPrefs.show_weight,
+        show_origin_breeds: nextDogPrefs.show_origin_breeds,
       });
       setDog(updatedDog);
 

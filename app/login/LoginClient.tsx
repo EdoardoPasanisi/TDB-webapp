@@ -7,6 +7,7 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 function getErrorMessage(error: unknown): string {
   return humanizeErrorMessage(error, 'Non siamo riusciti a completare l’accesso. Riprova.');
@@ -105,9 +106,7 @@ export default function LoginClient() {
               </Field>
 
               <Field label="Password" required>
-                <input
-                  className="ui-control ui-input"
-                  type="password"
+                <PasswordInput
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"

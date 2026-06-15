@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function ResetPasswordPage() {
   const router = useRouter();
@@ -120,23 +121,19 @@ export default function ResetPasswordPage() {
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <Field label="Nuova password" required hint="Minimo 8 caratteri.">
-                <input
-                  type="password"
+                <PasswordInput
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="ui-control ui-input"
                   required
                 />
               </Field>
 
               <Field label="Conferma password" required>
-                <input
-                  type="password"
+                <PasswordInput
                   autoComplete="new-password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}
-                  className="ui-control ui-input"
                   required
                 />
               </Field>

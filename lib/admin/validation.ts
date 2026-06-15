@@ -390,6 +390,26 @@ export function sanitizeDogInput(body: unknown): DogInput {
     throw new Error('Temperamento cane non valido.');
   }
 
+  const weightKg = (() => {
+    const raw = body.weight_kg;
+    if (raw == null || raw === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 && n < 500 ? Math.round(n * 10) / 10 : null;
+  })();
+
+  if (body.origin_breeds != null && !Array.isArray(body.origin_breeds)) {
+    throw new Error('Razze d’origine non valide.');
+  }
+  const originBreeds = Array.isArray(body.origin_breeds)
+    ? Array.from(
+        new Set(
+          body.origin_breeds
+            .map((value) => sanitizeOptionalText(value, 80))
+            .filter((value): value is string => Boolean(value))
+        )
+      ).slice(0, 8)
+    : null;
+
   return {
     name,
     breed: sanitizeOptionalText(body.breed, 80),
@@ -401,6 +421,10 @@ export function sanitizeDogInput(body: unknown): DogInput {
     notes: sanitizeOptionalText(body.notes, 1000),
     coat_color: sanitizeOptionalText(body.coat_color, 80),
     temperament,
+    weight_kg: weightKg,
+    origin_breeds: originBreeds && originBreeds.length > 0 ? originBreeds : null,
+    show_weight: sanitizeBoolean(body.show_weight ?? false, 'Visibilità peso'),
+    show_origin_breeds: sanitizeBoolean(body.show_origin_breeds ?? false, 'Visibilità razze d’origine'),
     show_breed: sanitizeBoolean(body.show_breed, 'Visibilità razza'),
     show_sex: sanitizeBoolean(body.show_sex, 'Visibilità sesso'),
     show_size: sanitizeBoolean(body.show_size, 'Visibilità taglia'),
@@ -422,6 +446,8 @@ export function sanitizeDogCardVisibilityPatch(body: unknown): Pick<
   | 'show_notes'
   | 'show_coat_color'
   | 'show_temperament'
+  | 'show_weight'
+  | 'show_origin_breeds'
 > {
   if (!isPlainObject(body)) throw new Error('Payload preferenze cane non valido.');
 
@@ -434,5 +460,7 @@ export function sanitizeDogCardVisibilityPatch(body: unknown): Pick<
     show_notes: sanitizeBoolean(body.show_notes, 'Visibilità note'),
     show_coat_color: sanitizeBoolean(body.show_coat_color, 'Visibilità colore mantello'),
     show_temperament: sanitizeBoolean(body.show_temperament, 'Visibilità temperamento'),
+    show_weight: sanitizeBoolean(body.show_weight ?? false, 'Visibilità peso'),
+    show_origin_breeds: sanitizeBoolean(body.show_origin_breeds ?? false, 'Visibilità razze d’origine'),
   };
 }

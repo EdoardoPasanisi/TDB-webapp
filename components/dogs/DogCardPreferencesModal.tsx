@@ -14,6 +14,8 @@ type DogPrefs = {
   show_notes: boolean;
   show_coat_color: boolean;
   show_temperament: boolean;
+  show_weight: boolean;
+  show_origin_breeds: boolean;
 };
 
 type OwnerPrefs = {
@@ -73,6 +75,8 @@ function buildInitialDogPrefs(dog: Dog): DogPrefs {
     show_notes: boolOr(dog.show_notes, false),
     show_coat_color: boolOr(dog.show_coat_color, false),
     show_temperament: boolOr(dog.show_temperament, false),
+    show_weight: boolOr(dog.show_weight, false),
+    show_origin_breeds: boolOr(dog.show_origin_breeds, false),
   };
 }
 
@@ -142,6 +146,8 @@ function DogCardPreferencesDialog({
       show_notes: isFilled(dog.notes),
       show_coat_color: isFilled(dog.coat_color),
       show_temperament: isFilled(dog.temperament),
+      show_weight: isFilled(dog.weight_kg),
+      show_origin_breeds: isFilled(dog.origin_breeds),
     }),
     [dog]
   );
@@ -178,6 +184,8 @@ function DogCardPreferencesDialog({
       show_notes: dogAvailability.show_notes ? dogPrefs.show_notes : false,
       show_coat_color: dogAvailability.show_coat_color ? dogPrefs.show_coat_color : false,
       show_temperament: dogAvailability.show_temperament ? dogPrefs.show_temperament : false,
+      show_weight: dogAvailability.show_weight ? dogPrefs.show_weight : false,
+      show_origin_breeds: dogAvailability.show_origin_breeds ? dogPrefs.show_origin_breeds : false,
     };
 
     const nextOwnerPrefs: OwnerPrefs = {
@@ -283,6 +291,26 @@ function DogCardPreferencesDialog({
                   disabled={!dogAvailability.show_temperament}
                   saving={saving}
                   onChange={(value) => setDogPrefs((current) => ({ ...current, show_temperament: value }))}
+                />
+                <PreferenceItem
+                  label="Peso"
+                  description={dogAvailability.show_weight ? 'Mostra il peso.' : 'Inserisci prima il peso.'}
+                  checked={dogPrefs.show_weight}
+                  disabled={!dogAvailability.show_weight}
+                  saving={saving}
+                  onChange={(value) => setDogPrefs((current) => ({ ...current, show_weight: value }))}
+                />
+                <PreferenceItem
+                  label="Razze d'origine"
+                  description={
+                    dogAvailability.show_origin_breeds
+                      ? 'Mostra le razze d’origine (per i meticci).'
+                      : 'Seleziona prima le razze d’origine (solo meticci).'
+                  }
+                  checked={dogPrefs.show_origin_breeds}
+                  disabled={!dogAvailability.show_origin_breeds}
+                  saving={saving}
+                  onChange={(value) => setDogPrefs((current) => ({ ...current, show_origin_breeds: value }))}
                 />
                 <PreferenceItem
                   label="Note"

@@ -22,6 +22,8 @@ const SAMPLE_DOG: PublicDogCardDog = {
   notes: 'Socievole con altri cani. Allergia ai cereali.',
   coat_color: 'Nero',
   temperament: ['giocherellone', 'affettuoso'],
+  weight_kg: 32,
+  origin_breeds: null,
   photo_path: null,
   show_breed: true,
   show_sex: true,
@@ -31,6 +33,8 @@ const SAMPLE_DOG: PublicDogCardDog = {
   show_notes: true,
   show_coat_color: true,
   show_temperament: true,
+  show_weight: true,
+  show_origin_breeds: false,
 };
 
 const SAMPLE_OWNER: PublicDogCardOwner = {

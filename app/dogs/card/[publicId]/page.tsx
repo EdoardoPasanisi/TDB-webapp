@@ -41,6 +41,7 @@ async function loadPublicDogCard(publicId: string): Promise<{
         photo_path,
         show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes,
         show_coat_color, show_temperament,
+        weight_kg, origin_breeds, show_weight, show_origin_breeds,
         public_id, is_active
       `
     )

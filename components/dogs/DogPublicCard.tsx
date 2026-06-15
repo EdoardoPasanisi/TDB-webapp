@@ -23,6 +23,9 @@ export type PublicDogCardDog = {
   coat_color: string | null;
   temperament: string[] | null;
 
+  weight_kg: number | null;
+  origin_breeds: string[] | null;
+
   // ✅ NEW (soft start)
   photo_path?: string | null;
 
@@ -35,6 +38,8 @@ export type PublicDogCardDog = {
 
   show_coat_color: boolean | null;
   show_temperament: boolean | null;
+  show_weight: boolean | null;
+  show_origin_breeds: boolean | null;
 };
 
 export type PublicDogCardOwner = {
@@ -134,6 +139,14 @@ export function DogPublicCard({
 
   if (dog.show_size === true && dog.size_category) {
     lines.push({ key: 'size', label: 'Taglia', value: sizeLabel(dog.size_category) });
+  }
+
+  if (dog.show_weight === true && dog.weight_kg != null) {
+    lines.push({ key: 'weight', label: 'Peso', value: `${dog.weight_kg} kg` });
+  }
+
+  if (dog.show_origin_breeds === true && dog.origin_breeds && dog.origin_breeds.length > 0) {
+    lines.push({ key: 'origin', label: 'Razze d’origine', value: dog.origin_breeds.join(', ') });
   }
 
   if (dog.show_birth_date === true && dog.birth_date) {

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -112,9 +113,8 @@ export default function ChangePasswordPage() {
                 <label htmlFor="current-password" className="ui-body font-[var(--font-weight-semibold)]">
                   Password attuale
                 </label>
-                <input
+                <PasswordInput
                   id="current-password"
-                  type="password"
                   autoComplete="current-password"
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
@@ -127,9 +127,8 @@ export default function ChangePasswordPage() {
                 <label htmlFor="new-password" className="ui-body font-[var(--font-weight-semibold)]">
                   Nuova password
                 </label>
-                <input
+                <PasswordInput
                   id="new-password"
-                  type="password"
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -142,9 +141,8 @@ export default function ChangePasswordPage() {
                 <label htmlFor="confirm-password" className="ui-body font-[var(--font-weight-semibold)]">
                   Conferma password
                 </label>
-                <input
+                <PasswordInput
                   id="confirm-password"
-                  type="password"
                   autoComplete="new-password"
                   value={confirm}
                   onChange={(e) => setConfirm(e.target.value)}

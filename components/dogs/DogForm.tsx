@@ -146,6 +146,16 @@ export function DogForm({
     (editableDog?.temperament ?? []) as TemperamentOption[],
   );
 
+  // Peso (facoltativo, kg)
+  const [weightKg, setWeightKg] = useState<string>(
+    editableDog?.weight_kg != null ? String(editableDog.weight_kg) : '',
+  );
+
+  // Razze d'origine (solo per i meticci, facoltative)
+  const [originBreeds, setOriginBreeds] = useState<string[]>(
+    (editableDog?.origin_breeds ?? []) as string[],
+  );
+
   // Birth date parts (2000–2026)
   const [birthY, setBirthY] = useState<number | null>(initialBirthParts.y);
   const [birthM, setBirthM] = useState<number | null>(initialBirthParts.m);
@@ -160,6 +170,8 @@ export function DogForm({
   const showNotes = editableDog?.show_notes ?? false;
   const showCoatColor = editableDog?.show_coat_color ?? false;
   const showTemperament = editableDog?.show_temperament ?? false;
+  const showWeight = editableDog?.show_weight ?? false;
+  const showOriginBreeds = editableDog?.show_origin_breeds ?? false;
 
   const [formError, setFormError] = useState<string | null>(null);
   const [submitNotice, setSubmitNotice] = useState<string | null>(null);
@@ -249,6 +261,10 @@ export function DogForm({
       coat_color: coatColor.trim() ? coatColor.trim() : null,
       temperament: temperament.length > 0 ? temperament : null,
 
+      weight_kg: weightKg.trim() ? Number(weightKg.replace(',', '.')) : null,
+      origin_breeds:
+        breed.trim() === 'Meticcio' && originBreeds.length > 0 ? originBreeds : null,
+
       // le preferenze della scheda pubblica si gestiscono da "Personalizza scheda"
       show_breed: showBreed,
       show_sex: showSex,
@@ -259,6 +275,8 @@ export function DogForm({
 
       show_coat_color: showCoatColor,
       show_temperament: showTemperament,
+      show_weight: showWeight,
+      show_origin_breeds: showOriginBreeds,
     };
 
     await onSubmit(payload);
@@ -428,6 +446,69 @@ export function DogForm({
                 setSizeCategory(null);
                 setGroomingDifficulty(null);
               }}
+            />
+          </Field>
+        </CardContent>
+      </Card>
+
+      {/* Razze d'origine (solo meticci, facoltative) */}
+      {breed.trim() === 'Meticcio' ? (
+        <Card>
+          <CardContent className="space-y-2">
+            <Field
+              label="Razze d'origine"
+              hint="Facoltative. Aggiungi le razze presenti nel meticcio."
+            >
+              <div className="space-y-2">
+                {originBreeds.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {originBreeds.map((b) => (
+                      <span key={b} className="ui-accentPill">
+                        {b}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOriginBreeds((prev) => prev.filter((x) => x !== b))
+                          }
+                          className="ml-2 font-bold"
+                          aria-label={`Rimuovi ${b}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+                <BreedSearchInput
+                  key={`origin-${originBreeds.length}`}
+                  breeds={DOG_BREEDS.filter((bd) => bd.name !== 'Meticcio')}
+                  value=""
+                  onSelect={(bd) =>
+                    setOriginBreeds((prev) =>
+                      prev.includes(bd.name) ? prev : [...prev, bd.name],
+                    )
+                  }
+                  placeholder="Aggiungi una razza d'origine…"
+                />
+              </div>
+            </Field>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* Peso (facoltativo) */}
+      <Card>
+        <CardContent className="space-y-2">
+          <Field label="Peso (kg)" hint="Facoltativo.">
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.1"
+              value={weightKg}
+              onChange={(e) => setWeightKg(e.target.value)}
+              className="ui-control ui-input"
+              placeholder="Es. 12.5"
             />
           </Field>
         </CardContent>

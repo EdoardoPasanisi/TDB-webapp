@@ -9,6 +9,7 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -94,12 +95,10 @@ export default function SignupPage() {
               </Field>
 
               <Field label="Password" required hint="Minimo 8 caratteri.">
-                <input
-                  type="password"
+                <PasswordInput
                   autoComplete="new-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="ui-control ui-input"
                   required
                 />
               </Field>

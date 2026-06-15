@@ -27,6 +27,9 @@ export type Dog = {
   coat_color: string | null;
   temperament: string[] | null;
 
+  weight_kg: number | null;
+  origin_breeds: string[] | null;
+
   public_id?: string | null;
   is_active?: boolean | null;
 
@@ -41,6 +44,8 @@ export type Dog = {
   show_notes: boolean | null;
   show_coat_color: boolean | null;
   show_temperament: boolean | null;
+  show_weight: boolean | null;
+  show_origin_breeds: boolean | null;
 };
 
 export type DogInput = {
@@ -59,6 +64,9 @@ export type DogInput = {
   coat_color: string | null;
   temperament: string[] | null;
 
+  weight_kg: number | null;
+  origin_breeds: string[] | null;
+
   show_breed: boolean;
   show_sex: boolean;
   show_size: boolean;
@@ -67,4 +75,6 @@ export type DogInput = {
   show_notes: boolean;
   show_coat_color: boolean;
   show_temperament: boolean;
+  show_weight: boolean;
+  show_origin_breeds: boolean;
 };
