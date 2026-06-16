@@ -1264,6 +1264,7 @@ function sanitizeUserListItemVisibility(item: AdminUserListItem, visibility: Adm
     city: null,
     staffRole: null,
     pendingDocuments: 0,
+    walletDue: 0,
   };
 }
 
@@ -1376,6 +1377,9 @@ export async function searchAdminUsers(
           pendingDocuments: pendingDocumentCounts.get(userId) ?? 0,
           dogNames: dogs.map((dog) => dog.name).filter(Boolean) as string[],
           staffRole: staffRoles.get(userId) ?? null,
+          walletDue: Number(
+            (profile as { wallet_due_eur?: number | null } | undefined)?.wallet_due_eur ?? 0
+          ),
         } satisfies AdminUserListItem,
         visibility
       );

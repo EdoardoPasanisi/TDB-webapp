@@ -301,6 +301,9 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                   {canManage && item.pendingDocuments > 0 ? (
                     <span className="ui-accentPill">{item.pendingDocuments} documenti</span>
                   ) : null}
+                  {canManage && item.walletDue > 0 ? (
+                    <span className="ui-accentPill ui-accentPill--saldo">Saldo € {item.walletDue.toFixed(2)}</span>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>

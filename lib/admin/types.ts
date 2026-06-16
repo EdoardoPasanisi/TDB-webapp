@@ -44,6 +44,7 @@ export type AdminUserListItem = {
   pendingDocuments: number;
   dogNames: string[];
   staffRole: StaffRole | null;
+  walletDue: number;
 };
 
 export type AdminDogListItem = {
