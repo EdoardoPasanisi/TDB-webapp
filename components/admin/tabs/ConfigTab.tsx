@@ -533,6 +533,7 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
                                 pendingDocuments: 0,
                                 dogNames: [],
                                 staffRole: member.role,
+                                walletDue: 0,
                               },
                             ]);
                           }}
