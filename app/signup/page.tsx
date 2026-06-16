@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { PasswordInput } from '@/components/ui/PasswordInput';
+import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -107,6 +108,8 @@ export default function SignupPage() {
                 {loading ? 'Creazione account…' : 'Crea account'}
               </Button>
             </form>
+
+            <SocialAuthButtons />
 
             <Button type="button" variant="secondary" fullWidth onClick={() => router.push('/login')}>
               Hai già un account? Accedi

@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
@@ -386,6 +387,16 @@ export default function CalendarPage() {
         </section>
 
         <FutureBookingsList loading={futureLoading} error={futureError} bookings={bookings} />
+
+        <div className="pt-1">
+          <Link
+            href="/services/history"
+            className="inline-flex items-center gap-1 text-[var(--brand-accent)] underline underline-offset-2 font-[var(--font-weight-semibold)]"
+          >
+            Storico prenotazioni
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
 
         {walletState !== 'loading' && walletDue > 0 ? (
           <section className="pt-1">

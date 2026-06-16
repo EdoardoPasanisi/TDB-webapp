@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { PasswordInput } from '@/components/ui/PasswordInput';
+import { SocialAuthButtons } from '@/components/auth/SocialAuthButtons';
 
 function getErrorMessage(error: unknown): string {
   return humanizeErrorMessage(error, 'Non siamo riusciti a completare l’accesso. Riprova.');
@@ -118,6 +119,8 @@ export default function LoginClient() {
                 {loading ? 'Accesso…' : 'Accedi'}
               </Button>
             </form>
+
+            <SocialAuthButtons next={redirectedFrom} />
 
             <div className="ui-authLinks">
               <Button type="button" variant="secondary" fullWidth onClick={() => router.push('/signup')}>

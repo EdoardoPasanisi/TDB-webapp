@@ -72,7 +72,11 @@ function pickHigherStatus(a: BookingStatus | null, b: BookingStatus | null): Boo
   return STATUS_PRIORITY[b] > STATUS_PRIORITY[a] ? b : a;
 }
 
-export function useFutureBookings(userId: string | undefined) {
+export function useFutureBookings(
+  userId: string | undefined,
+  options?: { mode?: 'future' | 'history' },
+) {
+  const mode = options?.mode ?? 'future';
   const [loading, setLoading] = useState<BookingLoadState['loading']>(false);
   const [error, setError] = useState<BookingLoadState['error']>(null);
   const [bookings, setBookings] = useState<BookingLoadState['bookings']>([]);
@@ -92,8 +96,10 @@ export function useFutureBookings(userId: string | undefined) {
 
     try {
       const now = new Date();
-      const startDate = toDateKey(now);
-      const rangeEnd = addMonths(now, 6);
+      // future: da oggi ai prossimi 6 mesi. history: tutte (5 anni indietro → +1 anno).
+      const startDate =
+        mode === 'history' ? toDateKey(addMonths(now, -60)) : toDateKey(now);
+      const rangeEnd = mode === 'history' ? addMonths(now, 12) : addMonths(now, 6);
       const endDateExclusive = toDateKey(addDays(rangeEnd, 1));
 
       const startIso = toUtcStartOfDayIso(startDate);
@@ -191,7 +197,7 @@ export function useFutureBookings(userId: string | undefined) {
       if (requestSeqRef.current !== reqSeq) return;
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, mode]);
 
   useEffect(() => {
     void refresh();
