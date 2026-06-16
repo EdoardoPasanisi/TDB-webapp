@@ -5,6 +5,7 @@ import { fetchAdminJson } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { DogForm } from '@/components/dogs/DogForm';
 import { ModalFrame } from '@/components/admin/shared';
+import { useConfirm } from '@/components/admin/ConfirmProvider';
 import type { Dog, DogInput } from '@/types/dog';
 
 /**
@@ -29,6 +30,7 @@ export function DogEditModal({
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const handleSubmit = async (input: DogInput) => {
     setSubmitting(true);
@@ -58,9 +60,12 @@ export function DogEditModal({
 
   const handleDelete = async () => {
     if (!dog) return;
-    if (!window.confirm(`Eliminare il cane ${dog.name}? Lo storico delle prenotazioni resta consultabile.`)) {
-      return;
-    }
+    const ok = await confirm({
+      keyword: 'ELIMINA',
+      title: `Elimina ${dog.name}`,
+      message: 'Il cane verrà rimosso dal cliente. Lo storico delle prenotazioni resta consultabile.',
+    });
+    if (!ok) return;
     setDeleting(true);
     setError(null);
     try {

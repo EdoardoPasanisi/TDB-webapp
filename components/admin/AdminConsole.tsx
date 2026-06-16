@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import type { AdminStaffAccess } from '@/lib/admin/types';
+import { getAdminRoleLabel } from '@/lib/admin/utils';
 import { fetchAdminJson, isAbortError } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
@@ -134,7 +135,14 @@ export function AdminConsole({ initialTabFromQuery = null }: { initialTabFromQue
     if (effectiveTab === 'services') return <ServicesTab canManage={canManage} />;
     if (effectiveTab === 'chat' && access) return <ChatTab access={access} />;
     if (effectiveTab === 'media') return <MediaTab canManage={canManage} />;
-    if (effectiveTab === 'config' && canManage) return <ConfigTab canManage={canManage} />;
+    if (effectiveTab === 'config' && canManage)
+      return (
+        <ConfigTab
+          canManage={canManage}
+          canManageStaff={access?.canManageStaff ?? false}
+          currentUserId={access?.userId ?? null}
+        />
+      );
     return <OverviewTab canManage={canManage} />;
   }, [effectiveTab, canManage, access]);
 
@@ -175,7 +183,7 @@ export function AdminConsole({ initialTabFromQuery = null }: { initialTabFromQue
               <div className="space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="ui-accentPill w-fit">Gestionale</div>
-                  <span className="ui-accentPill">{canManage ? 'Poteri completi' : 'Sola lettura'}</span>
+                  <span className="ui-accentPill">{getAdminRoleLabel(access.role)}</span>
                 </div>
                 <h1 className="ui-title">Tenuta del Barone Backoffice</h1>
               </div>

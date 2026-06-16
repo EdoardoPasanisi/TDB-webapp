@@ -36,6 +36,7 @@ import { DocumentCard } from '@/components/admin/shared';
 import { CreateUserModal } from '@/components/admin/CreateUserModal';
 import { DogEditModal } from '@/components/admin/DogEditModal';
 import { AssignPassModal } from '@/components/admin/AssignPassModal';
+import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { Modal } from '@/components/common/Modal';
 
 type UsersMode = 'all' | 'active' | 'deleted';
@@ -79,6 +80,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
   const [settleAmount, setSettleAmount] = useState('');
   const [settleSubmitting, setSettleSubmitting] = useState(false);
   const [settleError, setSettleError] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   const isDeletedMode = mode === 'deleted';
   const walletDue = Number(
@@ -225,16 +227,24 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
 
   const handleRemoveServicePass = async (passId: string) => {
     if (!selectedUserId) return;
-    if (!window.confirm('Annullare questo pacchetto/credito del cliente?')) return;
+    const ok = await confirm({
+      keyword: 'ELIMINA',
+      title: 'Annulla pacchetto',
+      message: 'Il pacchetto/credito del cliente verrà annullato.',
+    });
+    if (!ok) return;
     await fetchAdminJson(`/api/admin/users/${selectedUserId}/passes/${passId}`, { method: 'DELETE' });
     await loadDetail(selectedUserId);
   };
 
   const handleSoftDeleteUser = async () => {
     if (!selectedUserId) return;
-    if (!window.confirm('Spostare il cliente tra gli eliminati? Non potrà più accedere; cani e storico restano.')) {
-      return;
-    }
+    const ok = await confirm({
+      keyword: 'ELIMINA',
+      title: 'Elimina cliente',
+      message: 'Il cliente verrà spostato tra gli eliminati: non potrà più accedere. Cani e storico restano consultabili.',
+    });
+    if (!ok) return;
     setUserActionBusy(true);
     try {
       await fetchAdminJson(`/api/admin/users/${selectedUserId}`, { method: 'DELETE' });
@@ -266,9 +276,13 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
 
   const handleHardDeleteUser = async () => {
     if (!selectedUserId) return;
-    if (!window.confirm('Eliminazione DEFINITIVA: account, cani, prenotazioni e documenti verranno cancellati. Procedere?')) {
-      return;
-    }
+    const ok = await confirm({
+      keyword: 'ELIMINA',
+      title: 'Eliminazione definitiva',
+      message: 'Account, cani, prenotazioni e documenti verranno cancellati in modo irreversibile.',
+      confirmLabel: 'Elimina definitivamente',
+    });
+    if (!ok) return;
     setUserActionBusy(true);
     try {
       await fetchAdminJson(`/api/admin/users/${selectedUserId}/hard-delete`, {
@@ -516,7 +530,14 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                   })
                 }
                 onSubmit={saveProfile}
-                onStartEdit={() => setProfileEditing(true)}
+                onStartEdit={async () => {
+                  const ok = await confirm({
+                    keyword: 'MODIFICA',
+                    title: 'Modifica informazioni cliente',
+                    message: 'Stai per modificare i dati anagrafici e di contatto del cliente.',
+                  });
+                  if (ok) setProfileEditing(true);
+                }}
                 onCancelEdit={() => {
                   setProfileEditing(false);
                   setProfileForm(initProfileForm(detail.profile));
@@ -546,7 +567,18 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                           </button>
                           {canManage ? (
                             <div className="pt-1">
-                              <Button variant="secondary" className="ui-btnCompact" onClick={() => setEditingDog(dog)}>
+                              <Button
+                                variant="secondary"
+                                className="ui-btnCompact"
+                                onClick={async () => {
+                                  const ok = await confirm({
+                                    keyword: 'MODIFICA',
+                                    title: `Modifica ${dog.name}`,
+                                    message: 'Stai per modificare i dati di questo cane.',
+                                  });
+                                  if (ok) setEditingDog(dog);
+                                }}
+                              >
                                 Modifica cane
                               </Button>
                             </div>

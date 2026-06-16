@@ -4,13 +4,15 @@ import type { Profile } from '@/types/profile';
 import type { BookingStatus } from '@/types/booking';
 import type { ServicePassRow, ServiceStatus, ServiceType, ServiceVariant } from '@/types/services';
 
-export type StaffRole = 'ADMIN' | 'VIEWER';
+export type StaffRole = 'SUPER_ADMIN' | 'ADMIN' | 'VIEWER';
 
 export type AdminStaffAccess = {
   userId: string;
   email: string | null;
   role: StaffRole;
   canManage: boolean;
+  // Solo l'Amministratore plus (SUPER_ADMIN) può gestire gli altri membri staff.
+  canManageStaff: boolean;
 };
 
 export type AdminDocumentKind = 'ID_DOCUMENT' | 'WAIVER_SIGNED';

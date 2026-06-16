@@ -27,6 +27,7 @@ import {
   TimelineCard,
 } from '@/components/admin/shared';
 import { BookingDetailModal, UserDetailModal } from '@/components/admin/modals';
+import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { Button } from '@/components/ui/Button';
 
 export function DogsTab({ canManage }: { canManage: boolean }) {
@@ -43,6 +44,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
   const [selectedBooking, setSelectedBooking] = useState<AdminAgendaItem | null>(null);
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null);
   const hasQuery = debouncedQuery.trim().length > 0;
+  const confirm = useConfirm();
 
   const loadDogs = async () => {
     setListState('loading');
@@ -228,7 +230,21 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
                     </div>
                   </div>
                   {canManage ? (
-                    <Button variant="secondary" onClick={() => setEditing((current) => !current)}>
+                    <Button
+                      variant="secondary"
+                      onClick={async () => {
+                        if (editing) {
+                          setEditing(false);
+                          return;
+                        }
+                        const ok = await confirm({
+                          keyword: 'MODIFICA',
+                          title: `Modifica ${detail.dog.name}`,
+                          message: 'Stai per modificare i dati di questo cane.',
+                        });
+                        if (ok) setEditing(true);
+                      }}
+                    >
                       {editing ? 'Chiudi modifica' : 'Modifica cane'}
                     </Button>
                   ) : null}

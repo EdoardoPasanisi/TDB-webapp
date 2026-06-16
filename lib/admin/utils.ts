@@ -22,6 +22,7 @@ export const ADMIN_SERVICE_OPTIONS: Array<{ key: AdminServiceKey; label: string 
 ];
 
 export const STAFF_ROLE_OPTIONS: Array<{ value: StaffRole; label: string }> = [
+  { value: 'SUPER_ADMIN', label: 'Amministratore plus' },
   { value: 'ADMIN', label: 'Poteri completi' },
   { value: 'VIEWER', label: 'Sola lettura' },
 ];
@@ -79,6 +80,7 @@ export function getAdminStatusLabel(status: AdminAnyBookingStatus): string {
 }
 
 export function getAdminRoleLabel(role: StaffRole | null | undefined): string {
+  if (role === 'SUPER_ADMIN') return 'Amministratore plus';
   if (role === 'ADMIN') return 'Poteri completi';
   if (role === 'VIEWER') return 'Sola lettura';
   return 'Nessun accesso gestionale';

@@ -30,11 +30,21 @@ import {
   LoadingCard,
   type LoadState,
 } from '@/components/admin/shared';
+import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 
-export function ConfigTab({ canManage }: { canManage: boolean }) {
+export function ConfigTab({
+  canManage,
+  canManageStaff = false,
+  currentUserId = null,
+}: {
+  canManage: boolean;
+  canManageStaff?: boolean;
+  currentUserId?: string | null;
+}) {
+  const confirm = useConfirm();
   const [monthDate, setMonthDate] = useState<Date>(() => new Date());
   const [selectedDayKey, setSelectedDayKey] = useState(todayIso());
   const [slotServiceType, setSlotServiceType] = useState<ServiceType | 'ALL'>('ALL');
@@ -77,12 +87,8 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
     [staffCandidates, staffForm.userId]
   );
 
-  const selectedExistingStaffMember = useMemo(
-    () => staff.find((member) => member.userId === staffForm.userId) ?? null,
-    [staff, staffForm.userId]
-  );
-
-  const isLockedAdminMember = selectedExistingStaffMember?.role === 'ADMIN';
+  // Un Amministratore plus può gestire qualunque ruolo, tranne sé stesso (anti-lockout).
+  const isSelfStaffMember = Boolean(currentUserId) && staffForm.userId === currentUserId;
 
   const slotCalendarItems = useMemo<Array<CalendarBookingItem & { dayKey?: string }>>(
     () =>
@@ -196,6 +202,11 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
   }, [monthEndDate, monthStartDate, slotServiceType]);
 
   useEffect(() => {
+    if (!canManageStaff) {
+      setStaffState('ready');
+      return;
+    }
+
     const controller = new AbortController();
     setStaffState('loading');
     setError(null);
@@ -212,13 +223,13 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [canManageStaff]);
 
   useEffect(() => {
     const controller = new AbortController();
     const query = debouncedStaffQuery.trim();
 
-    if (!query) {
+    if (!canManageStaff || !query) {
       setStaffCandidates([]);
       setStaffSearchState('idle');
       return () => controller.abort();
@@ -242,7 +253,7 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
       });
 
     return () => controller.abort();
-  }, [debouncedStaffQuery]);
+  }, [debouncedStaffQuery, canManageStaff]);
 
   useEffect(() => {
     if (selectedDayKey >= monthStartDate && selectedDayKey <= monthEndDate) return;
@@ -335,13 +346,13 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
   };
 
   const saveStaff = async () => {
+    if (isSelfStaffMember) {
+      setError('Non puoi modificare il tuo stesso ruolo staff.');
+      return;
+    }
     setSavingStaff(true);
     setError(null);
     try {
-      if (isLockedAdminMember) {
-        throw new Error('Gli account con poteri completi non possono essere degradati o rimossi da qui.');
-      }
-
       await fetchAdminJson('/api/admin/staff', {
         method: 'POST',
         body: JSON.stringify(staffForm),
@@ -358,10 +369,18 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
   };
 
   const removeStaffMember = async (member: AdminStaffMember) => {
-    if (member.role !== 'VIEWER') {
-      setError('È possibile rimuovere l’accesso solo ai membri staff in sola lettura.');
+    if (member.userId === currentUserId) {
+      setError('Non puoi rimuovere il tuo stesso accesso staff.');
       return;
     }
+
+    const ok = await confirm({
+      keyword: 'ELIMINA',
+      title: 'Rimuovi accesso staff',
+      message: `${member.fullName} non avrà più accesso al gestionale.`,
+      confirmLabel: 'Rimuovi accesso',
+    });
+    if (!ok) return;
 
     setSavingStaff(true);
     setError(null);
@@ -406,7 +425,11 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
   const deleteSlot = async () => {
     if (!slotForm.slotId) return;
 
-    const confirmed = window.confirm('Eliminare definitivamente questo slot?');
+    const confirmed = await confirm({
+      keyword: 'ELIMINA',
+      title: 'Elimina slot',
+      message: 'Lo slot verrà eliminato definitivamente.',
+    });
     if (!confirmed) return;
 
     setDeletingSlot(true);
@@ -429,16 +452,17 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
     <div className="space-y-4">
       {error ? <div className="ui-error">{error}</div> : null}
 
+      {canManageStaff ? (
       <Card>
         <CardContent className="space-y-3">
-          <SectionHeader title="Staff gestionale" subtitle="Cerca un utente e assegna accesso completo o sola lettura." />
+          <SectionHeader title="Staff gestionale" subtitle="Cerca un utente e assegna ruolo: Amministratore plus, Poteri completi o Sola lettura." />
           <div className="grid gap-3">
             <input
               value={staffQuery}
               onChange={(event) => setStaffQuery(event.target.value)}
               className="ui-control ui-input"
               placeholder="Cerca per nome, cognome, email o cane..."
-              disabled={!canManage || savingStaff}
+              disabled={!canManageStaff || savingStaff}
             />
             {selectedStaffCandidate ? (
               <div className="ui-panelInset p-3">
@@ -481,7 +505,7 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
                 value={staffForm.role}
                 onChange={(event) => setStaffForm((current) => ({ ...current, role: event.target.value as StaffRole }))}
                 className="ui-control ui-select"
-                disabled={!canManage || savingStaff || isLockedAdminMember}
+                disabled={!canManageStaff || savingStaff || isSelfStaffMember}
               >
                 {STAFF_ROLE_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -489,12 +513,12 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
                   </option>
                 ))}
               </select>
-              <Button disabled={savingStaff || !staffForm.userId || isLockedAdminMember} onClick={saveStaff}>
+              <Button disabled={savingStaff || !staffForm.userId || isSelfStaffMember} onClick={saveStaff}>
                 {savingStaff ? 'Salvataggio...' : 'Salva ruolo staff'}
               </Button>
             </div>
-            {isLockedAdminMember ? (
-              <div className="ui-muted">I membri staff con poteri completi non possono essere degradati o rimossi.</div>
+            {isSelfStaffMember ? (
+              <div className="ui-muted">Non puoi modificare il tuo stesso ruolo staff.</div>
             ) : null}
 
             {staffState === 'loading' || staffState === 'idle' ? <LoadingCard label="Caricamento staff..." /> : null}
@@ -540,7 +564,7 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
                         >
                           Modifica
                         </Button>
-                        {member.role === 'VIEWER' ? (
+                        {member.userId !== currentUserId ? (
                           <Button
                             variant="danger"
                             className="ui-btnCompact"
@@ -559,6 +583,7 @@ export function ConfigTab({ canManage }: { canManage: boolean }) {
           </div>
         </CardContent>
       </Card>
+      ) : null}
 
       <Card>
         <CardContent className="space-y-4">

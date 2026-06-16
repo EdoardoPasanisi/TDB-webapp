@@ -37,6 +37,7 @@ import {
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { BookingEditModal } from '@/components/admin/BookingEditModal';
+import { useConfirm } from '@/components/admin/ConfirmProvider';
 
 export function UserDetailModal({
   userId,
@@ -313,12 +314,16 @@ export function BookingDetailModal({
   const [deleting, setDeleting] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const confirm = useConfirm();
 
   const handleDelete = async () => {
     if (!item) return;
-    if (!window.confirm('Eliminare definitivamente questa prenotazione? L’operazione storna saldo/crediti e non è reversibile.')) {
-      return;
-    }
+    const ok = await confirm({
+      keyword: 'ELIMINA',
+      title: 'Elimina prenotazione',
+      message: 'L’operazione storna saldo/crediti e non è reversibile.',
+    });
+    if (!ok) return;
     setDeleting(true);
     setError(null);
     try {
@@ -385,7 +390,14 @@ export function BookingDetailModal({
                           type="button"
                           variant="secondary"
                           className="ui-btnCompact"
-                          onClick={() => setEditOpen(true)}
+                          onClick={async () => {
+                            const ok = await confirm({
+                              keyword: 'MODIFICA',
+                              title: 'Modifica prenotazione',
+                              message: 'Stai per modificare una prenotazione. Le variazioni possono incidere sul saldo del cliente.',
+                            });
+                            if (ok) setEditOpen(true);
+                          }}
                         >
                           Modifica
                         </Button>

@@ -119,6 +119,28 @@ Tutto ciò che l'utente fa dall'app deve essere fattibile dallo staff su **quals
   anteprima variazione saldo). Nuovi componenti: `CreateUserModal`, `DogEditModal`, `AssignPassModal`,
   `BookingEditModal`.
 
+## 5.2 Ruoli staff, conferme e sicurezza (sessione successiva)
+
+- **Migrazione `supabase/migrations/20260617_super_admin_role.sql`** (idempotente):
+  - Aggiunge il ruolo **`SUPER_ADMIN`** ("Amministratore plus") al CHECK di `staff_accounts`.
+  - Aggiorna le policy RLS chat per riconoscere ADMIN **e** SUPER_ADMIN.
+  - Crea la vista **`staff_members_directory`** (`role, is_active, email, first_name, last_name, …`)
+    per vedere dal DB **chi sono i membri staff** (email + nome).
+  - ⚠️ **Bootstrap**: il primo Amministratore plus va impostato a mano in DB
+    (`update public.staff_accounts set role='SUPER_ADMIN' where user_id='<uuid>';`).
+    Dopo, è lui a gestire gli altri dal gestionale.
+- **Ruoli**: `SUPER_ADMIN` (poteri completi **+ gestione staff**), `ADMIN` (poteri completi,
+  **non** gestisce lo staff), `VIEWER` (sola lettura).
+  - `requireStaffAccess(req, 'super')` protegge le rotte staff; `canManage` = ADMIN o SUPER_ADMIN.
+  - La card "Staff gestionale" in Config è visibile **solo** al SUPER_ADMIN; un super non può
+    modificare/rimuovere sé stesso (anti-lockout, lato UI e API).
+- **VIEWER e pagina Config**: già non accessibile (AdminConsole nasconde il tab `config` e
+  `ConfigTab` esce con messaggio se `!canManage`; le rotte richiedono `manage`/`super`).
+- **Conferme esplicite** (`components/admin/ConfirmProvider.tsx`, `useConfirm`): ogni azione
+  **Elimina** richiede di digitare `ELIMINA`, ogni **Modifica** di digitare `MODIFICA`. Applicate a:
+  elimina/modifica prenotazione, elimina/modifica cane, modifica profilo cliente, elimina cliente
+  (soft) ed eliminazione definitiva, annulla pacchetto, elimina slot, rimuovi accesso staff.
+
 ## 6. Checklist finale
 - [ ] tsc/eslint/build verdi
 - [ ] Flussi utente esistenti non regrediti

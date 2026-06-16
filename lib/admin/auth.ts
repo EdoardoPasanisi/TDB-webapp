@@ -54,11 +54,12 @@ export async function getStaffAccess(): Promise<AdminStaffAccess | null> {
     userId: row.user_id,
     email: user.email ?? null,
     role: row.role,
-    canManage: row.role === 'ADMIN',
+    canManage: row.role === 'ADMIN' || row.role === 'SUPER_ADMIN',
+    canManageStaff: row.role === 'SUPER_ADMIN',
   };
 }
 
-type StaffAccessMode = 'view' | 'manage';
+type StaffAccessMode = 'view' | 'manage' | 'super';
 
 export async function requireStaffAccess(
   modeOrRequest: StaffAccessMode | Request = 'view',
@@ -82,6 +83,10 @@ export async function requireStaffAccess(
 
   if (mode === 'manage' && !access.canManage) {
     throw new AdminAccessError(403, 'Il tuo account ha accesso in sola lettura.');
+  }
+
+  if (mode === 'super' && !access.canManageStaff) {
+    throw new AdminAccessError(403, 'Solo un Amministratore plus può gestire i membri dello staff.');
   }
 
   if (request) {

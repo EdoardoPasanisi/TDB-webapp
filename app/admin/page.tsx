@@ -1,4 +1,5 @@
 import { AdminConsole } from '@/components/admin/AdminConsole';
+import { ConfirmProvider } from '@/components/admin/ConfirmProvider';
 import { ADMIN_TABS, type AdminTab } from '@/components/admin/shared';
 
 type AdminPageProps = {
@@ -15,5 +16,9 @@ export default async function AdminPage({ searchParams }: AdminPageProps) {
       ? (requestedTab as AdminTab)
       : null;
 
-  return <AdminConsole initialTabFromQuery={initialTab} />;
+  return (
+    <ConfirmProvider>
+      <AdminConsole initialTabFromQuery={initialTab} />
+    </ConfirmProvider>
+  );
 }

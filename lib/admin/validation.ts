@@ -9,7 +9,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const STAFF_ROLE_SET = new Set<StaffRole>(['ADMIN', 'VIEWER']);
+const STAFF_ROLE_SET = new Set<StaffRole>(['SUPER_ADMIN', 'ADMIN', 'VIEWER']);
 const ADMIN_SERVICE_KEY_SET = new Set<AdminServiceKey>([
   'PENSIONE',
   'ASILO',

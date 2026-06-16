@@ -9,10 +9,19 @@ export async function PUT(
   context: { params: Promise<{ userId: string }> }
 ) {
   try {
-    await requireStaffAccess(request, 'manage');
+    const access = await requireStaffAccess(request, 'super');
 
     const { userId } = await context.params;
     const normalizedUserId = assertUuid(userId, 'Utente');
+
+    // Un Amministratore plus non può togliersi/declassarsi da solo (anti-lockout).
+    if (normalizedUserId === access.userId) {
+      return NextResponse.json(
+        { error: 'Non puoi modificare il tuo stesso ruolo staff.' },
+        { status: 400 }
+      );
+    }
+
     const body = (await request.json().catch(() => null)) as { role?: unknown } | null;
     const role = await setAdminUserStaffRole({
       userId: normalizedUserId,

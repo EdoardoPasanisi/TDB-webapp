@@ -6,7 +6,7 @@ import { sanitizeStaffMemberInput } from '@/lib/admin/validation';
 
 export async function GET() {
   try {
-    await requireStaffAccess('manage');
+    await requireStaffAccess('super');
     const items = await listAdminStaffMembers();
     return NextResponse.json({ items });
   } catch (error) {
@@ -16,10 +16,19 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    await requireStaffAccess(request, 'manage');
+    const access = await requireStaffAccess(request, 'super');
 
     const body = await request.json().catch(() => null);
-    const member = await upsertAdminStaffMember(sanitizeStaffMemberInput(body));
+    const input = sanitizeStaffMemberInput(body);
+
+    if (input.userId === access.userId) {
+      return NextResponse.json(
+        { error: 'Non puoi modificare il tuo stesso ruolo staff.' },
+        { status: 400 }
+      );
+    }
+
+    const member = await upsertAdminStaffMember(input);
 
     return NextResponse.json(member);
   } catch (error) {
