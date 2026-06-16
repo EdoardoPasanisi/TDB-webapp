@@ -104,6 +104,26 @@ const innerServiceCardStyle: CSSProperties = {
   boxShadow: 'inset 0 0 0 1px rgba(255,130,0,0.18)',
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function itemEndMs(item: AdminAgendaItem): number {
+  const raw = item.endAt ?? item.startAt;
+  const t = new Date(raw).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+function isCancelledItem(item: AdminAgendaItem): boolean {
+  return item.status === 'CANCELLED';
+}
+// Passato = concluso da più di 24h. Entro le 24h dalla fine resta tra i "da erogare".
+function isPastItem(item: AdminAgendaItem, now: number): boolean {
+  return itemEndMs(item) + DAY_MS < now;
+}
+// Concluso ma ancora entro le 24h: si mostra, ma "spento".
+function isRecentlyEndedItem(item: AdminAgendaItem, now: number): boolean {
+  const end = itemEndMs(item);
+  return end > 0 && end <= now && now <= end + DAY_MS;
+}
+
 export function ServicesTab({ canManage }: { canManage: boolean }) {
   const [selectedServiceKeys, setSelectedServiceKeys] = useState<Array<AdminServiceKey | 'ALL'>>(['ALL']);
   const [rangeMode, setRangeMode] = useState<'day' | 'period' | 'all'>('day');
@@ -112,6 +132,9 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
   const [startDate, setStartDate] = useState(todayIso());
   const [endDate, setEndDate] = useState(todayIso());
   const [status, setStatus] = useState('ALL');
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [showPast, setShowPast] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const [state, setState] = useState<'idle' | 'loading' | 'ready' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<AdminServicesViewResponse | null>(null);
@@ -146,6 +169,13 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
     >();
 
     for (const item of data?.items ?? []) {
+      // Default: solo i da-erogare. Annullate e passate (>24h dalla fine) solo su richiesta.
+      if (isCancelledItem(item)) {
+        if (!showCancelled) continue;
+      } else if (isPastItem(item, now)) {
+        if (!showPast) continue;
+      }
+
       const dayKey = item.startAt.slice(0, 10);
       const existing = groups.get(dayKey);
       if (existing) {
@@ -178,7 +208,12 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
     }
 
     return Array.from(groups.values()).sort((a, b) => a.dayKey.localeCompare(b.dayKey));
-  }, [data?.items]);
+  }, [data?.items, showCancelled, showPast, now]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const toggleServiceKey = (key: AdminServiceKey | 'ALL') => {
     setSelectedServiceKeys((current) => {
@@ -356,6 +391,22 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
               title="Elenco servizi"
               subtitle={`${selectedServiceLabels.join(' · ')} • ${getStatusFilterLabel(status)} • dal ${formatDateTime(effectiveStartDate)}${effectiveEndDate !== effectiveStartDate ? ` al ${formatDateTime(effectiveEndDate)}` : ''}`}
             />
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className={cx('admin-tabButton admin-choiceButton', showCancelled && 'admin-tabButton--active')}
+                onClick={() => setShowCancelled((v) => !v)}
+              >
+                {showCancelled ? 'Nascondi annullate' : 'Visualizza annullate'}
+              </button>
+              <button
+                type="button"
+                className={cx('admin-tabButton admin-choiceButton', showPast && 'admin-tabButton--active')}
+                onClick={() => setShowPast((v) => !v)}
+              >
+                {showPast ? 'Nascondi passate' : 'Visualizza passate'}
+              </button>
+            </div>
             {data.items.length ? (
               <div className="space-y-5">
                 {groupedItems.map((group) => (
@@ -392,15 +443,24 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
 
                             <div className="space-y-3">
                               {serviceGroup.items.map((item) => (
-                                <TimelineCard
+                                <div
                                   key={item.itemKey}
-                                  item={item}
-                                  canManage={canManage}
-                                  layout={isGenericServiceView ? 'default' : 'service'}
-                                  cardStyle={innerServiceCardStyle}
-                                  onOpenDetail={() => setSelectedBooking(item)}
-                                  onStatusChange={(nextStatus) => handleBookingStatus(item, nextStatus)}
-                                />
+                                  className={isRecentlyEndedItem(item, now) ? 'opacity-50' : ''}
+                                  title={
+                                    isRecentlyEndedItem(item, now)
+                                      ? 'Servizio concluso (entro le ultime 24h)'
+                                      : undefined
+                                  }
+                                >
+                                  <TimelineCard
+                                    item={item}
+                                    canManage={canManage}
+                                    layout={isGenericServiceView ? 'default' : 'service'}
+                                    cardStyle={innerServiceCardStyle}
+                                    onOpenDetail={() => setSelectedBooking(item)}
+                                    onStatusChange={(nextStatus) => handleBookingStatus(item, nextStatus)}
+                                  />
+                                </div>
                               ))}
                             </div>
                           </CardContent>
