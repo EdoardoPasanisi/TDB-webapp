@@ -145,7 +145,17 @@ export default function CalendarPage() {
 
         if (cancelled) return;
 
-        const slotItems: SelectedItem[] = slotRows.map((booking: ServiceSlotBookingWithRelations, idx: number) => {
+        // A calendario mostriamo solo le prenotazioni confermate/pagate.
+        // Le PENDING/DRAFT restano nella lista come "in attesa di conferma", non come pallino.
+        const CALENDAR_VISIBLE_STATUSES = new Set(['CONFIRMED', 'PAID', 'COMPLETED']);
+        const visibleSlotRows = slotRows.filter((b) =>
+          CALENDAR_VISIBLE_STATUSES.has(String((b as { status?: string | null }).status ?? ''))
+        );
+        const visiblePensioneRows = pensioneRows.filter((b) =>
+          CALENDAR_VISIBLE_STATUSES.has(String((b as { status?: string | null }).status ?? ''))
+        );
+
+        const slotItems: SelectedItem[] = visibleSlotRows.map((booking: ServiceSlotBookingWithRelations, idx: number) => {
           const slot = booking.service_slots;
           const startAtIso = slot?.start_at ?? '';
           const endAtIso = slot?.end_at ?? '';
@@ -174,7 +184,7 @@ export default function CalendarPage() {
           };
         });
 
-        const pensioneItems: SelectedItem[] = pensioneRows.map((booking: PensioneCalendarRow, idx: number) => {
+        const pensioneItems: SelectedItem[] = visiblePensioneRows.map((booking: PensioneCalendarRow, idx: number) => {
           // Importante: usiamo YYYY-MM-DD (no timezone)
           const startAtIso = `${booking.start_date}T00:00:00`;
           const endAtIso = `${booking.end_date ?? booking.start_date}T00:00:00`;
