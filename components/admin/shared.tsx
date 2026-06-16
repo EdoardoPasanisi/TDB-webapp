@@ -370,11 +370,29 @@ function nextStatuses(status: string | null | undefined): Array<{
   status: BookingStatus | ServiceStatus;
   variant?: 'secondary' | 'danger';
 }> {
-  if (status === 'PENDING') {
+  if (status === 'DRAFT' || status === 'PENDING') {
     return [
       { label: 'Conferma', status: 'CONFIRMED' },
-      { label: 'Rifiuta', status: 'CANCELLED', variant: 'danger' },
+      { label: 'Annulla', status: 'CANCELLED', variant: 'danger' },
     ];
+  }
+
+  if (status === 'CONFIRMED' || status === 'COMPLETED') {
+    return [
+      { label: 'Segna pagata', status: 'PAID' },
+      { label: 'Annulla', status: 'CANCELLED', variant: 'danger' },
+    ];
+  }
+
+  if (status === 'PAID') {
+    return [
+      { label: 'Riporta a confermata', status: 'CONFIRMED', variant: 'secondary' },
+      { label: 'Annulla', status: 'CANCELLED', variant: 'danger' },
+    ];
+  }
+
+  if (status === 'CANCELLED' || status === 'REJECTED') {
+    return [{ label: 'Ripristina (conferma)', status: 'CONFIRMED', variant: 'secondary' }];
   }
 
   return [];

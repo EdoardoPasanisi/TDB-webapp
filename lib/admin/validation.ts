@@ -221,7 +221,7 @@ export function sanitizeBookingStatusPatchInput(kindValue: unknown, statusValue:
   }
 
   const status = sanitizeStatus(statusValue, 'Status prenotazione');
-  if (status !== 'CONFIRMED' && status !== 'CANCELLED') {
+  if (status !== 'CONFIRMED' && status !== 'PAID' && status !== 'CANCELLED') {
     throw new Error('Status prenotazione non valido.');
   }
 
