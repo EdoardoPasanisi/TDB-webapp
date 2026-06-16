@@ -30,6 +30,7 @@ import {
   ErrorCard,
   LoadingCard,
   TimelineCard,
+  buildRequiredDogMissing,
 } from '@/components/admin/shared';
 import { BookingDetailModal, DogDetailModal } from '@/components/admin/modals';
 import { DocumentCard } from '@/components/admin/shared';
@@ -410,7 +411,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                   {canManage && item.pendingDocuments > 0 ? (
                     <span className="ui-accentPill">{item.pendingDocuments} documenti</span>
                   ) : null}
-                  {canManage && item.walletDue > 0 ? (
+                  {item.walletDue > 0 ? (
                     <span className="ui-accentPill ui-accentPill--saldo">Saldo € {item.walletDue.toFixed(2)}</span>
                   ) : null}
                 </div>
@@ -473,17 +474,21 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
               </CardContent>
             </Card>
 
-            {canManage ? (
-              <Card>
-                <CardContent className="space-y-3">
-                  <SectionHeader
-                    title="Saldo e pagamenti"
-                    subtitle="Conferma l'incasso per azzerare il saldo e sbloccare i pacchetti."
-                  />
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="ui-body">
-                      Saldo attuale: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>
-                    </div>
+            <Card>
+              <CardContent className="space-y-3">
+                <SectionHeader
+                  title="Saldo e pagamenti"
+                  subtitle={
+                    canManage
+                      ? "Conferma l'incasso per azzerare il saldo e sbloccare i pacchetti."
+                      : 'Saldo dovuto dal cliente (sola lettura).'
+                  }
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <div className="ui-body">
+                    Saldo attuale: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>
+                  </div>
+                  {canManage ? (
                     <button
                       type="button"
                       className="ui-btn ui-btnTone-primary ui-btnCompact"
@@ -492,10 +497,21 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                     >
                       Segna come pagato
                     </button>
-                  </div>
-                </CardContent>
-              </Card>
-            ) : null}
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardContent className="space-y-3">
+                <SectionHeader title="Dati da completare" subtitle="Informazioni obbligatorie mancanti per le prenotazioni." />
+                {detail.ownerMissing.length ? (
+                  <div className="ui-body">{detail.ownerMissing.join(', ')}</div>
+                ) : (
+                  <div className="ui-muted">Nessun dato obbligatorio mancante per il cliente.</div>
+                )}
+              </CardContent>
+            </Card>
 
             {canManage ? (
               <ProfileDetails
@@ -565,6 +581,9 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                             <div className="ui-muted">{dog.breed ?? 'Razza non specificata'}</div>
                             <div className="ui-muted">Microchip: {dog.microchip ?? '—'}</div>
                           </button>
+                          {buildRequiredDogMissing(dog).length ? (
+                            <div className="ui-muted">Dati mancanti: {buildRequiredDogMissing(dog).join(', ')}</div>
+                          ) : null}
                           {canManage ? (
                             <div className="pt-1">
                               <Button
@@ -614,14 +633,18 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                     )}
                   </CardContent>
                 </Card>
+              </>
+            ) : null}
 
-                <Card>
-                  <CardContent className="space-y-3">
+            <Card>
+              <CardContent className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
                       <SectionHeader title="Pacchetti e crediti" subtitle="Pass attivi, consumati o scaduti collegati al cliente." />
-                      <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAssignOpen(true)}>
-                        Assegna pacchetto
-                      </Button>
+                      {canManage ? (
+                        <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAssignOpen(true)}>
+                          Assegna pacchetto
+                        </Button>
+                      ) : null}
                     </div>
                     {detail.servicePasses.length ? (
                       <div className="grid gap-3 md:grid-cols-2">
@@ -653,26 +676,28 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                               {servicePass.unlocked_at ? (
                                 <div className="ui-muted">Sbloccato il {formatDateTime(servicePass.unlocked_at)}</div>
                               ) : null}
-                              <div className="flex flex-wrap gap-2 pt-1">
-                                {servicePass.status === 'LOCKED' ? (
-                                  <Button
-                                    variant="secondary"
-                                    className="ui-btnCompact"
-                                    onClick={() => void handleUnlockServicePass(servicePass.id)}
-                                  >
-                                    Sblocca utilizzo
-                                  </Button>
-                                ) : null}
-                                {servicePass.status !== 'CANCELLED' ? (
-                                  <Button
-                                    variant="danger"
-                                    className="ui-btnCompact"
-                                    onClick={() => void handleRemoveServicePass(servicePass.id)}
-                                  >
-                                    Annulla
-                                  </Button>
-                                ) : null}
-                              </div>
+                              {canManage ? (
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                  {servicePass.status === 'LOCKED' ? (
+                                    <Button
+                                      variant="secondary"
+                                      className="ui-btnCompact"
+                                      onClick={() => void handleUnlockServicePass(servicePass.id)}
+                                    >
+                                      Sblocca utilizzo
+                                    </Button>
+                                  ) : null}
+                                  {servicePass.status !== 'CANCELLED' ? (
+                                    <Button
+                                      variant="danger"
+                                      className="ui-btnCompact"
+                                      onClick={() => void handleRemoveServicePass(servicePass.id)}
+                                    >
+                                      Annulla
+                                    </Button>
+                                  ) : null}
+                                </div>
+                              ) : null}
                             </CardContent>
                           </Card>
                         ))}
@@ -680,9 +705,11 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                     ) : (
                       <EmptyCard label="Nessun pacchetto o credito associato." />
                     )}
-                  </CardContent>
-                </Card>
+              </CardContent>
+            </Card>
 
+            {canManage ? (
+              <>
                 <Card>
                   <CardContent className="space-y-3">
                     <SectionHeader title="Prenotazioni attive" subtitle="Tutte le prenotazioni correnti e future del cliente." />

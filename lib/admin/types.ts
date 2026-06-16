@@ -166,6 +166,9 @@ export type AdminUserDetail = {
   documents: AdminDocumentRecord[];
   activeTimeline: AdminAgendaItem[];
   historyTimeline: AdminAgendaItem[];
+  // Dati obbligatori mancanti del proprietario, calcolati server-side sui dati reali
+  // (così resta accurato anche per i VIEWER, che vedono i dati anagrafici oscurati).
+  ownerMissing: string[];
 };
 
 export type AdminDogDetail = {

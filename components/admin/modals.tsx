@@ -128,8 +128,8 @@ export function UserDetailModal({
           </div>
 
           <HighlightBox title="Dati da completare per le prenotazioni" tone="danger">
-            {buildRequiredOwnerMissing(detail.profile).length
-              ? buildRequiredOwnerMissing(detail.profile).join(', ')
+            {detail.ownerMissing.length
+              ? detail.ownerMissing.join(', ')
               : 'Nessun dato obbligatorio mancante.'}
           </HighlightBox>
 

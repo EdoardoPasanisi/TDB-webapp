@@ -17,6 +17,7 @@ import type {
   AdminUserListItem,
   StaffRole,
 } from '@/lib/admin/types';
+import { buildRequiredOwnerMissing } from '@/lib/admin/requirements';
 import {
   ADMIN_SERVICE_OPTIONS,
   buildIlikePattern,
@@ -1257,6 +1258,7 @@ function slotServiceTypesFromKeys(serviceKeys: AdminServiceKey[]): ServiceType[]
 
 function sanitizeUserListItemVisibility(item: AdminUserListItem, visibility: AdminVisibilityMode): AdminUserListItem {
   if (visibility === 'full') return item;
+  // I VIEWER vedono il saldo (walletDue) ma non i contatti/documenti.
   return {
     ...item,
     email: null,
@@ -1264,7 +1266,6 @@ function sanitizeUserListItemVisibility(item: AdminUserListItem, visibility: Adm
     city: null,
     staffRole: null,
     pendingDocuments: 0,
-    walletDue: 0,
   };
 }
 
@@ -1444,10 +1445,13 @@ export async function getAdminUserDetail(
     profile: visibility === 'full' ? profile : sanitizeProfileForViewer(profile),
     staffRole: visibility === 'full' ? staffRole : null,
     dogs,
-    servicePasses: visibility === 'full' ? ((passesRes.data ?? []) as ServicePassRow[]) : [],
+    // Saldo e pacchetti crediti sono visibili anche ai VIEWER (sola lettura).
+    servicePasses: (passesRes.data ?? []) as ServicePassRow[],
     documents,
     activeTimeline,
     historyTimeline,
+    // Calcolato sul profilo REALE (non oscurato), così i mancanti restano accurati per i VIEWER.
+    ownerMissing: buildRequiredOwnerMissing(profile),
   };
 }
 

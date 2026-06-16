@@ -87,8 +87,20 @@ export function ConfigTab({
     [staffCandidates, staffForm.userId]
   );
 
+  const selectedExistingStaffMember = useMemo(
+    () => staff.find((member) => member.userId === staffForm.userId) ?? null,
+    [staff, staffForm.userId]
+  );
+
   // Un Amministratore plus può gestire qualunque ruolo, tranne sé stesso (anti-lockout).
+  // Un ADMIN può gestire solo i membri "Sola lettura".
   const isSelfStaffMember = Boolean(currentUserId) && staffForm.userId === currentUserId;
+  const canManageRole = (role: StaffRole | null | undefined) =>
+    canManageStaff || (role ?? 'VIEWER') === 'VIEWER';
+  const canManageSelectedTarget = !isSelfStaffMember && canManageRole(selectedExistingStaffMember?.role ?? null);
+  const roleOptions = canManageStaff
+    ? STAFF_ROLE_OPTIONS
+    : STAFF_ROLE_OPTIONS.filter((option) => option.value === 'VIEWER');
 
   const slotCalendarItems = useMemo<Array<CalendarBookingItem & { dayKey?: string }>>(
     () =>
@@ -202,7 +214,7 @@ export function ConfigTab({
   }, [monthEndDate, monthStartDate, slotServiceType]);
 
   useEffect(() => {
-    if (!canManageStaff) {
+    if (!canManage) {
       setStaffState('ready');
       return;
     }
@@ -223,13 +235,13 @@ export function ConfigTab({
       });
 
     return () => controller.abort();
-  }, [canManageStaff]);
+  }, [canManage]);
 
   useEffect(() => {
     const controller = new AbortController();
     const query = debouncedStaffQuery.trim();
 
-    if (!canManageStaff || !query) {
+    if (!canManage || !query) {
       setStaffCandidates([]);
       setStaffSearchState('idle');
       return () => controller.abort();
@@ -253,7 +265,7 @@ export function ConfigTab({
       });
 
     return () => controller.abort();
-  }, [debouncedStaffQuery, canManageStaff]);
+  }, [debouncedStaffQuery, canManage]);
 
   useEffect(() => {
     if (selectedDayKey >= monthStartDate && selectedDayKey <= monthEndDate) return;
@@ -350,6 +362,10 @@ export function ConfigTab({
       setError('Non puoi modificare il tuo stesso ruolo staff.');
       return;
     }
+    if (!canManageSelectedTarget) {
+      setError('Solo un Amministratore plus può gestire un altro amministratore.');
+      return;
+    }
     setSavingStaff(true);
     setError(null);
     try {
@@ -371,6 +387,10 @@ export function ConfigTab({
   const removeStaffMember = async (member: AdminStaffMember) => {
     if (member.userId === currentUserId) {
       setError('Non puoi rimuovere il tuo stesso accesso staff.');
+      return;
+    }
+    if (!canManageRole(member.role)) {
+      setError('Solo un Amministratore plus può rimuovere un altro amministratore.');
       return;
     }
 
@@ -452,17 +472,24 @@ export function ConfigTab({
     <div className="space-y-4">
       {error ? <div className="ui-error">{error}</div> : null}
 
-      {canManageStaff ? (
+      {canManage ? (
       <Card>
         <CardContent className="space-y-3">
-          <SectionHeader title="Staff gestionale" subtitle="Cerca un utente e assegna ruolo: Amministratore plus, Poteri completi o Sola lettura." />
+          <SectionHeader
+            title="Staff gestionale"
+            subtitle={
+              canManageStaff
+                ? 'Assegna ruolo: Amministratore plus, Poteri completi o Sola lettura.'
+                : 'Puoi aggiungere o rimuovere solo membri in Sola lettura. Gli amministratori li gestisce un Amministratore plus.'
+            }
+          />
           <div className="grid gap-3">
             <input
               value={staffQuery}
               onChange={(event) => setStaffQuery(event.target.value)}
               className="ui-control ui-input"
               placeholder="Cerca per nome, cognome, email o cane..."
-              disabled={!canManageStaff || savingStaff}
+              disabled={!canManage || savingStaff}
             />
             {selectedStaffCandidate ? (
               <div className="ui-panelInset p-3">
@@ -505,20 +532,22 @@ export function ConfigTab({
                 value={staffForm.role}
                 onChange={(event) => setStaffForm((current) => ({ ...current, role: event.target.value as StaffRole }))}
                 className="ui-control ui-select"
-                disabled={!canManageStaff || savingStaff || isSelfStaffMember}
+                disabled={!canManage || savingStaff || !canManageSelectedTarget}
               >
-                {STAFF_ROLE_OPTIONS.map((option) => (
+                {roleOptions.map((option) => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>
                 ))}
               </select>
-              <Button disabled={savingStaff || !staffForm.userId || isSelfStaffMember} onClick={saveStaff}>
+              <Button disabled={savingStaff || !staffForm.userId || !canManageSelectedTarget} onClick={saveStaff}>
                 {savingStaff ? 'Salvataggio...' : 'Salva ruolo staff'}
               </Button>
             </div>
             {isSelfStaffMember ? (
               <div className="ui-muted">Non puoi modificare il tuo stesso ruolo staff.</div>
+            ) : !canManageSelectedTarget ? (
+              <div className="ui-muted">Solo un Amministratore plus può gestire questo amministratore.</div>
             ) : null}
 
             {staffState === 'loading' || staffState === 'idle' ? <LoadingCard label="Caricamento staff..." /> : null}
@@ -536,6 +565,7 @@ export function ConfigTab({
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+                        {member.userId !== currentUserId && canManageRole(member.role) ? (
                         <Button
                           variant="secondary"
                           className="ui-btnCompact"
@@ -564,7 +594,8 @@ export function ConfigTab({
                         >
                           Modifica
                         </Button>
-                        {member.userId !== currentUserId ? (
+                        ) : null}
+                        {member.userId !== currentUserId && canManageRole(member.role) ? (
                           <Button
                             variant="danger"
                             className="ui-btnCompact"

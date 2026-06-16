@@ -129,13 +129,18 @@ Tutto ciò che l'utente fa dall'app deve essere fattibile dallo staff su **quals
   - ⚠️ **Bootstrap**: il primo Amministratore plus va impostato a mano in DB
     (`update public.staff_accounts set role='SUPER_ADMIN' where user_id='<uuid>';`).
     Dopo, è lui a gestire gli altri dal gestionale.
-- **Ruoli**: `SUPER_ADMIN` (poteri completi **+ gestione staff**), `ADMIN` (poteri completi,
-  **non** gestisce lo staff), `VIEWER` (sola lettura).
-  - `requireStaffAccess(req, 'super')` protegge le rotte staff; `canManage` = ADMIN o SUPER_ADMIN.
-  - La card "Staff gestionale" in Config è visibile **solo** al SUPER_ADMIN; un super non può
-    modificare/rimuovere sé stesso (anti-lockout, lato UI e API).
-- **VIEWER e pagina Config**: già non accessibile (AdminConsole nasconde il tab `config` e
-  `ConfigTab` esce con messaggio se `!canManage`; le rotte richiedono `manage`/`super`).
+- **Ruoli**: `SUPER_ADMIN` (poteri completi **+ gestione di tutti gli staff, admin inclusi**),
+  `ADMIN` (poteri completi; può aggiungere/rimuovere solo membri **Sola lettura**, non altri
+  admin né il super), `VIEWER` (sola lettura).
+  - Rotte staff: `requireStaffAccess(req, 'manage')` + controllo ruolo lato server — un ADMIN può
+    agire solo su target `VIEWER`; assegnare/modificare ADMIN/SUPER richiede `canManageStaff`.
+  - In Config la card "Staff" è visibile a tutti i manager; per un ADMIN il menu ruoli mostra solo
+    "Sola lettura" e i membri admin/super non sono modificabili. Nessuno può modificare sé stesso.
+- **Poteri VIEWER (sola lettura)**: vede liste/dettagli con PII oscurata (no email/telefono/indirizzi/
+  CF/documenti), MA **vede saldo, pacchetti/crediti e "dati mancanti" di utente e cane**
+  (i mancanti del proprietario sono calcolati server-side su dati reali → `AdminUserDetail.ownerMissing`,
+  così restano accurati senza esporre i valori). Non può creare/modificare/eliminare nulla.
+- **VIEWER e pagina Config**: non accessibile (tab nascosto e `ConfigTab` esce se `!canManage`).
 - **Conferme esplicite** (`components/admin/ConfirmProvider.tsx`, `useConfirm`): ogni azione
   **Elimina** richiede di digitare `ELIMINA`, ogni **Modifica** di digitare `MODIFICA`. Applicate a:
   elimina/modifica prenotazione, elimina/modifica cane, modifica profilo cliente, elimina cliente
