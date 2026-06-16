@@ -1,6 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
@@ -129,6 +130,18 @@ export default function LoginClient() {
               <button type="button" className="ui-authLinkSecondary" onClick={() => router.push('/forgot-password')}>
                 Password dimenticata?
               </button>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1">
+              <Link href="/privacy" className="ui-legalLink">
+                Privacy
+              </Link>
+              <Link href="/terms" className="ui-legalLink">
+                Termini
+              </Link>
+              <Link href="/cookies" className="ui-legalLink">
+                Cookie
+              </Link>
             </div>
           </CardContent>
         </Card>

@@ -58,7 +58,8 @@ export function SocialAuthButtons({ next = '/' }: { next?: string }) {
         type="button"
         onClick={() => signIn('google')}
         disabled={pending !== null}
-        className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--radius)] border border-[rgba(0,0,0,0.12)] bg-white px-4 text-center text-[15px] font-[var(--font-weight-semibold)] text-[#1f1f1f] disabled:opacity-60"
+        style={{ backgroundColor: '#ffffff', color: '#1f1f1f', borderColor: 'rgba(0,0,0,0.12)' }}
+        className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--radius)] border px-4 text-center text-[15px] font-[var(--font-weight-semibold)] disabled:opacity-60"
       >
         <GoogleIcon />
         <span>{pending === 'google' ? 'Reindirizzamento…' : 'Continua con Google'}</span>
@@ -68,7 +69,8 @@ export function SocialAuthButtons({ next = '/' }: { next?: string }) {
         type="button"
         onClick={() => signIn('apple')}
         disabled={pending !== null}
-        className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--radius)] bg-black px-4 text-center text-[15px] font-[var(--font-weight-semibold)] text-white disabled:opacity-60"
+        style={{ backgroundColor: '#000000', color: '#ffffff' }}
+        className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--radius)] px-4 text-center text-[15px] font-[var(--font-weight-semibold)] disabled:opacity-60"
       >
         <AppleIcon />
         <span>{pending === 'apple' ? 'Reindirizzamento…' : 'Continua con Apple'}</span>
