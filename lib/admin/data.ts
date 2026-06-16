@@ -449,6 +449,14 @@ function isConfirmedRevenueStatus(status: BookingStatus | ServiceStatus | null |
   return status === 'CONFIRMED' || status === 'PAID' || status === 'COMPLETED';
 }
 
+/**
+ * Debito ancora "in sospeso" nel saldo dell'utente: la prenotazione è confermata
+ * ma NON ancora pagata. Quando passa a PAID (o viene annullata) esce dal saldo.
+ */
+function isOutstandingBalanceStatus(status: BookingStatus | ServiceStatus | null | undefined): boolean {
+  return status === 'CONFIRMED' || status === 'COMPLETED';
+}
+
 function bookingExtraLabels(extrasList: Array<BookingDogExtras | null | undefined>): string[] {
   const labels = new Set<string>();
 
@@ -2394,8 +2402,8 @@ export async function updateAdminBookingStatus(args: {
 
   // Pensione → saldo: addebita alla conferma, storna se esce dagli stati confermati.
   if (kind === 'PENSIONE') {
-    const wasCharged = isConfirmedRevenueStatus(current.status as BookingStatus | null);
-    const isCharged = isConfirmedRevenueStatus(status);
+    const wasCharged = isOutstandingBalanceStatus(current.status as BookingStatus | null);
+    const isCharged = isOutstandingBalanceStatus(status);
     const total = Number((current as { total_price?: number | null }).total_price ?? 0);
     if (Number.isFinite(total) && total > 0 && wasCharged !== isCharged) {
       const delta = isCharged ? total : -total;

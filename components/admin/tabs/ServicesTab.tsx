@@ -106,7 +106,8 @@ const innerServiceCardStyle: CSSProperties = {
 
 export function ServicesTab({ canManage }: { canManage: boolean }) {
   const [selectedServiceKeys, setSelectedServiceKeys] = useState<Array<AdminServiceKey | 'ALL'>>(['ALL']);
-  const [usePeriod, setUsePeriod] = useState(false);
+  const [rangeMode, setRangeMode] = useState<'day' | 'period' | 'all'>('day');
+  const usePeriod = rangeMode === 'period';
   const [date, setDate] = useState(todayIso());
   const [startDate, setStartDate] = useState(todayIso());
   const [endDate, setEndDate] = useState(todayIso());
@@ -116,8 +117,8 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
   const [data, setData] = useState<AdminServicesViewResponse | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<AdminAgendaItem | null>(null);
 
-  const effectiveStartDate = usePeriod ? startDate : date;
-  const effectiveEndDate = usePeriod ? endDate : date;
+  const effectiveStartDate = rangeMode === 'all' ? '2020-01-01' : usePeriod ? startDate : date;
+  const effectiveEndDate = rangeMode === 'all' ? '2035-12-31' : usePeriod ? endDate : date;
   const servicesParam =
     selectedServiceKeys.includes('ALL') || selectedServiceKeys.length === 0
       ? 'ALL'
@@ -271,9 +272,9 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
             <div className="admin-choiceGrid">
               <button
                 type="button"
-                className={cx('admin-tabButton admin-choiceButton', !usePeriod && 'admin-tabButton--active')}
+                className={cx('admin-tabButton admin-choiceButton', rangeMode === 'day' && 'admin-tabButton--active')}
                 onClick={() => {
-                  setUsePeriod(false);
+                  setRangeMode('day');
                   setDate(startDate);
                 }}
               >
@@ -281,14 +282,21 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
               </button>
               <button
                 type="button"
-                className={cx('admin-tabButton admin-choiceButton', usePeriod && 'admin-tabButton--active')}
+                className={cx('admin-tabButton admin-choiceButton', rangeMode === 'period' && 'admin-tabButton--active')}
                 onClick={() => {
-                  setUsePeriod(true);
+                  setRangeMode('period');
                   setStartDate(date);
                   setEndDate(date);
                 }}
               >
                 Periodo
+              </button>
+              <button
+                type="button"
+                className={cx('admin-tabButton admin-choiceButton', rangeMode === 'all' && 'admin-tabButton--active')}
+                onClick={() => setRangeMode('all')}
+              >
+                Tutti
               </button>
             </div>
           </div>
@@ -296,15 +304,17 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
           <div className="ui-panelInset space-y-3 p-3 md:space-y-4 md:border md:border-[rgba(255,255,255,0.12)] md:bg-[rgba(255,255,255,0.025)] md:px-5 md:py-5">
             <div className="ui-body font-[var(--font-weight-semibold)]">Filtri</div>
             <div className={cx('grid gap-3 md:gap-4', usePeriod ? 'md:grid-cols-4' : 'md:grid-cols-3')}>
-              <div className="space-y-2">
-                <label className="ui-label">{usePeriod ? 'Dal' : 'Data'}</label>
-                <input
-                  type="date"
-                  value={usePeriod ? startDate : date}
-                  onChange={(event) => (usePeriod ? setStartDate(event.target.value) : setDate(event.target.value))}
-                  className="ui-control ui-input"
-                />
-              </div>
+              {rangeMode !== 'all' ? (
+                <div className="space-y-2">
+                  <label className="ui-label">{usePeriod ? 'Dal' : 'Data'}</label>
+                  <input
+                    type="date"
+                    value={usePeriod ? startDate : date}
+                    onChange={(event) => (usePeriod ? setStartDate(event.target.value) : setDate(event.target.value))}
+                    className="ui-control ui-input"
+                  />
+                </div>
+              ) : null}
               {usePeriod ? (
                 <div className="space-y-2">
                   <label className="ui-label">Al</label>
