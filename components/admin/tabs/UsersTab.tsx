@@ -11,11 +11,13 @@ import type {
 } from '@/lib/admin/types';
 import { getAdminRoleLabel, getAdminServiceLabel } from '@/lib/admin/utils';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
+import type { Dog } from '@/types/dog';
 import type { Profile } from '@/types/profile';
 import type { BookingStatus } from '@/types/booking';
 import type { ServiceStatus } from '@/types/services';
 import { ProfileDetails } from '@/components/profile/ProfileDetails';
 import { Card, CardContent } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import {
   EMPTY_PROFILE_FORM,
@@ -31,7 +33,18 @@ import {
 } from '@/components/admin/shared';
 import { BookingDetailModal, DogDetailModal } from '@/components/admin/modals';
 import { DocumentCard } from '@/components/admin/shared';
+import { CreateUserModal } from '@/components/admin/CreateUserModal';
+import { DogEditModal } from '@/components/admin/DogEditModal';
+import { AssignPassModal } from '@/components/admin/AssignPassModal';
 import { Modal } from '@/components/common/Modal';
+
+type UsersMode = 'all' | 'active' | 'deleted';
+
+const MODE_TABS: Array<{ key: UsersMode; label: string }> = [
+  { key: 'all', label: 'Tutti' },
+  { key: 'active', label: 'Prenotazioni attive' },
+  { key: 'deleted', label: 'Eliminati' },
+];
 
 function formatServicePassStatusLabel(status: string): string {
   if (status === 'LOCKED') return 'Da sbloccare';
@@ -45,6 +58,7 @@ function formatServicePassStatusLabel(status: string): string {
 export function UsersTab({ canManage }: { canManage: boolean }) {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+  const [mode, setMode] = useState<UsersMode>('all');
   const [listState, setListState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [detailState, setDetailState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -55,36 +69,40 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
   const [profileEditing, setProfileEditing] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
   const [selectedDogId, setSelectedDogId] = useState<string | null>(null);
+  const [editingDog, setEditingDog] = useState<Dog | null>(null);
+  const [addingDog, setAddingDog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<AdminAgendaItem | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [userActionBusy, setUserActionBusy] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
   const [settleAmount, setSettleAmount] = useState('');
   const [settleSubmitting, setSettleSubmitting] = useState(false);
   const [settleError, setSettleError] = useState<string | null>(null);
-  const hasQuery = debouncedQuery.trim().length > 0;
 
+  const isDeletedMode = mode === 'deleted';
   const walletDue = Number(
     (detail?.profile as { wallet_due_eur?: number | null } | null)?.wallet_due_eur ?? 0
   );
 
-  const loadUsers = async () => {
-    if (!hasQuery) {
-      setItems([]);
-      setSelectedUserId(null);
-      setDetail(null);
-      setListState('idle');
-      setDetailState('idle');
-      setError(null);
-      return;
-    }
+  const buildListUrl = () =>
+    isDeletedMode
+      ? '/api/admin/users?status=deleted'
+      : `/api/admin/users?q=${encodeURIComponent(debouncedQuery)}`;
 
+  const applyMode = (list: AdminUserListItem[]) =>
+    mode === 'active' ? list.filter((item) => item.activeBookings > 0) : list;
+
+  const loadUsers = async () => {
     setListState('loading');
     setError(null);
     try {
-      const data = await fetchAdminJson<{ items: AdminUserListItem[] }>(
-        `/api/admin/users?q=${encodeURIComponent(debouncedQuery)}`
+      const data = await fetchAdminJson<{ items: AdminUserListItem[] }>(buildListUrl());
+      const next = applyMode(data.items);
+      setItems(next);
+      setSelectedUserId((current) =>
+        current && next.some((item) => item.userId === current) ? current : next[0]?.userId ?? null
       );
-      setItems(data.items);
-      setSelectedUserId((current) => (current && data.items.some((item) => item.userId === current) ? current : data.items[0]?.userId ?? null));
       setListState('ready');
     } catch (err) {
       setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare l’elenco dei clienti.'));
@@ -102,35 +120,22 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
       setProfileEditing(false);
       setDetailState('ready');
     } catch (err) {
-      setError(
-        humanizeErrorMessage(err, 'Non siamo riusciti a caricare il dettaglio del cliente.')
-      );
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare il dettaglio del cliente.'));
       setDetailState('error');
     }
   };
 
   useEffect(() => {
-    if (!hasQuery) {
-      setItems([]);
-      setSelectedUserId(null);
-      setDetail(null);
-      setListState('idle');
-      setDetailState('idle');
-      setError(null);
-      return;
-    }
-
     const controller = new AbortController();
     setListState('loading');
     setError(null);
 
-    fetchAdminJson<{ items: AdminUserListItem[] }>(`/api/admin/users?q=${encodeURIComponent(debouncedQuery)}`, {
-      signal: controller.signal,
-    })
+    fetchAdminJson<{ items: AdminUserListItem[] }>(buildListUrl(), { signal: controller.signal })
       .then((data) => {
-        setItems(data.items);
+        const next = mode === 'active' ? data.items.filter((item) => item.activeBookings > 0) : data.items;
+        setItems(next);
         setSelectedUserId((current) =>
-          current && data.items.some((item) => item.userId === current) ? current : data.items[0]?.userId ?? null
+          current && next.some((item) => item.userId === current) ? current : next[0]?.userId ?? null
         );
         setListState('ready');
       })
@@ -140,10 +145,9 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
         setListState('error');
       });
 
-    return () => {
-      controller.abort();
-    };
-  }, [debouncedQuery, hasQuery]);
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedQuery, mode]);
 
   useEffect(() => {
     if (!selectedUserId) {
@@ -156,9 +160,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     setDetailState('loading');
     setError(null);
 
-    fetchAdminJson<AdminUserDetail>(`/api/admin/users/${selectedUserId}`, {
-      signal: controller.signal,
-    })
+    fetchAdminJson<AdminUserDetail>(`/api/admin/users/${selectedUserId}`, { signal: controller.signal })
       .then((data) => {
         setDetail(data);
         setProfileForm(initProfileForm(data.profile));
@@ -167,15 +169,11 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
       })
       .catch((err) => {
         if (isAbortError(err)) return;
-        setError(
-          humanizeErrorMessage(err, 'Non siamo riusciti a caricare il dettaglio del cliente.')
-        );
+        setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare il dettaglio del cliente.'));
         setDetailState('error');
       });
 
-    return () => {
-      controller.abort();
-    };
+    return () => controller.abort();
   }, [selectedUserId]);
 
   const saveProfile = async (event: FormEvent) => {
@@ -225,6 +223,67 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     await loadDetail(selectedUserId);
   };
 
+  const handleRemoveServicePass = async (passId: string) => {
+    if (!selectedUserId) return;
+    if (!window.confirm('Annullare questo pacchetto/credito del cliente?')) return;
+    await fetchAdminJson(`/api/admin/users/${selectedUserId}/passes/${passId}`, { method: 'DELETE' });
+    await loadDetail(selectedUserId);
+  };
+
+  const handleSoftDeleteUser = async () => {
+    if (!selectedUserId) return;
+    if (!window.confirm('Spostare il cliente tra gli eliminati? Non potrà più accedere; cani e storico restano.')) {
+      return;
+    }
+    setUserActionBusy(true);
+    try {
+      await fetchAdminJson(`/api/admin/users/${selectedUserId}`, { method: 'DELETE' });
+      setSelectedUserId(null);
+      await loadUsers();
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a eliminare il cliente.'));
+    } finally {
+      setUserActionBusy(false);
+    }
+  };
+
+  const handleRestoreUser = async () => {
+    if (!selectedUserId) return;
+    setUserActionBusy(true);
+    try {
+      await fetchAdminJson(`/api/admin/users/${selectedUserId}/restore`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      setSelectedUserId(null);
+      await loadUsers();
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a ripristinare il cliente.'));
+    } finally {
+      setUserActionBusy(false);
+    }
+  };
+
+  const handleHardDeleteUser = async () => {
+    if (!selectedUserId) return;
+    if (!window.confirm('Eliminazione DEFINITIVA: account, cani, prenotazioni e documenti verranno cancellati. Procedere?')) {
+      return;
+    }
+    setUserActionBusy(true);
+    try {
+      await fetchAdminJson(`/api/admin/users/${selectedUserId}/hard-delete`, {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      setSelectedUserId(null);
+      await loadUsers();
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a eliminare definitivamente il cliente.'));
+    } finally {
+      setUserActionBusy(false);
+    }
+  };
+
   const openSettle = () => {
     setSettleError(null);
     setSettleAmount(walletDue > 0 ? walletDue.toFixed(2) : '0');
@@ -259,21 +318,57 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
       <div className="min-w-0 space-y-3">
         <Card>
           <CardContent className="space-y-3">
-            <SectionHeader title="Ricerca clienti" subtitle="Cerca per nome, email, telefono, città, CF o dati cane." />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              className="ui-control ui-input"
-              placeholder="Cerca utenti e cani..."
-            />
+            <div className="flex items-center justify-between gap-2">
+              <SectionHeader title="Clienti" subtitle="Elenco in ordine alfabetico. Cerca per nome, email, telefono, città, CF o dati cane." />
+              {canManage ? (
+                <Button variant="primary" className="ui-btnCompact shrink-0" onClick={() => setCreateOpen(true)}>
+                  Nuovo
+                </Button>
+              ) : null}
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {MODE_TABS.map((tab) => {
+                if (tab.key === 'deleted' && !canManage) return null;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setMode(tab.key)}
+                    className={cx('rounded-full px-3 py-1.5 ui-body ui-clickable', mode === tab.key && 'ui-clickable--selected')}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {!isDeletedMode ? (
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                className="ui-control ui-input"
+                placeholder="Cerca utenti e cani..."
+              />
+            ) : null}
           </CardContent>
         </Card>
 
         {listState === 'loading' ? <LoadingCard label="Caricamento clienti..." /> : null}
         {listState === 'error' ? <ErrorCard error={error ?? 'Errore clienti.'} onRetry={loadUsers} /> : null}
-        {hasQuery && listState === 'ready' && items.length === 0 ? <EmptyCard label="Nessun cliente trovato." /> : null}
+        {listState === 'ready' && items.length === 0 ? (
+          <EmptyCard
+            label={
+              isDeletedMode
+                ? 'Nessun cliente eliminato.'
+                : mode === 'active'
+                  ? 'Nessun cliente con prenotazioni attive.'
+                  : 'Nessun cliente trovato.'
+            }
+          />
+        ) : null}
 
-        {hasQuery ? items.map((item) => (
+        {items.map((item) => (
           <button
             key={item.userId}
             type="button"
@@ -297,7 +392,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <span className="ui-accentPill">{item.dogsCount} cani</span>
-                  {canManage ? <span className="ui-accentPill">{item.activeBookings} attive</span> : null}
+                  {canManage && !isDeletedMode ? <span className="ui-accentPill">{item.activeBookings} attive</span> : null}
                   {canManage && item.pendingDocuments > 0 ? (
                     <span className="ui-accentPill">{item.pendingDocuments} documenti</span>
                   ) : null}
@@ -308,7 +403,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
               </CardContent>
             </Card>
           </button>
-        )) : null}
+        ))}
       </div>
 
       <div className="min-w-0 space-y-4">
@@ -318,10 +413,8 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
         ) : detailState === 'error' || !detail ? (
           <EmptyCard
             label={
-              !hasQuery
-                ? 'Cerca un cliente per visualizzarne i dettagli.'
-                : canManage
-                ? 'Seleziona un cliente per vedere dettaglio, cani, prenotazioni e documenti.'
+              canManage
+                ? 'Seleziona un cliente per vedere saldo, dati, cani, prenotazioni e documenti.'
                 : 'Seleziona un cliente per vedere nome, cognome e cani collegati.'
             }
           />
@@ -331,7 +424,11 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
               <CardContent className="space-y-3">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div className="space-y-1">
-                    <h2 className="ui-title">{detail.profile?.first_name || detail.profile?.last_name ? `${detail.profile?.first_name ?? ''} ${detail.profile?.last_name ?? ''}`.trim() : 'Cliente'}</h2>
+                    <h2 className="ui-title">
+                      {detail.profile?.first_name || detail.profile?.last_name
+                        ? `${detail.profile?.first_name ?? ''} ${detail.profile?.last_name ?? ''}`.trim()
+                        : 'Cliente'}
+                    </h2>
                     {canManage && detail.profile?.email ? <div className="ui-muted">{detail.profile.email}</div> : null}
                     <div className="flex flex-wrap gap-2">
                       <span className="ui-accentPill">{detail.dogs.length} cani</span>
@@ -340,10 +437,51 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                     </div>
                   </div>
 
-                  {detail.staffRole ? <span className="ui-accentPill">{getAdminRoleLabel(detail.staffRole)}</span> : null}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {detail.staffRole ? <span className="ui-accentPill">{getAdminRoleLabel(detail.staffRole)}</span> : null}
+                    {canManage && isDeletedMode ? (
+                      <>
+                        <Button variant="secondary" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleRestoreUser()}>
+                          Ripristina
+                        </Button>
+                        <Button variant="danger" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleHardDeleteUser()}>
+                          Elimina definitivamente
+                        </Button>
+                      </>
+                    ) : null}
+                    {canManage && !isDeletedMode ? (
+                      <Button variant="danger" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleSoftDeleteUser()}>
+                        Elimina cliente
+                      </Button>
+                    ) : null}
+                  </div>
                 </div>
               </CardContent>
             </Card>
+
+            {canManage ? (
+              <Card>
+                <CardContent className="space-y-3">
+                  <SectionHeader
+                    title="Saldo e pagamenti"
+                    subtitle="Conferma l'incasso per azzerare il saldo e sbloccare i pacchetti."
+                  />
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="ui-body">
+                      Saldo attuale: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="ui-btn ui-btnTone-primary ui-btnCompact"
+                      disabled={walletDue <= 0}
+                      onClick={openSettle}
+                    >
+                      Segna come pagato
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
 
             {canManage ? (
               <ProfileDetails
@@ -388,19 +526,33 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
 
             <Card>
               <CardContent className="space-y-3">
-                <SectionHeader title="Cani registrati" subtitle="Profili cane collegati a questo cliente." />
+                <div className="flex items-center justify-between gap-2">
+                  <SectionHeader title="Cani registrati" subtitle="Profili cane collegati a questo cliente." />
+                  {canManage ? (
+                    <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAddingDog(true)}>
+                      Aggiungi cane
+                    </Button>
+                  ) : null}
+                </div>
                 {detail.dogs.length ? (
                   <div className="grid gap-3 md:grid-cols-2">
                     {detail.dogs.map((dog) => (
-                      <button key={dog.id} type="button" className="w-full text-left" onClick={() => setSelectedDogId(dog.id)}>
-                        <Card className="admin-listCard">
-                          <CardContent className="space-y-1">
+                      <Card key={dog.id} className="admin-listCard">
+                        <CardContent className="space-y-1">
+                          <button type="button" className="w-full text-left" onClick={() => setSelectedDogId(dog.id)}>
                             <div className="ui-body font-[var(--font-weight-semibold)] underline-offset-2 hover:underline">{dog.name}</div>
                             <div className="ui-muted">{dog.breed ?? 'Razza non specificata'}</div>
                             <div className="ui-muted">Microchip: {dog.microchip ?? '—'}</div>
-                          </CardContent>
-                        </Card>
-                      </button>
+                          </button>
+                          {canManage ? (
+                            <div className="pt-1">
+                              <Button variant="secondary" className="ui-btnCompact" onClick={() => setEditingDog(dog)}>
+                                Modifica cane
+                              </Button>
+                            </div>
+                          ) : null}
+                        </CardContent>
+                      </Card>
                     ))}
                   </div>
                 ) : (
@@ -433,32 +585,12 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
 
                 <Card>
                   <CardContent className="space-y-3">
-                    <SectionHeader
-                      title="Saldo e pagamenti"
-                      subtitle="Conferma l'incasso per azzerare il saldo e sbloccare i pacchetti."
-                    />
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="ui-body">
-                        Saldo attuale:{' '}
-                        <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>
-                      </div>
-                      {canManage ? (
-                        <button
-                          type="button"
-                          className="ui-btn ui-btnTone-primary ui-btnCompact"
-                          disabled={walletDue <= 0}
-                          onClick={openSettle}
-                        >
-                          Segna come pagato
-                        </button>
-                      ) : null}
+                    <div className="flex items-center justify-between gap-2">
+                      <SectionHeader title="Pacchetti e crediti" subtitle="Pass attivi, consumati o scaduti collegati al cliente." />
+                      <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAssignOpen(true)}>
+                        Assegna pacchetto
+                      </Button>
                     </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="space-y-3">
-                    <SectionHeader title="Pacchetti e crediti" subtitle="Pass attivi, consumati o scaduti collegati al cliente." />
                     {detail.servicePasses.length ? (
                       <div className="grid gap-3 md:grid-cols-2">
                         {detail.servicePasses.map((servicePass) => (
@@ -473,9 +605,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                                       servicePass.service_variant
                                     )}
                                   </div>
-                                  <div className="ui-muted">
-                                    Acquistato il {formatDateTime(servicePass.purchased_at)}
-                                  </div>
+                                  <div className="ui-muted">Acquistato il {formatDateTime(servicePass.purchased_at)}</div>
                                 </div>
                                 <span className="ui-accentPill">{formatServicePassStatusLabel(servicePass.status)}</span>
                               </div>
@@ -491,17 +621,26 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                               {servicePass.unlocked_at ? (
                                 <div className="ui-muted">Sbloccato il {formatDateTime(servicePass.unlocked_at)}</div>
                               ) : null}
-                              {canManage && servicePass.status === 'LOCKED' ? (
-                                <div className="pt-1">
-                                  <button
-                                    type="button"
-                                    className="ui-btn ui-btnSecondary ui-btnCompact"
+                              <div className="flex flex-wrap gap-2 pt-1">
+                                {servicePass.status === 'LOCKED' ? (
+                                  <Button
+                                    variant="secondary"
+                                    className="ui-btnCompact"
                                     onClick={() => void handleUnlockServicePass(servicePass.id)}
                                   >
                                     Sblocca utilizzo
-                                  </button>
-                                </div>
-                              ) : null}
+                                  </Button>
+                                ) : null}
+                                {servicePass.status !== 'CANCELLED' ? (
+                                  <Button
+                                    variant="danger"
+                                    className="ui-btnCompact"
+                                    onClick={() => void handleRemoveServicePass(servicePass.id)}
+                                  >
+                                    Annulla
+                                  </Button>
+                                ) : null}
+                              </div>
                             </CardContent>
                           </Card>
                         ))}
@@ -511,11 +650,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                     )}
                   </CardContent>
                 </Card>
-              </>
-            ) : null}
 
-            {canManage ? (
-              <>
                 <Card>
                   <CardContent className="space-y-3">
                     <SectionHeader title="Prenotazioni attive" subtitle="Tutte le prenotazioni correnti e future del cliente." />
@@ -567,19 +702,50 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
               open={Boolean(selectedDogId)}
               onClose={() => setSelectedDogId(null)}
             />
+            <DogEditModal
+              key={editingDog ? `edit-${editingDog.id}` : 'users-dog-edit-empty'}
+              open={Boolean(editingDog)}
+              mode="edit"
+              dog={editingDog}
+              onClose={() => setEditingDog(null)}
+              onSaved={() => {
+                if (selectedUserId) void loadDetail(selectedUserId);
+              }}
+            />
+            <DogEditModal
+              open={addingDog}
+              mode="create"
+              ownerId={selectedUserId}
+              onClose={() => setAddingDog(false)}
+              onSaved={() => {
+                if (selectedUserId) void loadDetail(selectedUserId);
+              }}
+            />
+            <AssignPassModal
+              open={assignOpen}
+              userId={selectedUserId}
+              onClose={() => setAssignOpen(false)}
+              onAssigned={() => {
+                if (selectedUserId) void loadDetail(selectedUserId);
+              }}
+            />
             <BookingDetailModal
               key={selectedBooking ? `${selectedBooking.kind}-${selectedBooking.id}` : 'users-booking-detail-empty'}
               item={selectedBooking}
               open={Boolean(selectedBooking)}
               onClose={() => setSelectedBooking(null)}
+              canManage={canManage}
+              onDeleted={() => {
+                if (selectedUserId) void loadDetail(selectedUserId);
+              }}
             />
 
             <Modal open={settleOpen} title="Conferma pagamento" onClose={() => setSettleOpen(false)}>
               <div className="space-y-4">
                 <div className="ui-muted">
-                  Saldo da pagare: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>.
-                  Conferma l&apos;importo effettivamente incassato (modificabile in caso di sconto). Il saldo verrà
-                  azzerato e i pacchetti in attesa verranno sbloccati.
+                  Saldo da pagare: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>. Conferma
+                  l&apos;importo effettivamente incassato (modificabile in caso di sconto). Il saldo verrà azzerato e i pacchetti
+                  in attesa verranno sbloccati.
                 </div>
                 <div className="space-y-1">
                   <label className="ui-muted">Importo incassato (€)</label>
@@ -617,6 +783,16 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
           </>
         )}
       </div>
+
+      <CreateUserModal
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={async (userId) => {
+          setMode('all');
+          await loadUsers();
+          setSelectedUserId(userId);
+        }}
+      />
     </div>
   );
 }

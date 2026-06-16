@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
 import { getAdminUserDetail, updateAdminUserProfile } from '@/lib/admin/data';
+import { setAdminUserDeleted } from '@/lib/admin/management';
 import { adminErrorResponse } from '@/lib/admin/route';
 import { assertUuid, sanitizeProfilePatch } from '@/lib/admin/validation';
 
@@ -39,6 +40,24 @@ export async function PATCH(
       sanitizeProfilePatch(await request.json().catch(() => null))
     );
     return NextResponse.json(profile);
+  } catch (error) {
+    return adminErrorResponse(error);
+  }
+}
+
+// Soft-delete: nasconde l'utente dalle liste e ne blocca l'accesso.
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ userId: string }> }
+) {
+  try {
+    await requireStaffAccess(request, 'manage');
+
+    const { userId } = await context.params;
+    const normalizedUserId = assertUuid(userId, 'Utente');
+    await setAdminUserDeleted(normalizedUserId, true);
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return adminErrorResponse(error);
   }

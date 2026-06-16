@@ -328,6 +328,71 @@ export function sanitizeProfilePatch(body: unknown): Partial<Profile> {
   return payload;
 }
 
+export function sanitizeCreateUserInput(body: unknown): {
+  email: string;
+  password: string | null;
+  profile: Partial<Profile>;
+} {
+  if (!isPlainObject(body)) throw new Error('Payload utente non valido.');
+
+  const email = sanitizeNullableEmail(body.email);
+  if (!email) throw new Error('Email obbligatoria per creare un utente.');
+
+  const passwordRaw = toTrimmedString(body.password);
+  if (passwordRaw && passwordRaw.length < 8) {
+    throw new Error('La password temporanea deve avere almeno 8 caratteri.');
+  }
+
+  return {
+    email,
+    password: passwordRaw ? passwordRaw : null,
+    profile: sanitizeProfilePatch(body),
+  };
+}
+
+export function sanitizeAssignPassInput(body: unknown): { productId: string } {
+  if (!isPlainObject(body)) throw new Error('Payload pacchetto non valido.');
+  return { productId: assertUuid(body.productId, 'Prodotto') };
+}
+
+export function sanitizeAdminSlotBookingEditInput(body: unknown): {
+  slotId: string | null;
+  dogId: string | null;
+  taxiEnabled: boolean | undefined;
+  taxiDistanceKm: number | null;
+  taxiPriceEur: number | null;
+  notes: string | null | undefined;
+} {
+  if (!isPlainObject(body)) throw new Error('Payload prenotazione non valido.');
+
+  const slotId =
+    body.slotId == null || toTrimmedString(body.slotId) === '' ? null : assertUuid(body.slotId, 'Slot');
+  const dogId =
+    body.dogId == null || toTrimmedString(body.dogId) === '' ? null : assertUuid(body.dogId, 'Cane');
+
+  const taxiEnabled = typeof body.taxiEnabled === 'boolean' ? body.taxiEnabled : undefined;
+  const taxiDistanceKm =
+    body.taxiDistanceKm == null || body.taxiDistanceKm === '' ? null : Number(body.taxiDistanceKm);
+  const taxiPriceEur =
+    body.taxiPriceEur == null || body.taxiPriceEur === '' ? null : Number(body.taxiPriceEur);
+
+  if (taxiDistanceKm !== null && (!Number.isFinite(taxiDistanceKm) || taxiDistanceKm < 0)) {
+    throw new Error('Distanza taxi non valida.');
+  }
+  if (taxiPriceEur !== null && (!Number.isFinite(taxiPriceEur) || taxiPriceEur < 0)) {
+    throw new Error('Prezzo taxi non valido.');
+  }
+
+  return {
+    slotId,
+    dogId,
+    taxiEnabled,
+    taxiDistanceKm,
+    taxiPriceEur,
+    notes: hasOwn(body, 'notes') ? sanitizeOptionalText(body.notes, 1000) : undefined,
+  };
+}
+
 export function sanitizeProfileCardPreferencesPatch(body: unknown): Pick<
   Profile,
   | 'show_first_name_on_dog_card'

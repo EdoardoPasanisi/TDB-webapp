@@ -45,16 +45,6 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
   const hasQuery = debouncedQuery.trim().length > 0;
 
   const loadDogs = async () => {
-    if (!hasQuery) {
-      setItems([]);
-      setSelectedDogId(null);
-      setDetail(null);
-      setListState('idle');
-      setDetailState('idle');
-      setError(null);
-      return;
-    }
-
     setListState('loading');
     setError(null);
     try {
@@ -85,16 +75,6 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
   };
 
   useEffect(() => {
-    if (!hasQuery) {
-      setItems([]);
-      setSelectedDogId(null);
-      setDetail(null);
-      setListState('idle');
-      setDetailState('idle');
-      setError(null);
-      return;
-    }
-
     const controller = new AbortController();
     setListState('loading');
     setError(null);
@@ -105,7 +85,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
       .then((data) => {
         setItems(data.items);
         setSelectedDogId((current) =>
-          current && data.items.some((item) => item.dogId === current) ? current : data.items[0]?.dogId ?? null
+          current && data.items.some((item) => item.dogId === current) ? current : null
         );
         setListState('ready');
       })
@@ -116,7 +96,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
       });
 
     return () => controller.abort();
-  }, [debouncedQuery, hasQuery]);
+  }, [debouncedQuery]);
 
   useEffect(() => {
     if (!selectedDogId) {
@@ -190,9 +170,11 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
 
         {listState === 'loading' ? <LoadingCard label="Caricamento cani..." /> : null}
         {listState === 'error' ? <ErrorCard error={error ?? 'Errore cani.'} onRetry={loadDogs} /> : null}
-        {hasQuery && listState === 'ready' && items.length === 0 ? <EmptyCard label="Nessun cane trovato." /> : null}
+        {listState === 'ready' && items.length === 0 ? (
+          <EmptyCard label={hasQuery ? 'Nessun cane trovato.' : 'Nessun cane registrato.'} />
+        ) : null}
 
-        {hasQuery ? items.map((item) => (
+        {items.map((item) => (
           <button
             key={item.dogId}
             type="button"
@@ -212,7 +194,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
               </CardContent>
             </Card>
           </button>
-        )) : null}
+        ))}
       </div>
 
       <div className="min-w-0 space-y-4">
@@ -220,13 +202,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
         {detailState === 'loading' ? (
           <LoadingCard label="Caricamento dettaglio cane..." />
         ) : detailState === 'error' || !detail ? (
-          <EmptyCard
-            label={
-              hasQuery
-                ? 'Seleziona un cane per vedere proprietario, storico e prenotazioni.'
-                : 'Cerca un cane per visualizzarne i dettagli.'
-            }
-          />
+          <EmptyCard label="Seleziona un cane per vedere proprietario, storico e prenotazioni." />
         ) : (
           <>
             <Card>
@@ -349,6 +325,10 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
               item={selectedBooking}
               open={Boolean(selectedBooking)}
               onClose={() => setSelectedBooking(null)}
+              canManage={canManage}
+              onDeleted={() => {
+                if (selectedDogId) void loadDetail(selectedDogId);
+              }}
             />
           </>
         )}

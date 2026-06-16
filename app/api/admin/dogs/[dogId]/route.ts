@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
 import { getAdminDogDetail, updateAdminDog } from '@/lib/admin/data';
+import { deleteAdminDog } from '@/lib/admin/management';
 import { adminErrorResponse } from '@/lib/admin/route';
 import { assertUuid, sanitizeDogInput } from '@/lib/admin/validation';
 
@@ -39,6 +40,23 @@ export async function PATCH(
       sanitizeDogInput(await request.json().catch(() => null))
     );
     return NextResponse.json(dog);
+  } catch (error) {
+    return adminErrorResponse(error);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ dogId: string }> }
+) {
+  try {
+    await requireStaffAccess(request, 'manage');
+
+    const { dogId } = await context.params;
+    const normalizedDogId = assertUuid(dogId, 'Cane');
+    await deleteAdminDog(normalizedDogId);
+
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return adminErrorResponse(error);
   }

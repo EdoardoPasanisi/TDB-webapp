@@ -44,7 +44,7 @@ import type {
 } from '@/types/services';
 
 const PROFILE_SELECT =
-  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, wallet_due_eur, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
+  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, wallet_due_eur, deleted_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOG_SELECT =
   'id, owner_id, created_at, updated_at, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds';
 const IDENTITY_BUCKET = 'identity-documents';
@@ -1296,13 +1296,16 @@ export async function searchAdminUsers(
       ? supabaseAdmin
           .from('profiles')
           .select('user_id, first_name, last_name, phone, email, city')
+          .is('deleted_at', null)
           .or(profileSearchOr)
           .limit(limit * 3)
       : supabaseAdmin
           .from('profiles')
           .select('user_id, first_name, last_name, phone, email, city')
-          .limit(limit)
-          .order('last_name', { ascending: true }),
+          .is('deleted_at', null)
+          .order('last_name', { ascending: true })
+          .order('first_name', { ascending: true })
+          .limit(limit),
     term
       ? supabaseAdmin
           .from('dogs')
@@ -1310,12 +1313,7 @@ export async function searchAdminUsers(
           .or(dogSearchOr)
           .neq('is_active', false)
           .limit(limit * 3)
-      : supabaseAdmin
-          .from('dogs')
-          .select('id, owner_id, name, breed, microchip, size_category, is_active')
-          .neq('is_active', false)
-          .limit(limit)
-          .order('name', { ascending: true }),
+      : Promise.resolve({ data: [] as DogSummaryRow[] }),
   ]);
 
   const profileRows = (profileRes.data ?? []) as ProfileSummaryRow[];
@@ -1351,6 +1349,8 @@ export async function searchAdminUsers(
 
   return userIds
     .filter((userId) => {
+      // Esclude gli utenti soft-deleted (anche se emersi da una ricerca cane).
+      if ((allProfilesMap.get(userId) as Profile | undefined)?.deleted_at) return false;
       if (!term) return true;
       const profile = allProfilesMap.get(userId);
       const dogs = dogsByOwner.get(userId) ?? [];
@@ -1516,6 +1516,8 @@ export async function searchAdminDogs(
 
   return dogs
     .filter((dog) => {
+      // Nasconde i cani di clienti soft-deleted.
+      if ((profilesMap.get(dog.owner_id) as Profile | undefined)?.deleted_at) return false;
       if (!term) return true;
       const owner = profilesMap.get(dog.owner_id);
       return matchesSearch(buildDogSearchHaystack(dog, owner), term, tokens);
@@ -1893,7 +1895,7 @@ export async function getAdminOverview(
   const urgentEndDate = new Date(now.getTime() + 1000 * 60 * 60 * 24 * 7).toISOString().slice(0, 10);
 
   const [usersRes, dogsRes, pendingDocsRes, agendaData] = await Promise.all([
-    supabaseAdmin.from('profiles').select('user_id', { head: true, count: 'exact' }),
+    supabaseAdmin.from('profiles').select('user_id', { head: true, count: 'exact' }).is('deleted_at', null),
     supabaseAdmin.from('dogs').select('id', { head: true, count: 'exact' }).neq('is_active', false),
     supabaseAdmin
       .from('user_documents')
@@ -2027,7 +2029,7 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
   const thirtyDaysAgo = Date.now() - 1000 * 60 * 60 * 24 * 30;
 
   const [usersRes, dogsRes, bookingsRes, slotBookingsRes] = await Promise.all([
-    supabaseAdmin.from('profiles').select('user_id', { head: true, count: 'exact' }),
+    supabaseAdmin.from('profiles').select('user_id', { head: true, count: 'exact' }).is('deleted_at', null),
     supabaseAdmin.from('dogs').select('id', { head: true, count: 'exact' }).neq('is_active', false),
     supabaseAdmin
       .from('bookings')
@@ -2305,6 +2307,8 @@ export async function updateAdminDog(dogId: string, input: DogInput): Promise<Do
       notes: input.notes,
       coat_color: input.coat_color,
       temperament: input.temperament,
+      weight_kg: input.weight_kg,
+      origin_breeds: input.origin_breeds,
       show_breed: input.show_breed,
       show_sex: input.show_sex,
       show_size: input.show_size,
@@ -2313,6 +2317,9 @@ export async function updateAdminDog(dogId: string, input: DogInput): Promise<Do
       show_notes: input.show_notes,
       show_coat_color: input.show_coat_color,
       show_temperament: input.show_temperament,
+      show_weight: input.show_weight,
+      show_origin_breeds: input.show_origin_breeds,
+      updated_at: new Date().toISOString(),
     })
     .eq('id', dogId)
     .select(DOG_SELECT)
@@ -2323,6 +2330,48 @@ export async function updateAdminDog(dogId: string, input: DogInput): Promise<Do
   }
 
   return data as Dog;
+}
+
+/** Lista dei clienti soft-deleted (per la pagina "Utenti eliminati" del gestionale). */
+export async function listDeletedAdminUsers(limit = 100): Promise<AdminUserListItem[]> {
+  const { data } = await supabaseAdmin
+    .from('profiles')
+    .select(PROFILE_SELECT)
+    .not('deleted_at', 'is', null)
+    .order('last_name', { ascending: true })
+    .order('first_name', { ascending: true })
+    .limit(limit);
+
+  const profiles = (data ?? []) as Profile[];
+  const userIds = profiles.map((profile) => profile.user_id);
+  const [dogs, staffRoles] = await Promise.all([
+    loadDogsByOwnerIds(userIds),
+    loadStaffRoleMap(userIds),
+  ]);
+
+  const dogsByOwner = new Map<string, DogSummaryRow[]>();
+  for (const dog of dogs) {
+    const rows = dogsByOwner.get(dog.owner_id) ?? [];
+    rows.push(dog);
+    dogsByOwner.set(dog.owner_id, rows);
+  }
+
+  return profiles.map((profile) => {
+    const ownerDogs = dogsByOwner.get(profile.user_id) ?? [];
+    return {
+      userId: profile.user_id,
+      fullName: formatPersonName(profile.first_name ?? null, profile.last_name ?? null, profile.email ?? null),
+      email: profile.email ?? null,
+      phone: profile.phone ?? null,
+      city: profile.city ?? null,
+      dogsCount: ownerDogs.length,
+      activeBookings: 0,
+      pendingDocuments: 0,
+      dogNames: ownerDogs.map((dog) => dog.name).filter(Boolean) as string[],
+      staffRole: staffRoles.get(profile.user_id) ?? null,
+      walletDue: Number((profile as { wallet_due_eur?: number | null }).wallet_due_eur ?? 0),
+    } satisfies AdminUserListItem;
+  });
 }
 
 export async function updateAdminDocumentStatus(args: {

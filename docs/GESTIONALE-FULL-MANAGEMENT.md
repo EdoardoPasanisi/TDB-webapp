@@ -92,6 +92,33 @@ Tutto ciò che l'utente fa dall'app deve essere fattibile dallo staff su **quals
 - Probabile **nessuna nuova migrazione** se si riusano colonne/RPC esistenti. Se serve un `deleted_at` su `profiles` per il soft-delete utente, fare **una sola** migrazione idempotente (`alter table ... add column if not exists ...`) e documentarla qui.
 - Provider OAuth Google/Apple già configurati su Supabase (login social). Il secret Apple **scade ~dicembre 2026** → rigenerare (vedi storico chat: script Node ES256 con Team ID `S65U82HY9X`, Services ID `app.tenutadelbarone.signin`, nuova Key da creare).
 
+## 5.1 Migrazione applicata da questa sessione
+
+- **`supabase/migrations/20260616_profile_soft_delete.sql`** (idempotente): aggiunge
+  `profiles.deleted_at timestamptz` + indice. Serve al soft-delete utenti.
+  - Soft-delete = `deleted_at = now()` + ban auth (`ban_duration`) per impedire l'accesso.
+  - Ripristino = `deleted_at = null` + unban.
+  - Hard-delete (solo su utenti già soft-deleted, dalla pagina "Eliminati"): rimuove
+    auth.users + dati collegati + file documenti (`lib/admin/management.ts → hardDeleteAdminUser`).
+
+### Cosa è stato implementato (sintesi)
+
+- **Decisioni**: creazione utente con **password temporanea** (mostrata allo staff);
+  eliminazione utente **soft-delete** + tab **Eliminati** con ripristino/eliminazione definitiva.
+- **Backend**: `lib/admin/management.ts` (create/soft/restore/hard-delete utente, create/delete
+  cane con size da razza, assegna/annulla pacchetto, **edit completo pensione** con riconciliazione
+  saldo, **edit slot** con controllo capienza, **stato slot con rimborso/riaddebito crediti+taxi** →
+  fix gap §2.1). Parser pensione condiviso in `lib/services/pensione/parseInput.ts` (riusato
+  da rotta utente e admin). Validatori in `lib/admin/validation.ts`.
+- **Rotte**: `users` POST + `?status=deleted`; `users/[userId]` DELETE; `users/[userId]/restore`;
+  `users/[userId]/hard-delete`; `users/[userId]/passes` (POST) + `[passId]` (DELETE); `dogs` POST +
+  `dogs/[dogId]` DELETE; `products` GET; `bookings/[kind]/[bookingId]/full` PATCH.
+- **UI**: `UsersTab` (lista alfabetica di default, tab Tutti/Prenotazioni attive/Eliminati, saldo in
+  cima, "Modifica informazioni", gestione cani e crediti, crea/elimina utente), `DogsTab` (lista
+  alfabetica di default), `BookingDetailModal` con "Modifica" → `BookingEditModal` (pensione+slot,
+  anteprima variazione saldo). Nuovi componenti: `CreateUserModal`, `DogEditModal`, `AssignPassModal`,
+  `BookingEditModal`.
+
 ## 6. Checklist finale
 - [ ] tsc/eslint/build verdi
 - [ ] Flussi utente esistenti non regrediti

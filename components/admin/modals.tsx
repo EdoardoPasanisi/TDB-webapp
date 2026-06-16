@@ -36,6 +36,7 @@ import {
 } from '@/components/admin/shared';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { BookingEditModal } from '@/components/admin/BookingEditModal';
 
 export function UserDetailModal({
   userId,
@@ -310,6 +311,8 @@ export function BookingDetailModal({
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminBookingDetail | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const handleDelete = async () => {
     if (!item) return;
@@ -352,7 +355,7 @@ export function BookingDetailModal({
       });
 
     return () => controller.abort();
-  }, [item, open]);
+  }, [item, open, reloadKey]);
 
   return (
     <ModalFrame
@@ -376,17 +379,27 @@ export function BookingDetailModal({
                       subtitle="Informazioni operative, economiche e logistiche del servizio."
                     />
 
-                    {canManage && onDeleted ? (
+                    {canManage ? (
                       <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"
-                          variant="danger"
+                          variant="secondary"
                           className="ui-btnCompact"
-                          onClick={() => void handleDelete()}
-                          disabled={deleting}
+                          onClick={() => setEditOpen(true)}
                         >
-                          {deleting ? 'Eliminazione…' : 'Elimina prenotazione'}
+                          Modifica
                         </Button>
+                        {onDeleted ? (
+                          <Button
+                            type="button"
+                            variant="danger"
+                            className="ui-btnCompact"
+                            onClick={() => void handleDelete()}
+                            disabled={deleting}
+                          >
+                            {deleting ? 'Eliminazione…' : 'Elimina prenotazione'}
+                          </Button>
+                        ) : null}
                       </div>
                     ) : null}
 
@@ -694,6 +707,16 @@ export function BookingDetailModal({
                     </CardContent>
                   </Card>
                 ) : null}
+
+                <BookingEditModal
+                  item={item}
+                  open={editOpen}
+                  onClose={() => setEditOpen(false)}
+                  onSaved={() => {
+                    setReloadKey((key) => key + 1);
+                    onDeleted?.();
+                  }}
+                />
               </>
             );
           })()

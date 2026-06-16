@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
 import { getAdminBookingDetail, updateAdminBookingStatus, deleteAdminBooking } from '@/lib/admin/data';
+import { updateAdminSlotBookingStatus } from '@/lib/admin/management';
 import { createUserNotificationIfEnabled } from '@/lib/notifications/server';
 import { adminErrorResponse } from '@/lib/admin/route';
 import { assertUuid, sanitizeBookingStatusPatchInput } from '@/lib/admin/validation';
@@ -47,11 +48,18 @@ export async function PATCH(
     const body = (await request.json().catch(() => null)) as { status?: unknown } | null;
     const parsed = sanitizeBookingStatusPatchInput(kind, body?.status);
 
-    const updated = await updateAdminBookingStatus({
-      kind: parsed.kind,
-      bookingId: normalizedBookingId,
-      status: parsed.status,
-    });
+    // Per gli slot usiamo la variante con rimborso/riaddebito di crediti + taxi.
+    const updated =
+      parsed.kind === 'SERVICE_SLOT'
+        ? { ...(await updateAdminSlotBookingStatus({
+            bookingId: normalizedBookingId,
+            status: parsed.status,
+          })), kind: parsed.kind }
+        : await updateAdminBookingStatus({
+            kind: parsed.kind,
+            bookingId: normalizedBookingId,
+            status: parsed.status,
+          });
 
     if (updated.previousStatus !== updated.status) {
       const serviceName = serviceLabel(updated.serviceType as Parameters<typeof serviceLabel>[0]);

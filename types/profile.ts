@@ -31,6 +31,9 @@ export interface Profile {
   id_document_path: string | null;
   id_document_uploaded_at: string | null;
 
+  // Soft-delete dal gestionale (null = utente attivo)
+  deleted_at?: string | null;
+
   // Toggle visibilità scheda cane (globali utente)
   // (nome/cognome separati)
   show_first_name_on_dog_card: boolean | null;
