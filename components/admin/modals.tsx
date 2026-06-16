@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { fetchAdminJson, isAbortError } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { Button } from '@/components/ui/Button';
 import type {
   AdminAgendaItem,
   AdminBookingDetail,
@@ -296,14 +297,38 @@ export function BookingDetailModal({
   item,
   open,
   onClose,
+  canManage = false,
+  onDeleted,
 }: {
   item: AdminAgendaItem | null;
   open: boolean;
   onClose: () => void;
+  canManage?: boolean;
+  onDeleted?: () => void;
 }) {
   const [state, setState] = useState<LoadState>(() => (open && item ? 'loading' : 'idle'));
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminBookingDetail | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!item) return;
+    if (!window.confirm('Eliminare definitivamente questa prenotazione? L’operazione storna saldo/crediti e non è reversibile.')) {
+      return;
+    }
+    setDeleting(true);
+    setError(null);
+    try {
+      const kind = item.kind === 'SERVICE_SLOT' ? 'service-slot' : 'pensione';
+      await fetchAdminJson(`/api/admin/bookings/${kind}/${item.id}`, { method: 'DELETE' });
+      onDeleted?.();
+      onClose();
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a eliminare la prenotazione.'));
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     if (!open || !item) return;
@@ -350,6 +375,22 @@ export function BookingDetailModal({
                       title="Dettaglio prenotazione"
                       subtitle="Informazioni operative, economiche e logistiche del servizio."
                     />
+
+                    {canManage && onDeleted ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="danger"
+                          className="ui-btnCompact"
+                          onClick={() => void handleDelete()}
+                          disabled={deleting}
+                        >
+                          {deleting ? 'Eliminazione…' : 'Elimina prenotazione'}
+                        </Button>
+                      </div>
+                    ) : null}
+
+                    {error ? <div className="ui-error">{error}</div> : null}
 
                     {detail.meta.length ? (
                       <div className="flex flex-wrap gap-2">

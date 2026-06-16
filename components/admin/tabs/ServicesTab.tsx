@@ -512,6 +512,8 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
             item={selectedBooking}
             open={Boolean(selectedBooking)}
             onClose={() => setSelectedBooking(null)}
+            canManage={canManage}
+            onDeleted={() => void load()}
           />
         </>
       ) : null}

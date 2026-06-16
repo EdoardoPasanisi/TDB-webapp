@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
-import { getAdminBookingDetail, updateAdminBookingStatus } from '@/lib/admin/data';
+import { getAdminBookingDetail, updateAdminBookingStatus, deleteAdminBooking } from '@/lib/admin/data';
 import { createUserNotificationIfEnabled } from '@/lib/notifications/server';
 import { adminErrorResponse } from '@/lib/admin/route';
 import { assertUuid, sanitizeBookingStatusPatchInput } from '@/lib/admin/validation';
@@ -70,6 +70,31 @@ export async function PATCH(
         },
       });
     }
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return adminErrorResponse(error);
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ kind: string; bookingId: string }> }
+) {
+  try {
+    await requireStaffAccess(request, 'manage');
+
+    const { kind, bookingId } = await context.params;
+    const normalizedBookingId = assertUuid(bookingId, 'Prenotazione');
+    const normalizedKind = String(kind ?? '').toLowerCase();
+    if (normalizedKind !== 'pensione' && normalizedKind !== 'service-slot') {
+      return NextResponse.json({ error: 'Tipo prenotazione non valido.' }, { status: 400 });
+    }
+
+    await deleteAdminBooking({
+      kind: normalizedKind === 'service-slot' ? 'SERVICE_SLOT' : 'PENSIONE',
+      bookingId: normalizedBookingId,
+    });
 
     return NextResponse.json({ ok: true });
   } catch (error) {

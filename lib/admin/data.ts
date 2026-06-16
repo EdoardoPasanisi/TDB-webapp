@@ -2430,6 +2430,85 @@ export async function updateAdminBookingStatus(args: {
   };
 }
 
+/**
+ * Elimina definitivamente una prenotazione, stornando prima gli effetti economici:
+ * - pensione: se era a saldo (CONFIRMED/COMPLETED) toglie il totale dal wallet.
+ * - slot: rimborsa il credito al pass (riattivandolo se era CONSUMED) e toglie
+ *   l'eventuale taxi dal wallet.
+ */
+export async function deleteAdminBooking(args: {
+  kind: AdminBookingKind;
+  bookingId: string;
+}): Promise<{ userId: string }> {
+  const { kind, bookingId } = args;
+
+  if (kind === 'PENSIONE') {
+    const { data: current, error: readError } = await supabaseAdmin
+      .from('bookings')
+      .select('user_id, status, total_price')
+      .eq('id', bookingId)
+      .single();
+    if (readError || !current) throw new Error(readError?.message ?? 'Prenotazione non trovata.');
+
+    if (isOutstandingBalanceStatus(current.status as BookingStatus | null)) {
+      const total = Number((current as { total_price?: number | null }).total_price ?? 0);
+      if (Number.isFinite(total) && total > 0) {
+        await supabaseAdmin.rpc('add_wallet_due', {
+          p_user_id: String(current.user_id),
+          p_amount_eur: -total,
+        });
+      }
+    }
+
+    await supabaseAdmin.from('booking_dogs').delete().eq('booking_id', bookingId);
+    const { error } = await supabaseAdmin.from('bookings').delete().eq('id', bookingId);
+    if (error) throw new Error(error.message);
+    return { userId: String(current.user_id) };
+  }
+
+  // SERVICE_SLOT
+  const { data: current, error: readError } = await supabaseAdmin
+    .from('service_slot_bookings')
+    .select('user_id, status, pass_id, credits_spent, taxi_enabled, taxi_price_eur')
+    .eq('id', bookingId)
+    .single();
+  if (readError || !current) throw new Error(readError?.message ?? 'Prenotazione non trovata.');
+
+  const wasActive = current.status !== 'CANCELLED';
+  const passId = (current as { pass_id?: string | null }).pass_id ?? null;
+  const creditsSpent = Number((current as { credits_spent?: number | null }).credits_spent ?? 0);
+
+  if (wasActive && passId && creditsSpent > 0) {
+    const { data: pass } = await supabaseAdmin
+      .from('service_passes')
+      .select('credits_total, credits_used')
+      .eq('id', passId)
+      .single();
+    if (pass) {
+      const nextUsed = Math.max(0, Number(pass.credits_used ?? 0) - creditsSpent);
+      const reactivated = nextUsed < Number(pass.credits_total ?? 0);
+      await supabaseAdmin
+        .from('service_passes')
+        .update(reactivated ? { credits_used: nextUsed, status: 'ACTIVE' } : { credits_used: nextUsed })
+        .eq('id', passId);
+    }
+  }
+
+  if (wasActive && (current as { taxi_enabled?: boolean | null }).taxi_enabled) {
+    const taxi = Number((current as { taxi_price_eur?: number | null }).taxi_price_eur ?? 0);
+    if (Number.isFinite(taxi) && taxi > 0) {
+      await supabaseAdmin.rpc('add_wallet_due', {
+        p_user_id: String(current.user_id),
+        p_amount_eur: -taxi,
+      });
+    }
+  }
+
+  const { error } = await supabaseAdmin.from('service_slot_bookings').delete().eq('id', bookingId);
+  if (error) throw new Error(error.message);
+  return { userId: String(current.user_id) };
+}
+
 export async function upsertAdminSlot(input: {
   slotId?: string | null;
   serviceType: ServiceType;
