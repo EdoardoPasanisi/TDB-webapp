@@ -7,9 +7,10 @@ import { RouteAuthError, requireRequestUser, routeAuthErrorResponse } from '@/li
 import {
   buildMissingRequiredCustomerBookingMessage,
   getMissingRequiredCustomerBookingFields,
+  getMissingRequiredPetBookingFields,
   type CustomerBookingRequirementProfile,
 } from '@/lib/bookings/customerBookingRequirements';
-import { DEFAULT_TAXI } from '@/lib/services/pensione/constants';
+import { accommodationOptionsForSpecies, DEFAULT_TAXI } from '@/lib/services/pensione/constants';
 import { isPlainObject, normalizeUuid, parsePensioneBookingInput } from '@/lib/services/pensione/parseInput';
 import type { SavePensioneBookingInput } from '@/lib/services/pensione/api';
 import type { DogLite, PerDogForm } from '@/lib/services/pensione/types';
@@ -37,6 +38,10 @@ type OwnedDogRow = {
   id: string;
   owner_id: string;
   name: string;
+  species: import('@/types/dog').PetSpecies | null;
+  microchip: string | null;
+  birth_date: string | null;
+  libretto_name: string | null;
   size_category: DogLite['size_category'];
   grooming_difficulty: DogLite['grooming_difficulty'];
 };
@@ -180,7 +185,7 @@ export async function POST(request: Request) {
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('profiles')
-      .select('first_name, last_name, phone')
+      .select('first_name, last_name, phone, fiscal_code, address_line, city, zip_code, province, id_document_path')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -204,18 +209,54 @@ export async function POST(request: Request) {
 
     const { data: ownedDogs, error: dogsError } = await supabaseAdmin
       .from('dogs')
-      .select('id, owner_id, name, size_category, grooming_difficulty')
+      .select('id, owner_id, name, species, microchip, birth_date, libretto_name, size_category, grooming_difficulty')
       .in('id', input.selectedDogIds)
       .eq('owner_id', userId)
       .eq('is_active', true);
 
     if (dogsError) {
-      return NextResponse.json({ error: 'Errore caricando i cani selezionati.' }, { status: 400 });
+      return NextResponse.json({ error: 'Errore caricando i pet selezionati.' }, { status: 400 });
     }
 
     const ownedDogRows = (ownedDogs ?? []) as OwnedDogRow[];
     if (ownedDogRows.length !== input.selectedDogIds.length) {
-      return NextResponse.json({ error: 'Uno o più cani selezionati non sono validi.' }, { status: 400 });
+      return NextResponse.json({ error: 'Uno o più pet selezionati non sono validi.' }, { status: 400 });
+    }
+
+    // Requisiti pet obbligatori (anno di nascita; microchip + libretto per i cani).
+    for (const dog of ownedDogRows) {
+      const petMissing = getMissingRequiredPetBookingFields({
+        name: dog.name,
+        species: dog.species,
+        birth_date: dog.birth_date,
+        microchip: dog.microchip,
+        libretto_name: dog.libretto_name,
+      });
+      if (petMissing.length > 0) {
+        return NextResponse.json(
+          { error: `Completa i dati di ${dog.name} per prenotare: ${petMissing.join(', ')}.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Alloggio coerente con la specie (cane: no gattile; gatto: solo gattile; altro: non prenotabile).
+    for (const dog of ownedDogRows) {
+      const species = dog.species ?? 'DOG';
+      const allowed = accommodationOptionsForSpecies(species);
+      const chosen = input.perDogForm[dog.id]?.accommodationType;
+      if (allowed.length === 0) {
+        return NextResponse.json(
+          { error: `${dog.name} non è prenotabile in pensione.` },
+          { status: 400 }
+        );
+      }
+      if (chosen && !allowed.includes(chosen)) {
+        return NextResponse.json(
+          { error: `Alloggio non valido per ${dog.name}.` },
+          { status: 400 }
+        );
+      }
     }
 
     const dogMap = new Map<string, DogLite>(

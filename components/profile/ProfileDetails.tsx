@@ -192,7 +192,7 @@ export function ProfileDetails({
                 </DetailsBlock>
 
                 <DetailsBlock
-                  title="Indirizzo di casa"
+                  title="Residenza"
                   subtitle="Riferimento anagrafico principale."
                   toneClass="border-[rgba(59,130,246,0.22)] bg-[linear-gradient(180deg,rgba(59,130,246,0.08),rgba(20,24,23,0.94))]"
                 >
@@ -276,7 +276,7 @@ export function ProfileDetails({
               </DetailsBlock>
 
               <DetailsBlock
-                title="Indirizzo di casa"
+                title="Residenza"
                 subtitle="Riferimento principale dell’anagrafica."
                 toneClass="border-[rgba(59,130,246,0.22)] bg-[linear-gradient(180deg,rgba(59,130,246,0.08),rgba(20,24,23,0.94))]"
               >

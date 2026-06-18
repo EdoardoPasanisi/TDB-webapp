@@ -8,7 +8,12 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { updateProfileForCurrentUser } from '@/lib/account/profileApi';
 
 import type { TaxiDistanceBand, TaxiOption, AccommodationKey, BookingDogExtras } from '@/types/booking';
-import { getMissingRequiredCustomerBookingFields } from '@/lib/bookings/customerBookingRequirements';
+import type { PetSpecies } from '@/types/dog';
+import {
+  getMissingRequiredCustomerBookingFields,
+  getMissingRequiredPetBookingFields,
+} from '@/lib/bookings/customerBookingRequirements';
+import { defaultAccommodationForSpecies } from '../constants';
 import {
   buildPensioneBookingDraftKey,
   clearBookingDraft,
@@ -48,6 +53,10 @@ type DogRow = {
   updated_at: string | null;
   size_category: DogLite['size_category'];
   grooming_difficulty: DogLite['grooming_difficulty'];
+  species: PetSpecies | null;
+  microchip: string | null;
+  birth_date: string | null;
+  libretto_name: string | null;
 };
 
 type BookingDogEditRow = {
@@ -62,11 +71,7 @@ type TaxiDistanceApiResponse = {
   km?: number;
 };
 
-type RequiredBookingProfileRow = {
-  first_name?: string | null;
-  last_name?: string | null;
-  phone?: string | null;
-};
+type RequiredBookingProfileRow = import('@/lib/bookings/customerBookingRequirements').CustomerBookingRequirementProfile;
 
 type PensioneBookingDraft = {
   startDate: string;
@@ -139,6 +144,7 @@ export function usePensioneBooking() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [missingRequiredFields, setMissingRequiredFields] = useState<string[]>([]);
+  const [missingPetFields, setMissingPetFields] = useState<string[]>([]);
   const [draftKey, setDraftKey] = useState<string | null>(null);
 
   const [dogs, setDogs] = useState<DogLite[]>([]);
@@ -216,13 +222,15 @@ export function usePensioneBooking() {
         await Promise.all([
           supabase
             .from('dogs')
-            .select('id, name, photo_path, updated_at, size_category, grooming_difficulty')
+            .select('id, name, photo_path, updated_at, size_category, grooming_difficulty, species, microchip, birth_date, libretto_name')
             .eq('owner_id', userId)
             .eq('is_active', true)
             .order('name', { ascending: true }),
           supabase
             .from('profiles')
-            .select('dog_address_line, dog_city, dog_zip_code, dog_province')
+            .select(
+              'first_name, last_name, phone, fiscal_code, address_line, city, zip_code, province, id_document_path, dog_address_line, dog_city, dog_zip_code, dog_province'
+            )
             .eq('user_id', userId)
             .maybeSingle(),
         ]);
@@ -246,21 +254,33 @@ export function usePensioneBooking() {
       setTaxiServiceAddressDirty(false);
 
       const dogsRows = (dogsData ?? []) as DogRow[];
-      const dogList: DogLite[] = dogsRows.map((d) => ({
+      // In pensione si prenotano solo cani e gatti ("altro" non è prenotabile).
+      const dogList: DogLite[] = dogsRows
+        .filter((d) => (d.species ?? 'DOG') !== 'OTHER')
+        .map((d) => ({
           id: d.id,
           name: d.name,
           photo_path: d.photo_path ?? null,
           updated_at: d.updated_at ?? null,
           size_category: d.size_category ?? null,
           grooming_difficulty: d.grooming_difficulty ?? null,
+          species: d.species ?? 'DOG',
+          microchip: d.microchip ?? null,
+          birth_date: d.birth_date ?? null,
+          libretto_name: d.libretto_name ?? null,
         }));
 
       setDogs(dogList);
 
+      // Mostra subito i dati proprietario mancanti (alert all'ingresso pensione).
+      setMissingRequiredFields(
+        getMissingRequiredCustomerBookingFields((profileData ?? null) as RequiredBookingProfileRow | null)
+      );
+
       const initialPerDog: Record<string, PerDogForm> = {};
       for (const dog of dogList) {
         initialPerDog[dog.id] = {
-          accommodationType: 'BOX',
+          accommodationType: defaultAccommodationForSpecies(dog.species ?? 'DOG'),
           grooming: false,
           vaccine: false,
           trackingSessions: 0,
@@ -562,7 +582,7 @@ export function usePensioneBooking() {
 
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('first_name, last_name, phone')
+      .select('first_name, last_name, phone, fiscal_code, address_line, city, zip_code, province, id_document_path')
       .eq('user_id', userData.user.id)
       .maybeSingle();
 
@@ -585,10 +605,11 @@ export function usePensioneBooking() {
   const submit = useCallback(async () => {
     setError(null);
     setMissingRequiredFields([]);
+    setMissingPetFields([]);
 
-    if (dogs.length === 0) return setError('Devi prima registrare almeno un cane.');
+    if (dogs.length === 0) return setError('Devi prima registrare almeno un pet.');
     if (effectiveSelectedDogIds.length === 0)
-      return setError('Seleziona almeno un cane per la prenotazione.');
+      return setError('Seleziona almeno un pet per la prenotazione.');
 
     if (!startDate) return setError('Seleziona la data di inizio.');
     if (!endDate) return setError('Seleziona la data di fine.');
@@ -635,6 +656,25 @@ export function usePensioneBooking() {
 
     if (pricing.totalPrice <= 0) {
       return setError('Impossibile calcolare il prezzo. Controlla i dati inseriti.');
+    }
+
+    // Requisiti pet (anno di nascita; microchip + libretto per i cani).
+    const petMissing: string[] = [];
+    for (const dogId of effectiveSelectedDogIds) {
+      const dog = dogs.find((d) => d.id === dogId);
+      if (!dog) continue;
+      const miss = getMissingRequiredPetBookingFields({
+        name: dog.name,
+        species: dog.species,
+        birth_date: dog.birth_date,
+        microchip: dog.microchip,
+        libretto_name: dog.libretto_name,
+      });
+      if (miss.length > 0) petMissing.push(`${dog.name}: ${miss.join(', ')}`);
+    }
+    if (petMissing.length > 0) {
+      setMissingPetFields(petMissing);
+      return;
     }
 
     try {
@@ -752,6 +792,7 @@ export function usePensioneBooking() {
     saving,
     error,
     missingRequiredFields,
+    missingPetFields,
 
     dogs,
     isSingleDog,

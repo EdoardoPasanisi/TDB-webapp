@@ -99,7 +99,7 @@ export function UserDetailModal({
             {canManage ? <SummaryBlock label="Telefono" value={detail.profile?.phone ?? '—'} /> : null}
             {canManage ? (
               <SummaryBlock
-                label="Indirizzo casa"
+                label="Residenza"
                 value={
                   formatAddressValue([
                     detail.profile?.address_line,
@@ -401,6 +401,16 @@ export function BookingDetailModal({
                         >
                           Modifica
                         </Button>
+                        {detail.kind === 'PENSIONE' ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="ui-btnCompact"
+                            onClick={() => window.open(`/admin/print/pensione/${detail.id}`, '_blank', 'noopener')}
+                          >
+                            Stampa
+                          </Button>
+                        ) : null}
                         {onDeleted ? (
                           <Button
                             type="button"
@@ -412,6 +422,12 @@ export function BookingDetailModal({
                             {deleting ? 'Eliminazione…' : 'Elimina prenotazione'}
                           </Button>
                         ) : null}
+                      </div>
+                    ) : null}
+
+                    {detail.kind === 'PENSIONE' && detail.printedAt ? (
+                      <div className="flex flex-wrap gap-2">
+                        <span className="ui-accentPill">Stampata il {formatDateTime(detail.printedAt)}</span>
                       </div>
                     ) : null}
 
@@ -682,7 +698,7 @@ export function BookingDetailModal({
                         title="Indirizzi"
                         items={[
                           {
-                            label: 'Indirizzo casa',
+                            label: 'Residenza',
                             value: formatAddressValue([
                               detail.user.profile.address_line,
                               detail.user.profile.zip_code,

@@ -5,12 +5,21 @@ export type WashDifficulty = 1 | 2 | 3;
 
 export type DogSex = 'male' | 'female';
 
+// I "pet" sono righe della tabella dogs con una specie.
+export type PetSpecies = 'DOG' | 'CAT' | 'OTHER';
+
 export type Dog = {
   id: string;
   owner_id: string;
 
   created_at?: string | null;
   updated_at?: string | null;
+
+  species: PetSpecies;
+  // Testo libero "specie" quando species === 'OTHER'.
+  species_other: string | null;
+  // Nome sul libretto (solo cani; default = nome).
+  libretto_name: string | null;
 
   name: string;
   breed: string | null;
@@ -49,6 +58,10 @@ export type Dog = {
 };
 
 export type DogInput = {
+  species: PetSpecies;
+  species_other: string | null;
+  libretto_name: string | null;
+
   name: string;
   breed: string | null;
 

@@ -10,6 +10,7 @@ import {
   Card,
   CardContent,
 } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import {
   EmptyCard,
@@ -83,6 +84,18 @@ export function OverviewTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-4">
+      {canManage ? (
+        <div className="flex justify-end">
+          <Button
+            variant="secondary"
+            className="ui-btnCompact"
+            onClick={() => window.open('/admin/print/pensione', '_blank', 'noopener')}
+          >
+            Stampa prenotazioni non stampate
+          </Button>
+        </div>
+      ) : null}
+
       <div className="grid gap-3 md:grid-cols-2">
         <MetricCard label="Check-in oggi" value={overview.totals.checkInsToday} tone="primary" />
         <MetricCard label="Check-out oggi" value={overview.totals.checkOutsToday} tone="primary" />

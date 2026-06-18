@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-import { findDogBreed } from '@/data/dogBreeds';
+import { findBreedProfileForSpecies } from '@/data/petBreeds';
 import { assertUuid, sanitizeDogInput } from '@/lib/admin/validation';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { requireRequestUser, RouteAuthError } from '@/lib/server/routeAuth';
@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 export const runtime = 'nodejs';
 
 const DOG_SELECT =
-  'id, owner_id, created_at, updated_at, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds' as const;
+  'id, owner_id, created_at, updated_at, species, species_other, libretto_name, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds' as const;
 
 function getErrorMessage(error: unknown, fallback: string): string {
   return humanizeErrorMessage(error, fallback);
@@ -27,27 +27,34 @@ export async function PATCH(
 
     const { data: existingDog, error: existingDogError } = await supabaseAdmin
       .from('dogs')
-      .select('id, breed, size_category, grooming_difficulty')
+      .select('id, species, breed, size_category, grooming_difficulty')
       .eq('id', normalizedDogId)
       .eq('owner_id', userId)
       .eq('is_active', true)
       .maybeSingle();
 
     if (existingDogError) {
-      return NextResponse.json({ error: humanizeErrorMessage(existingDogError, 'Non siamo riusciti a recuperare il cane.') }, { status: 400 });
+      return NextResponse.json({ error: humanizeErrorMessage(existingDogError, 'Non siamo riusciti a recuperare il pet.') }, { status: 400 });
     }
     if (!existingDog) {
-      return NextResponse.json({ error: 'Cane non trovato.' }, { status: 404 });
+      return NextResponse.json({ error: 'Pet non trovato.' }, { status: 404 });
     }
 
-    const breedChanged = (existingDog.breed ?? '').trim() !== (dogInput.breed ?? '').trim();
-    const breedProfile = breedChanged ? findDogBreed(dogInput.breed) : null;
+    const speciesChanged = (existingDog.species ?? 'DOG') !== dogInput.species;
+    const breedChanged = speciesChanged || (existingDog.breed ?? '').trim() !== (dogInput.breed ?? '').trim();
+    const breedProfile = breedChanged ? findBreedProfileForSpecies(dogInput.species, dogInput.breed) : null;
     const normalizedDogInput = {
       ...dogInput,
-      size_category: breedChanged ? breedProfile?.size ?? null : existingDog.size_category ?? null,
-      grooming_difficulty: breedChanged
-        ? breedProfile?.washDifficulty ?? null
-        : existingDog.grooming_difficulty ?? null,
+      size_category: dogInput.species === 'OTHER'
+        ? dogInput.size_category
+        : breedChanged
+          ? breedProfile?.size ?? null
+          : existingDog.size_category ?? null,
+      grooming_difficulty: dogInput.species === 'OTHER'
+        ? dogInput.grooming_difficulty
+        : breedChanged
+          ? breedProfile?.washDifficulty ?? null
+          : existingDog.grooming_difficulty ?? null,
     };
 
     const { data, error } = await supabaseAdmin

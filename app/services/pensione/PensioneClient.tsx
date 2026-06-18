@@ -10,6 +10,7 @@ export default function PensioneClient() {
     saving,
     error,
     missingRequiredFields,
+    missingPetFields,
     dogs,
     isSingleDog,
     effectiveSelectedDogIds,
@@ -54,6 +55,7 @@ export default function PensioneClient() {
       title={`Prenotazione pensione${editingBookingId ? ' (modifica)' : ''}`}
       error={error}
       missingRequiredFields={missingRequiredFields}
+      missingPetFields={missingPetFields}
       saving={saving}
       dogs={dogs}
       isSingleDog={isSingleDog}

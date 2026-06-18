@@ -160,12 +160,12 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
       <div className="min-w-0 space-y-3">
         <Card>
           <CardContent className="space-y-3">
-            <SectionHeader title="Ricerca cani" subtitle="Cerca per nome, razza, microchip o dati del proprietario." />
+            <SectionHeader title="Ricerca pet" subtitle="Cerca per nome, razza, microchip o dati del proprietario." />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               className="ui-control ui-input"
-              placeholder="Cerca cane..."
+              placeholder="Cerca pet..."
             />
           </CardContent>
         </Card>
@@ -173,7 +173,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
         {listState === 'loading' ? <LoadingCard label="Caricamento cani..." /> : null}
         {listState === 'error' ? <ErrorCard error={error ?? 'Errore cani.'} onRetry={loadDogs} /> : null}
         {listState === 'ready' && items.length === 0 ? (
-          <EmptyCard label={hasQuery ? 'Nessun cane trovato.' : 'Nessun cane registrato.'} />
+          <EmptyCard label={hasQuery ? 'Nessun pet trovato.' : 'Nessun pet registrato.'} />
         ) : null}
 
         {items.map((item) => (
@@ -204,7 +204,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
         {detailState === 'loading' ? (
           <LoadingCard label="Caricamento dettaglio cane..." />
         ) : detailState === 'error' || !detail ? (
-          <EmptyCard label="Seleziona un cane per vedere proprietario, storico e prenotazioni." />
+          <EmptyCard label="Seleziona un pet per vedere proprietario, storico e prenotazioni." />
         ) : (
           <>
             <Card>
@@ -245,7 +245,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
                         if (ok) setEditing(true);
                       }}
                     >
-                      {editing ? 'Chiudi modifica' : 'Modifica cane'}
+                      {editing ? 'Chiudi modifica' : 'Modifica pet'}
                     </Button>
                   ) : null}
                 </div>
@@ -254,7 +254,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
 
             <Card>
               <CardContent className="space-y-3">
-                <SectionHeader title="Riepilogo cane" subtitle="Informazioni principali del profilo cane." />
+                <SectionHeader title="Riepilogo pet" subtitle="Informazioni principali del profilo pet." />
                 <div className="grid gap-3 md:grid-cols-2">
                   <SummaryBlock label="Razza" value={detail.dog.breed ?? '—'} />
                   <SummaryBlock label="Taglia" value={detail.dog.size_category ?? '—'} />

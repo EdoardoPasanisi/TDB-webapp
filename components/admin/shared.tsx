@@ -26,7 +26,7 @@ export type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 export const ADMIN_TABS: Array<{ key: AdminTab; label: string }> = [
   { key: 'overview', label: 'Stato' },
   { key: 'users', label: 'Utenti' },
-  { key: 'dogs', label: 'Cani' },
+  { key: 'dogs', label: 'Pet' },
   { key: 'services', label: 'Servizi' },
   { key: 'chat', label: 'Chat' },
   { key: 'media', label: 'Media' },

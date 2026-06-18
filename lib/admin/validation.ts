@@ -1,7 +1,7 @@
 import { sanitizeFiscalCode } from '@/lib/validation/italy';
 import type { AdminBookingKind, AdminDocumentStatus, AdminServiceKey, StaffRole } from '@/lib/admin/types';
 import type { BookingStatus } from '@/types/booking';
-import type { DogInput, DogSex, DogSize, WashDifficulty } from '@/types/dog';
+import type { DogInput, DogSex, DogSize, PetSpecies, WashDifficulty } from '@/types/dog';
 import type { Profile } from '@/types/profile';
 import type { ServiceStatus, ServiceType, ServiceVariant } from '@/types/services';
 
@@ -34,6 +34,7 @@ const ADMIN_STATUS_SET = new Set<BookingStatus | ServiceStatus>([
   'CANCELLED',
   'COMPLETED',
 ]);
+const PET_SPECIES_SET = new Set<PetSpecies>(['DOG', 'CAT', 'OTHER']);
 const DOG_SIZE_SET = new Set<DogSize>(['toy', 'piccola', 'media', 'grande', 'gigante']);
 const DOG_SEX_SET = new Set<DogSex>(['male', 'female']);
 const WASH_DIFFICULTY_SET = new Set<WashDifficulty>([1, 2, 3]);
@@ -418,9 +419,18 @@ export function sanitizeProfileCardPreferencesPatch(body: unknown): Pick<
 }
 
 export function sanitizeDogInput(body: unknown): DogInput {
-  if (!isPlainObject(body)) throw new Error('Payload cane non valido.');
+  if (!isPlainObject(body)) throw new Error('Payload pet non valido.');
 
-  const name = sanitizeRequiredText(body.name, 80, 'Nome cane');
+  const speciesRaw = toTrimmedString(body.species).toUpperCase() || 'DOG';
+  if (!PET_SPECIES_SET.has(speciesRaw as PetSpecies)) throw new Error('Specie pet non valida.');
+  const species = speciesRaw as PetSpecies;
+  const isDog = species === 'DOG';
+  const isOther = species === 'OTHER';
+
+  const name = sanitizeRequiredText(body.name, 80, 'Nome pet');
+  const speciesOther = isOther ? sanitizeOptionalText(body.species_other, 80) : null;
+  if (isOther && !speciesOther) throw new Error('Specie del pet mancante.');
+  const librettoName = isDog ? (sanitizeOptionalText(body.libretto_name, 80) ?? name) : null;
   const sizeCategory = sanitizeOptionalText(body.size_category, 16);
   const groomingDifficulty = body.grooming_difficulty == null || body.grooming_difficulty === ''
     ? null
@@ -476,12 +486,15 @@ export function sanitizeDogInput(body: unknown): DogInput {
     : null;
 
   return {
+    species,
+    species_other: speciesOther,
+    libretto_name: librettoName,
     name,
-    breed: sanitizeOptionalText(body.breed, 80),
+    breed: isOther ? null : sanitizeOptionalText(body.breed, 80),
     size_category: sizeCategory as DogSize | null,
     grooming_difficulty: groomingDifficulty as WashDifficulty | null,
     sex: (sex as DogSex | null) ?? null,
-    microchip: sanitizeOptionalText(body.microchip, 64),
+    microchip: isDog ? sanitizeOptionalText(body.microchip, 64) : null,
     birth_date: sanitizeDateOnly(body.birth_date, 'Data nascita cane'),
     notes: sanitizeOptionalText(body.notes, 1000),
     coat_color: sanitizeOptionalText(body.coat_color, 80),

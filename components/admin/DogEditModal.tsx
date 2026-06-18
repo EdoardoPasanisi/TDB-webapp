@@ -82,7 +82,7 @@ export function DogEditModal({
   return (
     <ModalFrame
       open={open}
-      title={mode === 'create' ? 'Aggiungi cane' : `Modifica ${dog?.name ?? 'cane'}`}
+      title={mode === 'create' ? 'Aggiungi pet' : `Modifica ${dog?.name ?? 'pet'}`}
       onClose={onClose}
     >
       {error ? <div className="ui-error">{error}</div> : null}

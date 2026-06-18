@@ -1,0 +1,65 @@
+/* Stile condiviso per le pagine di stampa pensione. */
+.print-root {
+  background: #ffffff;
+  color: #111111;
+  padding: 24px;
+  max-width: 900px;
+  margin: 0 auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+.print-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.print-card {
+  border: 2px solid #111;
+  border-radius: 10px;
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+.print-hero {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 14px;
+}
+.print-hero-item { flex: 1; min-width: 0; }
+.print-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+}
+.print-big {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.print-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-top: 2px solid #111;
+  border-bottom: 2px solid #111;
+  padding: 10px 0;
+  margin: 8px 0 16px;
+}
+.print-total-value { font-size: 30px; font-weight: 900; }
+.print-section { margin-top: 12px; }
+.print-section-title {
+  font-size: 17px;
+  font-weight: 700;
+  border-bottom: 1px solid #999;
+  padding-bottom: 2px;
+  margin-bottom: 6px;
+}
+.print-row { font-size: 15px; line-height: 1.5; }
+.print-minor .print-row { font-size: 12.5px; color: #444; }
+.print-muted { color: #777; }
+.print-page-break { break-after: page; page-break-after: always; }
+
+@media print {
+  .print-toolbar { display: none; }
+  .print-root { padding: 0; }
+  @page { margin: 14mm; }
+}

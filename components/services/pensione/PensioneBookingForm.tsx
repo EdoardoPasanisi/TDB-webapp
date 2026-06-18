@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import type { AccommodationKey, TaxiOption } from '@/types/booking';
 import type { DogLite, PerDogForm, PensionePricing } from '@/lib/services/pensione/types';
-import { ACCOMMODATION_PRICES } from '@/lib/services/pensione/constants';
+import { ACCOMMODATION_PRICES, accommodationOptionsForSpecies } from '@/lib/services/pensione/constants';
 import { computeGroomingPriceForDog, isSundayDate } from '@/lib/services/pensione/utils';
 import { DogAvatar } from '@/components/dogs/DogAvatar';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -22,6 +22,7 @@ type Props = {
   title: string;
   error: string | null;
   missingRequiredFields: string[];
+  missingPetFields: string[];
   saving: boolean;
 
   dogs: DogLite[];
@@ -177,6 +178,7 @@ export function PensioneBookingForm(props: Props) {
     title,
     error,
     missingRequiredFields,
+    missingPetFields,
     saving,
     dogs,
     isSingleDog,
@@ -307,11 +309,38 @@ export function PensioneBookingForm(props: Props) {
         <h1 className="ui-title ui-minw0">{title}</h1>
       </div>
 
+      {missingRequiredFields.length || missingPetFields.length ? (
+        <div className="ui-alertWarn">
+          <p className="ui-body font-[var(--font-weight-semibold)]">
+            Non puoi completare la prenotazione senza alcuni dati obbligatori.
+          </p>
+          <p className="ui-muted mt-1">
+            Puoi comunque continuare per vedere il preventivo: completa i dati mancanti qui sotto per poter prenotare.
+          </p>
+        </div>
+      ) : null}
+
       {missingRequiredFields.length ? (
         <RequiredBookingProfileCard
           missingFields={missingRequiredFields}
           onSaved={() => onCompleteRequiredProfile()}
         />
+      ) : null}
+
+      {missingPetFields.length ? (
+        <Card>
+          <CardContent className="space-y-2 ui-minw0">
+            <div className="ui-body font-[var(--font-weight-semibold)]">Dati pet da completare</div>
+            <ul className="ui-muted list-disc pl-5">
+              {missingPetFields.map((entry) => (
+                <li key={entry}>{entry}</li>
+              ))}
+            </ul>
+            <p className="ui-muted">
+              Vai su <strong>Profilo → I miei pet</strong>, apri il pet e completa i dati mancanti.
+            </p>
+          </CardContent>
+        </Card>
       ) : null}
 
       {dogs.length === 0 ? (
@@ -614,7 +643,9 @@ export function PensioneBookingForm(props: Props) {
 	                    >
 	                      {(Object.entries(ACCOMMODATION_PRICES) as Array<
 	                        [AccommodationKey, { label: string; pricePerDay: number }]
-	                      >).map(([key, info]) => (
+	                      >)
+	                        .filter(([key]) => accommodationOptionsForSpecies(dog.species ?? 'DOG').includes(key))
+	                        .map(([key, info]) => (
 	                          <option key={key} value={key}>
 	                            {info.label} — {info.pricePerDay}€/giorno
 	                          </option>

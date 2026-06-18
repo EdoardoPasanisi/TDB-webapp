@@ -98,6 +98,8 @@ export type AdminAgendaItem = {
   isActive: boolean;
   meta: string[];
   summaryLines: string[];
+  // Stato "stampata" (solo pensione; null per gli altri).
+  printedAt?: string | null;
 };
 
 export type AdminSlotRecord = {
@@ -211,6 +213,7 @@ export type AdminBookingDetail = {
   totalPrice: number | null;
   notes: string | null;
   meta: string[];
+  printedAt: string | null;
   booking: {
     createdAt: string | null;
     arrivalTime: string | null;

@@ -564,10 +564,10 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
             <Card>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between gap-2">
-                  <SectionHeader title="Cani registrati" subtitle="Profili cane collegati a questo cliente." />
+                  <SectionHeader title="Pet registrati" subtitle="Pet (cani, gatti, altro) collegati a questo cliente." />
                   {canManage ? (
                     <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAddingDog(true)}>
-                      Aggiungi cane
+                      Aggiungi pet
                     </Button>
                   ) : null}
                 </div>
@@ -598,7 +598,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                                   if (ok) setEditingDog(dog);
                                 }}
                               >
-                                Modifica cane
+                                Modifica pet
                               </Button>
                             </div>
                           ) : null}
@@ -607,7 +607,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                     ))}
                   </div>
                 ) : (
-                  <EmptyCard label="Nessun cane registrato." />
+                  <EmptyCard label="Nessun pet registrato." />
                 )}
               </CardContent>
             </Card>

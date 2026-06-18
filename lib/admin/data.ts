@@ -47,7 +47,7 @@ import type {
 const PROFILE_SELECT =
   'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, wallet_due_eur, deleted_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOG_SELECT =
-  'id, owner_id, created_at, updated_at, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds';
+  'id, owner_id, created_at, updated_at, species, species_other, libretto_name, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds';
 const IDENTITY_BUCKET = 'identity-documents';
 type AdminVisibilityMode = 'full' | 'limited';
 
@@ -1613,7 +1613,7 @@ export async function getAdminBookingDetail(
     const bookingRes = await supabaseAdmin
       .from('bookings')
       .select(
-        'id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, taxi_distance_band, taxi_price, taxi_pickup_time, taxi_return_time, created_at, booking_dogs(id, booking_id, dog_id, accommodation_type, accommodation_price_per_day, days_count, accommodation_subtotal, extras, extras_subtotal, per_dog_total, dogs(id, name, breed, grooming_difficulty))'
+        'id, user_id, service_type, start_date, end_date, arrival_time, departure_time, status, notes, total_price, taxi_option, taxi_distance_band, taxi_price, taxi_pickup_time, taxi_return_time, created_at, printed_at, booking_dogs(id, booking_id, dog_id, accommodation_type, accommodation_price_per_day, days_count, accommodation_subtotal, extras, extras_subtotal, per_dog_total, dogs(id, name, breed, grooming_difficulty))'
       )
       .eq('id', bookingId)
       .maybeSingle();
@@ -1652,6 +1652,7 @@ export async function getAdminBookingDetail(
       totalPrice: booking.total_price ?? null,
       notes: booking.notes ?? null,
       meta,
+      printedAt: (booking as { printed_at?: string | null }).printed_at ?? null,
       booking: {
         createdAt: booking.created_at ?? null,
         arrivalTime: booking.arrival_time ?? null,
@@ -1765,6 +1766,7 @@ export async function getAdminBookingDetail(
     totalPrice: booking.total_price ?? null,
     notes: booking.notes ?? null,
     meta,
+    printedAt: null,
     booking: {
       createdAt: booking.created_at ?? null,
       arrivalTime: null,
@@ -2301,6 +2303,9 @@ export async function updateAdminDog(dogId: string, input: DogInput): Promise<Do
   const { data, error } = await supabaseAdmin
     .from('dogs')
     .update({
+      species: input.species,
+      species_other: input.species_other,
+      libretto_name: input.libretto_name,
       name: input.name.trim(),
       breed: input.breed,
       size_category: input.size_category,
@@ -2560,6 +2565,43 @@ export async function deleteAdminBooking(args: {
   const { error } = await supabaseAdmin.from('service_slot_bookings').delete().eq('id', bookingId);
   if (error) throw new Error(error.message);
   return { userId: String(current.user_id) };
+}
+
+// ── Stampa prenotazioni pensione ──────────────────────────────────────────────
+export async function markPensioneBookingPrinted(bookingId: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ printed_at: new Date().toISOString() })
+    .eq('id', bookingId)
+    .eq('service_type', 'PENSIONE')
+    .is('printed_at', null);
+  if (error) throw new Error(error.message);
+}
+
+export async function markPensioneBookingsPrinted(bookingIds: string[]): Promise<void> {
+  const ids = unique(bookingIds.filter(Boolean));
+  if (ids.length === 0) return;
+  const { error } = await supabaseAdmin
+    .from('bookings')
+    .update({ printed_at: new Date().toISOString() })
+    .in('id', ids)
+    .is('printed_at', null);
+  if (error) throw new Error(error.message);
+}
+
+/** Prenotazioni pensione non ancora stampate (non annullate), per la stampa massiva. */
+export async function getUnprintedPensioneBookingDetails(): Promise<AdminBookingDetail[]> {
+  const { data } = await supabaseAdmin
+    .from('bookings')
+    .select('id')
+    .eq('service_type', 'PENSIONE')
+    .is('printed_at', null)
+    .neq('status', 'CANCELLED')
+    .order('start_date', { ascending: true });
+
+  const ids = ((data ?? []) as Array<{ id: string }>).map((row) => row.id);
+  const details = await Promise.all(ids.map((id) => getAdminBookingDetail('PENSIONE', id, 'full')));
+  return details.filter((detail): detail is AdminBookingDetail => Boolean(detail));
 }
 
 export async function upsertAdminSlot(input: {

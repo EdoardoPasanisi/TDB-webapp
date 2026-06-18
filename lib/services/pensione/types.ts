@@ -1,6 +1,7 @@
 // lib/services/pensione/types.ts
 import type { AccommodationKey } from '@/types/booking';
 import type { DogSize, WashDifficulty } from '@/data/dogBreeds';
+import type { PetSpecies } from '@/types/dog';
 
 export interface DogLite {
   id: string;
@@ -10,6 +11,11 @@ export interface DogLite {
   // ✅ ci servono per prezzo toelettatura
   size_category: DogSize | null;
   grooming_difficulty: WashDifficulty | null;
+  // Specie + requisiti prenotazione (facoltativi: usati solo nel flusso pensione utente)
+  species?: PetSpecies | null;
+  microchip?: string | null;
+  birth_date?: string | null;
+  libretto_name?: string | null;
 }
 
 export type TherapyAnswer = 'YES' | 'NO' | '';

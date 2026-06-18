@@ -2,7 +2,7 @@
 // gestione cani, edit completo prenotazioni (pensione + slot), crediti/pacchetti.
 // Tutte via supabaseAdmin (service role, bypassa RLS). Le rotte chiamanti devono
 // sempre passare da requireStaffAccess(request, 'manage').
-import { findDogBreed } from '@/data/dogBreeds';
+import { findBreedProfileForSpecies } from '@/data/petBreeds';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import {
   buildExtrasPayload,
@@ -20,7 +20,7 @@ import type { Profile } from '@/types/profile';
 import type { ServicePassRow, ServiceStatus, ServiceType, ServiceVariant } from '@/types/services';
 
 const DOG_SELECT =
-  'id, owner_id, created_at, updated_at, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds';
+  'id, owner_id, created_at, updated_at, species, species_other, libretto_name, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds';
 const IDENTITY_BUCKET = 'identity-documents';
 const PASS_SELECT =
   'id, user_id, service_type, service_variant, product_id, credits_total, credits_used, status, purchased_at, expires_at, unlocked_at, unlocked_by';
@@ -154,12 +154,13 @@ export async function hardDeleteAdminUser(userId: string): Promise<void> {
 // ──────────────────────────────────────────────────────────────────────────
 
 export async function createAdminDog(ownerId: string, input: DogInput): Promise<Dog> {
-  const breedProfile = findDogBreed(input.breed);
+  const breedProfile = findBreedProfileForSpecies(input.species, input.breed);
   const payload = {
     ...input,
     owner_id: ownerId,
-    size_category: breedProfile?.size ?? input.size_category ?? null,
-    grooming_difficulty: breedProfile?.washDifficulty ?? input.grooming_difficulty ?? null,
+    size_category: input.species === 'OTHER' ? input.size_category : breedProfile?.size ?? input.size_category ?? null,
+    grooming_difficulty:
+      input.species === 'OTHER' ? input.grooming_difficulty : breedProfile?.washDifficulty ?? input.grooming_difficulty ?? null,
   };
 
   const { data, error } = await supabaseAdmin.from('dogs').insert(payload).select(DOG_SELECT).single();

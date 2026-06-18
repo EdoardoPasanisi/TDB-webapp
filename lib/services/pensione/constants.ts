@@ -1,6 +1,7 @@
 // lib/services/pensione/constants.ts
 import type { AccommodationKey, TaxiDistanceBand } from '@/types/booking';
 import type { DogSize, WashDifficulty } from '@/data/dogBreeds';
+import type { PetSpecies } from '@/types/dog';
 
 export const DEFAULT_TIMES = {
   ARRIVAL: '10:00',
@@ -31,6 +32,18 @@ export const ACCOMMODATION_PRICES: Record<
   },
   CATTERY: { label: 'Gattile', pricePerDay: 25 },
 };
+
+// Alloggi disponibili per specie: i cani non possono usare il gattile, i gatti solo
+// il gattile, "altro" non è prenotabile in pensione (nessuna opzione).
+export function accommodationOptionsForSpecies(species: PetSpecies): AccommodationKey[] {
+  if (species === 'CAT') return ['CATTERY'];
+  if (species === 'OTHER') return [];
+  return (Object.keys(ACCOMMODATION_PRICES) as AccommodationKey[]).filter((key) => key !== 'CATTERY');
+}
+
+export function defaultAccommodationForSpecies(species: PetSpecies): AccommodationKey {
+  return species === 'CAT' ? 'CATTERY' : 'BOX';
+}
 
 // Prezzi taxi in base alla distanza
 export const TAXI_PRICES_WITH_DISTANCE: Record<

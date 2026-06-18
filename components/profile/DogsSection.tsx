@@ -61,22 +61,22 @@ export function DogsSection({
   return (
     <section className="ui-panel p-4">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="ui-h2">I miei cani</h2>
+        <h2 className="ui-h2">I miei pet</h2>
         <Button
           type="button"
           variant="secondary"
           onClick={onStartNewDog}
           className="ui-btnCompact"
         >
-          Aggiungi cane
+          Aggiungi pet
         </Button>
       </div>
 
       {dogs.length === 0 && !isEditing && (
         <div className="ui-emptyState ui-muted">
-          <p>Non hai ancora registrato nessun cane.</p>
+          <p>Non hai ancora registrato nessun pet.</p>
           <p className="mt-1">
-            Clicca su &quot;Aggiungi cane&quot; per inserire il primo.
+            Clicca su &quot;Aggiungi pet&quot; per inserire il primo.
           </p>
         </div>
       )}
