@@ -43,7 +43,7 @@ export function BookingDogsList({
 }) {
   return (
     <section className="ui-card ui-cardContent space-y-3">
-      <h2 className="ui-h2">Cani</h2>
+      <h2 className="ui-h2">Pet</h2>
 
       <div className="space-y-3">
         {dogs.map((d) => {
@@ -64,7 +64,7 @@ export function BookingDogsList({
                 </div>
 
                 <div className="shrink-0 ui-accentBox px-3 py-2 text-right">
-                  <p className="ui-muted">Totale cane</p>
+                  <p className="ui-muted">Totale pet</p>
                   <p className="ui-body font-[var(--font-weight-semibold)]">{euro(d.per_dog_total)}</p>
                 </div>
               </div>

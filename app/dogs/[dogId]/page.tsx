@@ -152,7 +152,7 @@ function DogDetailInner() {
     try {
       const found = await getDogByIdForOwner(dogId, user.id);
       if (!found) {
-        setError('Cane non trovato o non accessibile.');
+        setError('Pet non trovato o non accessibile.');
         setDog(null);
       } else {
         setDog(found);
@@ -188,7 +188,7 @@ function DogDetailInner() {
   if (authLoading || loadingDog) {
     return (
       <main className="ui-page min-h-screen flex items-center justify-center">
-        <p className="ui-muted">Caricamento cane...</p>
+        <p className="ui-muted">Caricamento pet...</p>
       </main>
     );
   }
@@ -201,8 +201,8 @@ function DogDetailInner() {
         <div className="mx-auto w-full max-w-xl pt-8">
           <Card>
             <CardContent className="space-y-3 text-center">
-              <h1 className="ui-h2">Cane non trovato</h1>
-              <p className="ui-body">{error ?? 'Impossibile caricare il cane.'}</p>
+              <h1 className="ui-h2">Pet non trovato</h1>
+              <p className="ui-body">{error ?? 'Impossibile caricare il pet.'}</p>
               <Button fullWidth onClick={() => router.replace('/profile')}>
                 Torna all’area personale
               </Button>
@@ -367,7 +367,7 @@ function DogDetailInner() {
               >
                 {photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={photoUrl} alt="Foto cane" className="block h-full w-full max-h-full max-w-full object-cover" />
+                  <img src={photoUrl} alt="Foto pet" className="block h-full w-full max-h-full max-w-full object-cover" />
                 ) : (
                   <span className="ui-muted">Foto</span>
                 )}
@@ -397,7 +397,7 @@ function DogDetailInner() {
 
         {createdBanner ? (
           <div className="ui-success">
-            <p className="ui-body">Cane creato correttamente.</p>
+            <p className="ui-body">Pet creato correttamente.</p>
           </div>
         ) : null}
 
@@ -490,13 +490,13 @@ function DogDetailInner() {
             <Card>
               <CardContent className="space-y-3">
                 <SectionHeader
-                  title="Scheda cane (anteprima)"
+                  title="Scheda pet (anteprima)"
                   subtitle="Questa anteprima è identica alla scheda pubblica generata dal QR."
                 />
 
                 <div className="grid gap-2">
                   <Button fullWidth variant="secondary" onClick={() => setPrefsOpen(true)}>
-                    Personalizza scheda cane
+                    Personalizza scheda pet
                   </Button>
                   <Button fullWidth variant="primary" onClick={() => router.push(`/dogs/tag/${dog.id}`)}>
                     Vai al QR

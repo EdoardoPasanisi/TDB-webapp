@@ -237,7 +237,7 @@ export function DogPublicCard({
                 style={{ width: 72, height: 72 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={photoUrl} alt="Foto cane" className="block h-full w-full max-h-full max-w-full object-cover" />
+                <img src={photoUrl} alt="Foto pet" className="block h-full w-full max-h-full max-w-full object-cover" />
               </div>
               <div className="min-w-0">
                 <h1 className="ui-h2 truncate">{dog.name}</h1>
@@ -301,7 +301,7 @@ export function DogPublicCard({
 
             {ownerBlock.ownerDogAddressVisible && ownerBlock.dogAddress ? (
               <div className="ui-panelInset p-3">
-                <p className="ui-muted">Indirizzo cane</p>
+                <p className="ui-muted">Indirizzo pet</p>
                 <p className="ui-body mt-1">{ownerBlock.dogAddress}</p>
               </div>
             ) : null}
@@ -310,7 +310,7 @@ export function DogPublicCard({
 
         {showFooter ? (
           <footer className="pt-1">
-            <p className="ui-muted text-center">Tenuta del Barone • Scheda cane</p>
+            <p className="ui-muted text-center">Tenuta del Barone • Scheda pet</p>
           </footer>
         ) : null}
       </CardContent>

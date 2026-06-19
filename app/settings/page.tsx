@@ -133,7 +133,7 @@ export default function SettingsPage() {
 
             <SettingActionCard
               title="Rivedi il tutorial"
-              subtitle="Profilo, cani, prenotazioni, calendario e chat in un giro guidato."
+              subtitle="Profilo, pet, prenotazioni, calendario e chat in un giro guidato."
               onClick={() => startTutorial()}
             />
           </CardContent>

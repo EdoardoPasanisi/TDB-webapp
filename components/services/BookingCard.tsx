@@ -77,7 +77,7 @@ export function BookingCard({ booking }: { booking: UnifiedBookingListItem }) {
     dogNames.length > 0
       ? dogNames.join(', ')
       : booking.kind === 'PENSIONE' && booking.dogs_count
-      ? `${booking.dogs_count} cane/i`
+      ? `${booking.dogs_count} pet`
       : '—';
 
   const price = euro(booking.total_price);
@@ -142,7 +142,7 @@ export function BookingCard({ booking }: { booking: UnifiedBookingListItem }) {
           <div className="space-y-1">
             {showDogsLine ? (
               <div className="ui-muted">
-                <span className="ui-body font-[var(--font-weight-semibold)]">Cani:</span> {dogsLine}
+                <span className="ui-body font-[var(--font-weight-semibold)]">Pet:</span> {dogsLine}
               </div>
             ) : null}
 

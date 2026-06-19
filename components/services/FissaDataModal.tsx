@@ -150,7 +150,7 @@ async function fetchUserDogs(userId: string): Promise<DogLite[]> {
     .eq('is_active', true)
     .order('name', { ascending: true });
 
-  if (error) throw new Error(humanizeErrorMessage(error, 'Non siamo riusciti a caricare i cani.'));
+  if (error) throw new Error(humanizeErrorMessage(error, 'Non siamo riusciti a caricare i pet.'));
   const rows = (data ?? []) as DogLite[];
   return rows.map((d) => ({
     id: d.id,
@@ -362,7 +362,7 @@ export function FissaDataModal({
       } catch (e) {
         console.error(e);
         if (cancelled) return;
-        setDogsError(getErrorMessage(e, 'Errore caricamento cani.'));
+        setDogsError(getErrorMessage(e, 'Errore caricamento pet.'));
         setDogsState('error');
       }
     }
@@ -667,16 +667,16 @@ export function FissaDataModal({
 
                 {needsDogs ? (
                   <div className="pt-2">
-                    <div className="ui-body font-[var(--font-weight-bold)]">Seleziona cane/i</div>
+                    <div className="ui-body font-[var(--font-weight-bold)]">Seleziona pet</div>
 
                     {dogsState === 'loading' ? (
-                      <div className="ui-muted mt-2">Caricamento cani…</div>
+                      <div className="ui-muted mt-2">Caricamento pet…</div>
                     ) : dogsState === 'error' ? (
                       <div className="ui-error mt-2">{dogsError}</div>
                     ) : dogs.length === 0 ? (
                       <div className="mt-2 space-y-1">
-                        <div className="ui-body ui-accentText font-[var(--font-weight-semibold)]">Nessun cane nel tuo profilo.</div>
-                        <div className="ui-muted">Vai su <strong>Profilo → I miei cani</strong> e aggiungine uno per prenotare.</div>
+                        <div className="ui-body ui-accentText font-[var(--font-weight-semibold)]">Nessun pet nel tuo profilo.</div>
+                        <div className="ui-muted">Vai su <strong>Profilo → I miei pet</strong> e aggiungine uno per prenotare.</div>
                       </div>
                     ) : (
                       <div className="mt-2 space-y-2">

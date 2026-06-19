@@ -342,7 +342,7 @@ export default function CalendarPage() {
                       {it.kind === 'PENSIONE' ? (
                         <>
                           <div className="flex items-start justify-between gap-2">
-                            <span className="ui-muted shrink-0">Cani</span>
+                            <span className="ui-muted shrink-0">Pet</span>
                             <span className="ui-body font-[var(--font-weight-semibold)] text-right leading-tight">
                               {formatDogsSummary(it.dogNames, it.dogsCount)}
                             </span>
@@ -370,7 +370,7 @@ export default function CalendarPage() {
                         <>
                           {it.serviceType !== 'CONSULENZA' ? (
                             <div className="flex items-start justify-between gap-2">
-                              <span className="ui-muted shrink-0">Cani</span>
+                              <span className="ui-muted shrink-0">Pet</span>
                               <span className="ui-body font-[var(--font-weight-semibold)] text-right leading-tight">
                                 {formatDogsSummary(it.dogNames)}
                               </span>

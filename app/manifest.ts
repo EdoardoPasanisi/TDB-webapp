@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: '/',
     name: 'Tenuta del Barone',
     short_name: 'TDB',
-    description: 'Area clienti per profilo, cani e prenotazioni.',
+    description: 'Area clienti per profilo, pet e prenotazioni.',
     lang: 'it',
     dir: 'ltr',
     start_url: '/',

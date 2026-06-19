@@ -210,7 +210,7 @@ export default function ProfileOverviewPage() {
           .eq('is_active', true)
           .order('name', { ascending: true });
 
-        if (dogsError) setError(humanizeErrorMessage(dogsError, 'Non siamo riusciti a caricare i cani.'));
+        if (dogsError) setError(humanizeErrorMessage(dogsError, 'Non siamo riusciti a caricare i pet.'));
         setDogs(((dogsData as Dog[]) ?? []).filter((d) => d.is_active));
 
         try {
@@ -314,9 +314,9 @@ export default function ProfileOverviewPage() {
         <section className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="ui-title text-[30px] leading-[0.95]">I miei cani</h2>
+              <h2 className="ui-title text-[30px] leading-[0.95]">I miei pet</h2>
               <p className="mt-1 ui-body text-[18px] text-[var(--muted)]">
-                {dogs.length ? `${dogs.length} profili` : 'Aggiungi il primo cane'}
+                {dogs.length ? `${dogs.length} profili` : 'Aggiungi il primo pet'}
               </p>
             </div>
             <div className="shrink-0">
@@ -329,7 +329,7 @@ export default function ProfileOverviewPage() {
           {dogs.length === 0 ? (
             <Card>
               <CardContent className="ui-muted">
-                Non hai ancora creato nessun cane.
+                Non hai ancora creato nessun pet.
               </CardContent>
             </Card>
           ) : (
@@ -392,7 +392,7 @@ export default function ProfileOverviewPage() {
                       ) : (
                         <img
                           src={item.signedUrl}
-                          alt={item.caption || 'Media del tuo cane'}
+                          alt={item.caption || 'Media del tuo pet'}
                           className="block h-auto max-h-[420px] w-full object-cover"
                         />
                       )}

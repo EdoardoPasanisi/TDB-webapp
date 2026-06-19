@@ -5,7 +5,7 @@ import { AppChromeGate } from '@/components/AppChromeGate';
 
 export const metadata: Metadata = {
   title: 'Tenuta del Barone',
-  description: 'Gestione clienti, cani e prenotazioni',
+  description: 'Gestione clienti, pet e prenotazioni',
   applicationName: 'Tenuta del Barone',
   manifest: '/manifest.webmanifest',
   robots: {

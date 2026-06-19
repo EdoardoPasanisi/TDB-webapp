@@ -346,12 +346,12 @@ export function PensioneBookingForm(props: Props) {
       {dogs.length === 0 ? (
         <Card>
           <CardContent className="space-y-2 ui-minw0">
-            <div className="ui-h2">Cani</div>
+            <div className="ui-h2">Pet</div>
             <p className="ui-body ui-accentText font-[var(--font-weight-semibold)]">
-              Non hai ancora aggiunto nessun cane al tuo profilo.
+              Non hai ancora aggiunto nessun pet al tuo profilo.
             </p>
             <p className="ui-muted">
-              Vai alla sezione <strong>Profilo → I miei cani</strong> e aggiungi almeno un cane per poter effettuare una prenotazione.
+              Vai alla sezione <strong>Profilo → I miei pet</strong> e aggiungi almeno un pet per poter effettuare una prenotazione.
             </p>
           </CardContent>
         </Card>
@@ -361,7 +361,7 @@ export function PensioneBookingForm(props: Props) {
         <Card>
           <CardContent className="space-y-3 ui-minw0">
             <div className="ui-minw0">
-              <div className="ui-h2">Cani</div>
+              <div className="ui-h2">Pet</div>
               <div className="ui-muted mt-1">Tocca per selezionare.</div>
             </div>
 
@@ -403,7 +403,7 @@ export function PensioneBookingForm(props: Props) {
 
             {selectedDogIds.length === 0 ? (
               <div className="ui-body font-[var(--font-weight-semibold)] ui-accentText">
-                Seleziona almeno un cane per continuare.
+                Seleziona almeno un pet per continuare.
               </div>
             ) : null}
           </CardContent>
@@ -617,7 +617,7 @@ export function PensioneBookingForm(props: Props) {
 
       <Card>
         <CardContent className="space-y-4 ui-minw0">
-          <div className="ui-h2">Alloggio ed extra per cane</div>
+          <div className="ui-h2">Alloggio ed extra per pet</div>
 
           <div className="space-y-4 ui-minw0">
 	            {selectedDogIds.map((dogId) => {
@@ -793,7 +793,7 @@ export function PensioneBookingForm(props: Props) {
               <span className="font-[var(--font-weight-semibold)]">{daysCount > 0 ? daysCount : '-'}</span>
             </div>
             <div>
-              Cani inclusi: <span className="font-[var(--font-weight-semibold)]">{pricing.dogsCount}</span>
+              Pet inclusi: <span className="font-[var(--font-weight-semibold)]">{pricing.dogsCount}</span>
             </div>
             <div>
               Totale alloggi:{' '}

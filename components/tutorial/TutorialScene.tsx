@@ -244,7 +244,7 @@ function ProfileScene() {
         <section className="space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <h2 className="ui-title text-[26px] leading-[0.95]">I miei cani</h2>
+              <h2 className="ui-title text-[26px] leading-[0.95]">I miei pet</h2>
               <p className="mt-1 ui-body text-[16px] text-[var(--muted)]">1 profilo</p>
             </div>
             <div className="ui-btn ui-btnTone-primary shrink-0">+ Aggiungi</div>
@@ -513,7 +513,7 @@ function ChatScene() {
             <div className="space-y-2">
               <ChatBubble text="Ciao! Come possiamo aiutarti? 🐾" />
               <ChatBubble mine text="Vorrei info sulla pensione per il weekend." />
-              <ChatBubble text="Certo! Per quante notti e per quale cane?" />
+              <ChatBubble text="Certo! Per quante notti e per quale pet?" />
             </div>
             <div className="flex items-center gap-2">
               <div className="ui-input flex-1 text-[var(--muted)]">Scrivi un messaggio…</div>

@@ -72,6 +72,10 @@ interface DogFormProps {
   photoUploading?: boolean;
   photoEnabled?: boolean;
   allowManualSize?: boolean;
+
+  // Specie pre-selezionata (es. dal selettore tipo pet) e blocco del selettore in form.
+  initialSpecies?: PetSpecies;
+  lockSpecies?: boolean;
 }
 
 export function DogForm({
@@ -89,13 +93,15 @@ export function DogForm({
   photoUploading = false,
   photoEnabled = true,
   allowManualSize = false,
+  initialSpecies = 'DOG',
+  lockSpecies = false,
 }: DogFormProps) {
   const isEdit = mode === 'edit';
   const editableDog = isEdit ? initialDog ?? null : null;
   const initialBirthParts = parseBirthDate(editableDog?.birth_date ?? null);
 
   // Specie
-  const [species, setSpecies] = useState<PetSpecies>(editableDog?.species ?? 'DOG');
+  const [species, setSpecies] = useState<PetSpecies>(editableDog?.species ?? initialSpecies);
   const [speciesOther, setSpeciesOther] = useState(editableDog?.species_other ?? '');
 
   const initialBreedProfile = findBreedProfileForSpecies(species, editableDog?.breed ?? null);
@@ -395,25 +401,27 @@ export function DogForm({
         </Card>
       ) : null}
 
-      {/* Specie */}
-      <Card>
-        <CardContent className="space-y-2">
-          <Field label="Tipo di pet" required id="pet-species">
-            <select
-              id="pet-species"
-              value={species}
-              onChange={(e) => changeSpecies(e.target.value as PetSpecies)}
-              className="ui-control ui-select"
-            >
-              {SPECIES_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </CardContent>
-      </Card>
+      {/* Specie (nascosta quando pre-selezionata dal selettore tipo pet) */}
+      {!lockSpecies ? (
+        <Card>
+          <CardContent className="space-y-2">
+            <Field label="Tipo di pet" required id="pet-species">
+              <select
+                id="pet-species"
+                value={species}
+                onChange={(e) => changeSpecies(e.target.value as PetSpecies)}
+                className="ui-control ui-select"
+              >
+                {SPECIES_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Nome (required) */}
       <Card>
