@@ -22,7 +22,6 @@ export const CAT_TEMPERAMENTS = {
   carattere: ['Curioso', 'Coccolone', 'Schivo', 'Ansioso', 'Coraggioso', 'Vocale (miagola molto)'],
   convivenza: [
     'Buono con altri gatti',
-    'Buono con i cani',
     'Buono con le persone',
     'Buono con i bambini',
     'Territoriale',
