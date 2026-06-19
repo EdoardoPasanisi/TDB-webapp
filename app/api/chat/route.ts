@@ -10,10 +10,10 @@ import {
   seedConversationTitleFromMessage,
   startNewUserConversation,
 } from '@/lib/chat/db';
-import { generateAssistantReply, OpenAIChatError } from '@/lib/chat/openai';
+import { generateAssistantReply, AnthropicChatError } from '@/lib/chat/anthropic';
 import { trimChatMessage } from '@/lib/chat/format';
 import { checkRateLimit } from '@/lib/server/security';
-import { CHAT_HISTORY_LIMIT } from '@/lib/chat/config';
+import { CHAT_HISTORY_LIMIT, CHAT_MODEL } from '@/lib/chat/config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,27 +27,28 @@ function classifyChatInfraError(error: unknown): {
   userMessage: string;
 } {
   const raw = String(error instanceof Error ? error.message : error ?? '').toLowerCase();
-  const isOpenAIQuota =
-    error instanceof OpenAIChatError &&
-    (error.code === 'insufficient_quota' || error.status === 429 || raw.includes('quota'));
-  const isOpenAIConfig =
-    raw.includes('openai_api_key non configurata') ||
-    raw.includes('incorrect api key') ||
+  const isQuota =
+    error instanceof AnthropicChatError &&
+    (error.code === 'rate_limit_error' || error.status === 429 || raw.includes('rate_limit') || raw.includes('quota'));
+  const isConfig =
+    raw.includes('anthropic_api_key non configurata') ||
+    raw.includes('authentication_error') ||
+    raw.includes('invalid x-api-key') ||
     raw.includes('invalid api key');
 
-  if (isOpenAIQuota) {
+  if (isQuota) {
     return {
       shouldHandoff: false,
       userMessage:
-        'La chat AI non è disponibile in questo momento perché il progetto OpenAI non ha quota disponibile.',
+        'La chat AI non è disponibile in questo momento per limiti di utilizzo. Riprova tra poco.',
     };
   }
 
-  if (isOpenAIConfig) {
+  if (isConfig) {
     return {
       shouldHandoff: false,
       userMessage:
-        'La chat AI non è configurata correttamente in questo ambiente. Serve completare la configurazione OpenAI.',
+        'La chat AI non è configurata correttamente in questo ambiente. Serve completare la configurazione.',
     };
   }
 
@@ -138,8 +139,8 @@ export async function POST(request: Request) {
         senderType: 'ASSISTANT',
         body: assistant.text,
         metadata: {
-          source: 'openai',
-          model: process.env.OPENAI_CHAT_MODEL ?? 'gpt-4.1-mini',
+          source: 'anthropic',
+          model: CHAT_MODEL,
         },
       });
     } catch (error) {

@@ -1,4 +1,4 @@
-import type { ChatConversationRow, ChatMessageRow } from '@/types/chat';
+import type { ChatMessageRow } from '@/types/chat';
 
 export function buildChatInstructions(knowledgeBase: string, todayIso: string): string {
   return [
@@ -30,6 +30,13 @@ export function buildChatInstructions(knowledgeBase: string, todayIso: string): 
     '- I pet (cani, gatti, altro) si gestiscono in Profilo → I miei pet (aggiungi/modifica/elimina). Per prenotare la pensione servono dati obbligatori: proprietario con nome, cognome, telefono, codice fiscale, residenza completa e documento caricato; pet con anno di nascita e, per i cani, microchip e nome sul libretto.',
     '- I documenti si caricano dal profilo; saldo e pagamenti sono gestiti dallo staff.',
     'Vietate le risposte vaghe: niente "se previsto", "potrebbe", "in genere" quando l’informazione e nella KB o nei tool. Rispondi in modo definitivo. Se un dato non e disponibile, di’ con precisione cosa fare (dove guardare nell’app) oppure fai handoff: mai una risposta evasiva.',
+    '',
+    'Azioni sulle prenotazioni (puoi eseguirle per il cliente):',
+    '- Puoi ANNULLARE o ELIMINARE una prenotazione del cliente con i tool dedicati (cancel_user_pensione_booking, delete_user_pensione_booking, cancel_user_slot_booking).',
+    '- Recupera prima gli ID con get_user_bookings_status. Prima di eseguire, mostra SEMPRE un riepilogo (servizio, date, cane) e chiedi una conferma esplicita; esegui il tool SOLO dopo che il cliente conferma chiaramente (es. "sì, conferma").',
+    '- Distingui: ANNULLA = la prenotazione resta nello storico come annullata; ELIMINA = viene rimossa definitivamente. Usa quello che chiede il cliente.',
+    '- Per MODIFICARE una prenotazione non esiste un tool: guida il cliente (Calendario → apri la prenotazione → Modifica) oppure proponi di annullarla e rifarla.',
+    '- Dopo aver eseguito un’azione, conferma in una frase l’esito (es. "Fatto: prenotazione annullata.").',
     'Se la richiesta tocca temi medici, legali, documentali delicati, urgenze, casi particolari o dubbi seri, usa create_operator_handoff.',
     'Se l’utente chiede esplicitamente un operatore, usa create_operator_handoff.',
     'Se un prezzo o una disponibilita non sono confermati dalla KB o dai tool, non fornirli come dato certo.',
@@ -55,47 +62,28 @@ export function buildChatInstructions(knowledgeBase: string, todayIso: string): 
   ].join('\n');
 }
 
-export type OpenAIInputMessage =
-  | {
-      role: 'user' | 'assistant' | 'system';
-      content: string;
-    }
-  | {
-      type: 'function_call_output';
-      call_id: string;
-      output: string;
-    }
-  | {
-      type: string;
-      [key: string]: unknown;
-    };
+export type AnthropicChatMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
 
-export function buildOpenAIConversationInput(args: {
-  conversation: ChatConversationRow;
-  messages: ChatMessageRow[];
-}): OpenAIInputMessage[] {
-  const { conversation, messages } = args;
-  const input: OpenAIInputMessage[] = [
-    {
-      role: 'system',
-      content: `conversation_id=${conversation.id}`,
-    },
-  ];
-
-  for (const message of messages) {
-    const role =
-      message.sender_type === 'USER'
-        ? 'user'
-        : message.sender_type === 'ADMIN'
-          ? 'assistant'
-          : message.sender_type === 'SYSTEM'
-            ? 'assistant'
-            : 'assistant';
-    input.push({
-      role,
-      content: message.body,
+/**
+ * Converte lo storico conversazione nel formato Messages API di Anthropic.
+ * La prima riga deve essere dell'utente: scartiamo eventuali messaggi assistente iniziali.
+ */
+export function buildAnthropicMessages(args: { messages: ChatMessageRow[] }): AnthropicChatMessage[] {
+  const mapped: AnthropicChatMessage[] = [];
+  for (const message of args.messages) {
+    const content = String(message.body ?? '').trim();
+    if (!content) continue;
+    mapped.push({
+      role: message.sender_type === 'USER' ? 'user' : 'assistant',
+      content,
     });
   }
-
-  return input;
+  while (mapped.length > 0 && mapped[0].role !== 'user') {
+    mapped.shift();
+  }
+  return mapped;
 }
+

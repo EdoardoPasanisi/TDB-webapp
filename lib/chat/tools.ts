@@ -1,5 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { createOperatorHandoff } from '@/lib/chat/db';
+import { deleteAdminBooking, updateAdminBookingStatus } from '@/lib/admin/data';
+import { updateAdminSlotBookingStatus } from '@/lib/admin/management';
 import { getServiceLabel, type ServiceType, type ServiceVariant } from '@/types/services';
 import type { Dog } from '@/types/dog';
 import {
@@ -259,7 +261,99 @@ export function getChatToolDefinitions() {
         additionalProperties: false,
       },
     },
+    {
+      type: 'function',
+      name: 'cancel_user_pensione_booking',
+      description:
+        'Annulla una prenotazione PENSIONE del cliente autenticato (resta nello storico come annullata). Usare SOLO dopo aver mostrato un riepilogo e ottenuto conferma esplicita del cliente. Il bookingId si ottiene da get_user_bookings_status.',
+      parameters: {
+        type: 'object',
+        properties: { bookingId: { type: 'string', description: 'ID della prenotazione pensione.' } },
+        required: ['bookingId'],
+        additionalProperties: false,
+      },
+    },
+    {
+      type: 'function',
+      name: 'delete_user_pensione_booking',
+      description:
+        'Elimina DEFINITIVAMENTE una prenotazione PENSIONE del cliente autenticato (viene rimossa dallo storico). Usare SOLO dopo conferma esplicita del cliente. Il bookingId si ottiene da get_user_bookings_status.',
+      parameters: {
+        type: 'object',
+        properties: { bookingId: { type: 'string', description: 'ID della prenotazione pensione.' } },
+        required: ['bookingId'],
+        additionalProperties: false,
+      },
+    },
+    {
+      type: 'function',
+      name: 'cancel_user_slot_booking',
+      description:
+        'Annulla una prenotazione a slot (asilo/addestramento/consulenza) del cliente autenticato, con rimborso di crediti/taxi se previsto. Usare SOLO dopo conferma esplicita. Il bookingId si ottiene da get_user_bookings_status (slotBookings).',
+      parameters: {
+        type: 'object',
+        properties: { bookingId: { type: 'string', description: 'ID della prenotazione a slot.' } },
+        required: ['bookingId'],
+        additionalProperties: false,
+      },
+    },
   ] as const;
+}
+
+// Converte le definizioni tool nel formato Messages API di Anthropic.
+export function getAnthropicChatTools() {
+  return getChatToolDefinitions().map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    input_schema: tool.parameters,
+  }));
+}
+
+// Verifica che la prenotazione appartenga al cliente prima di agire.
+async function assertBookingOwnership(
+  table: 'bookings' | 'service_slot_bookings',
+  bookingId: string,
+  userId: string
+): Promise<{ ok: true; status: string | null; serviceType: string | null } | { ok: false; error: string }> {
+  const id = String(bookingId ?? '').trim();
+  if (!id) return { ok: false, error: 'Prenotazione non valida.' };
+  const { data, error } = await supabaseAdmin
+    .from(table)
+    .select('id, user_id, status, service_type')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) return { ok: false, error: 'Errore nel recupero della prenotazione.' };
+  if (!data) return { ok: false, error: 'Prenotazione non trovata per questo cliente.' };
+  return { ok: true, status: (data as { status?: string | null }).status ?? null, serviceType: (data as { service_type?: string | null }).service_type ?? null };
+}
+
+async function cancelUserPensioneBooking(userId: string, bookingId: string) {
+  const owned = await assertBookingOwnership('bookings', bookingId, userId);
+  if (!owned.ok) return owned;
+  if (owned.serviceType !== 'PENSIONE') return { ok: false, error: 'Questa non è una prenotazione di pensione.' };
+  if (owned.status === 'CANCELLED') return { ok: true, status: 'CANCELLED', alreadyCancelled: true };
+  if (owned.status !== 'PENDING' && owned.status !== 'CONFIRMED') {
+    return { ok: false, error: 'La prenotazione non è annullabile nello stato attuale.' };
+  }
+  await updateAdminBookingStatus({ kind: 'PENSIONE', bookingId, status: 'CANCELLED' });
+  return { ok: true, status: 'CANCELLED' };
+}
+
+async function deleteUserPensioneBooking(userId: string, bookingId: string) {
+  const owned = await assertBookingOwnership('bookings', bookingId, userId);
+  if (!owned.ok) return owned;
+  if (owned.serviceType !== 'PENSIONE') return { ok: false, error: 'Questa non è una prenotazione di pensione.' };
+  await deleteAdminBooking({ kind: 'PENSIONE', bookingId });
+  return { ok: true, deleted: true };
+}
+
+async function cancelUserSlotBooking(userId: string, bookingId: string) {
+  const owned = await assertBookingOwnership('service_slot_bookings', bookingId, userId);
+  if (!owned.ok) return owned;
+  if (owned.status === 'CANCELLED') return { ok: true, status: 'CANCELLED', alreadyCancelled: true };
+  await updateAdminSlotBookingStatus({ bookingId, status: 'CANCELLED' });
+  return { ok: true, status: 'CANCELLED' };
 }
 
 async function getOperationalHours() {
@@ -735,6 +829,15 @@ export async function executeChatTool(args: {
       reason: parsedArguments.reason,
       summary: parsedArguments.summary,
     });
+  }
+  if (args.name === 'cancel_user_pensione_booking') {
+    return cancelUserPensioneBooking(args.userId, String(parsedArguments.bookingId ?? ''));
+  }
+  if (args.name === 'delete_user_pensione_booking') {
+    return deleteUserPensioneBooking(args.userId, String(parsedArguments.bookingId ?? ''));
+  }
+  if (args.name === 'cancel_user_slot_booking') {
+    return cancelUserSlotBooking(args.userId, String(parsedArguments.bookingId ?? ''));
   }
 
   throw new Error(`Tool non supportato: ${args.name}`);
