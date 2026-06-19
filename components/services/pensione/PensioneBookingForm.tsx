@@ -37,7 +37,7 @@ type Props = {
   taxiOption: TaxiOption;
 
   taxiDistanceBand: 'ENTRO_40' | 'OLTRE_40';
-  taxiDistance: { loading: boolean; error: string | null; km: number | null };
+  taxiDistance: { loading: boolean; error: string | null; km: number | null; approx: boolean };
   taxiServiceAddress: {
     dog_address_line: string;
     dog_city: string;
@@ -599,6 +599,14 @@ export function PensioneBookingForm(props: Props) {
                 <div className="ui-muted">Calcolo distanza in corso…</div>
               ) : taxiDistance.error ? (
                 <div className="ui-dangerText">{taxiDistance.error}</div>
+              ) : taxiDistance.approx ? (
+                <div className="space-y-1">
+                  <div className="ui-body font-[var(--font-weight-semibold)]">~ {pricing.taxiPrice}€ (tariffa massima)</div>
+                  <div className="ui-muted">
+                    Non siamo riusciti a calcolare la distanza esatta: applichiamo la tariffa massima. Verrà verificata e, se la
+                    distanza è inferiore, il costo sarà ridotto. Puoi comunque procedere con la prenotazione.
+                  </div>
+                </div>
               ) : (
                 taxiDistance.km !== null ? <TaxiQuote km={taxiDistance.km} priceEur={pricing.taxiPrice} /> : <div className="ui-muted">—</div>
               )}

@@ -22,9 +22,21 @@ function toNum(v: string): number {
 
 function normalizeAddress(value: string): string {
   return String(value ?? '')
+    // Le parentesi (es. "(RM)") confondono il geocoding di Nominatim: le rimuoviamo.
+    .replace(/[()]/g, ' ')
     .trim()
     .replace(/\s+/g, ' ')
     .slice(0, ADDRESS_MAX_LENGTH);
+}
+
+// Cache in-memory delle coordinate azienda (indirizzo costante): evita di
+// rigeocodificare ad ogni richiesta e i fallimenti transitori di Nominatim.
+let businessLatLngCache: LatLng | null = null;
+
+// Variante senza il numero civico finale (per un retry più "tollerante").
+function withoutTrailingHouseNumber(address: string): string | null {
+  const stripped = address.replace(/(^|,\s*)\d+[a-zA-Z]?(\s*,|\s*$)/, '$1').replace(/\s+/g, ' ').trim();
+  return stripped && stripped !== address ? stripped : null;
 }
 
 function validateAddress(address: string): string | null {
@@ -48,23 +60,36 @@ async function fetchWithTimeout(input: string | URL, init?: RequestInit): Promis
   }
 }
 
-async function geocode(address: string): Promise<LatLng | null> {
+async function geocodeOnce(address: string): Promise<LatLng | null> {
   const url = new URL('https://nominatim.openstreetmap.org/search');
   url.searchParams.set('format', 'json');
   url.searchParams.set('limit', '1');
+  url.searchParams.set('countrycodes', 'it');
+  url.searchParams.set('accept-language', 'it');
   url.searchParams.set('q', address);
 
   const res = await fetchWithTimeout(url.toString(), {
     headers: { 'User-Agent': 'TenutaDelBarone/1.0 (taxi-distance)' },
     cache: 'no-store',
-  });
+  }).catch(() => null);
 
-  if (!res.ok) return null;
+  if (!res || !res.ok) return null;
 
-  const data = (await res.json()) as Array<{ lat: string; lon: string }>;
+  const data = (await res.json().catch(() => null)) as Array<{ lat: string; lon: string }> | null;
   if (!data?.length) return null;
 
   return { lat: toNum(data[0].lat), lon: toNum(data[0].lon) };
+}
+
+async function geocode(address: string): Promise<LatLng | null> {
+  const direct = await geocodeOnce(address);
+  if (direct) return direct;
+
+  // Retry più tollerante: senza numero civico (spesso causa di mancato match).
+  const fallback = withoutTrailingHouseNumber(address);
+  if (fallback) return geocodeOnce(fallback);
+
+  return null;
 }
 
 async function routeDistanceKm(origin: LatLng, dest: LatLng): Promise<number | null> {
@@ -99,7 +124,12 @@ async function computeKmFromAddress(userAddress: string): Promise<NextResponse> 
     );
   }
 
-  const [o, d] = await Promise.all([geocode(businessAddress), geocode(addr)]);
+  const [businessGeocoded, d] = await Promise.all([
+    businessLatLngCache ? Promise.resolve(businessLatLngCache) : geocode(businessAddress),
+    geocode(addr),
+  ]);
+  const o = businessGeocoded;
+  if (o) businessLatLngCache = o;
 
   if (!o) return NextResponse.json({ ok: false, error: 'Impossibile geocodificare indirizzo azienda.' }, { status: 200 });
   if (!d) return NextResponse.json({ ok: false, error: 'Impossibile geocodificare indirizzo taxi utente.' }, { status: 200 });

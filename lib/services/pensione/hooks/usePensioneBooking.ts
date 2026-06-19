@@ -35,6 +35,8 @@ type TaxiDistanceState = {
   loading: boolean;
   error: string | null;
   km: number | null;
+  // true quando non siamo riusciti a calcolare la distanza e applichiamo la tariffa massima.
+  approx: boolean;
 };
 
 type TaxiServiceAddressForm = {
@@ -165,6 +167,7 @@ export function usePensioneBooking() {
     loading: false,
     error: null,
     km: null,
+    approx: false,
   });
   const [taxiServiceAddress, setTaxiServiceAddress] = useState<TaxiServiceAddressForm>(
     EMPTY_TAXI_SERVICE_ADDRESS
@@ -324,7 +327,7 @@ export function usePensioneBooking() {
   useEffect(() => {
     const run = async () => {
       if (taxiOption === 'NONE') {
-        setTaxiDistance({ loading: false, error: null, km: null });
+        setTaxiDistance({ loading: false, error: null, km: null, approx: false });
         setTaxiDistanceBand(DEFAULT_TAXI.distanceBand);
         return;
       }
@@ -334,43 +337,43 @@ export function usePensioneBooking() {
           loading: false,
           error: 'Inserisci l’indirizzo servizi per usare il taxi dog.',
           km: null,
+          approx: false,
         });
         return;
       }
 
-      setTaxiDistance((p) => ({ ...p, loading: true, error: null }));
+      setTaxiDistance((p) => ({ ...p, loading: true, error: null, approx: false }));
 
       const userAddress = buildAddressFromProfile(taxiServiceAddress);
 
-      const res = await fetch('/api/taxi-distance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({ address: userAddress }),
-      });
-      const json = (await res.json()) as TaxiDistanceApiResponse;
+      // Calcolo NON bloccante: se non riusciamo a calcolare la distanza, applichiamo
+      // la tariffa massima (OLTRE_40, ~50€) e si potrà correggere a distanza confermata.
+      const applyMaxTariffFallback = () => {
+        setTaxiDistanceBand('OLTRE_40');
+        setTaxiDistance({ loading: false, error: null, km: null, approx: true });
+      };
 
-      if (!json?.ok) {
-        setTaxiDistance({
-          loading: false,
-          error: humanizeErrorMessage(
-            json?.error,
-            'Non siamo riusciti a calcolare la distanza del taxi dog.'
-          ),
-          km: null,
+      try {
+        const res = await fetch('/api/taxi-distance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          cache: 'no-store',
+          body: JSON.stringify({ address: userAddress }),
         });
-        return;
-      }
+        const json = (await res.json().catch(() => null)) as TaxiDistanceApiResponse | null;
 
-      const km = Number(json.km);
-      if (!Number.isFinite(km)) {
-        setTaxiDistance({ loading: false, error: 'Distanza non valida.', km: null });
-        return;
-      }
+        const km = json?.ok ? Number(json.km) : Number.NaN;
+        if (!json?.ok || !Number.isFinite(km)) {
+          applyMaxTariffFallback();
+          return;
+        }
 
-      const band: TaxiDistanceBand = km <= 40 ? 'ENTRO_40' : 'OLTRE_40';
-      setTaxiDistanceBand(band);
-      setTaxiDistance({ loading: false, error: null, km });
+        const band: TaxiDistanceBand = km <= 40 ? 'ENTRO_40' : 'OLTRE_40';
+        setTaxiDistanceBand(band);
+        setTaxiDistance({ loading: false, error: null, km, approx: false });
+      } catch {
+        applyMaxTariffFallback();
+      }
     };
 
     run();
@@ -650,8 +653,8 @@ export function usePensioneBooking() {
         );
       }
       if (taxiDistance.loading) return setError('Calcolo distanza taxi in corso...');
-      if (taxiDistance.error) return setError(taxiDistance.error);
-      if (taxiDistance.km == null) return setError('Impossibile calcolare la distanza taxi.');
+      // Distanza non disponibile NON blocca: si è già applicata la tariffa massima (OLTRE_40)
+      // e lo staff potrà correggere il prezzo una volta confermata la distanza.
     }
 
     if (pricing.totalPrice <= 0) {

@@ -15,14 +15,21 @@ type NominatimSearchItem = {
 
 const QUERY_MIN_LENGTH = 3;
 const QUERY_MAX_LENGTH = 160;
-const SEARCH_LIMIT = 5;
+const SEARCH_LIMIT = 8;
 const UPSTREAM_TIMEOUT_MS = 8_000;
 
 function normalizeQuery(value: string): string {
   return String(value ?? '')
+    .replace(/[()]/g, ' ')
     .trim()
     .replace(/\s+/g, ' ')
     .slice(0, QUERY_MAX_LENGTH);
+}
+
+// Variante senza numero civico finale (più risultati di vie).
+function queryWithoutHouseNumber(query: string): string | null {
+  const stripped = query.replace(/\s+\d+[a-zA-Z]?$/, '').trim();
+  return stripped && stripped !== query ? stripped : null;
 }
 
 function firstNonEmpty(...values: Array<string | null | undefined>): string {
@@ -122,7 +129,7 @@ async function fetchWithTimeout(input: string | URL, init?: RequestInit): Promis
   }
 }
 
-async function searchItalianAddresses(query: string): Promise<AddressSuggestion[]> {
+async function searchOnce(query: string): Promise<NominatimSearchItem[]> {
   const url = new URL('https://nominatim.openstreetmap.org/search');
   url.searchParams.set('format', 'jsonv2');
   url.searchParams.set('addressdetails', '1');
@@ -133,9 +140,7 @@ async function searchItalianAddresses(query: string): Promise<AddressSuggestion[
   url.searchParams.set('q', query);
 
   const response = await fetchWithTimeout(url.toString(), {
-    headers: {
-      'User-Agent': 'TenutaDelBarone/1.0 (address-search)',
-    },
+    headers: { 'User-Agent': 'TenutaDelBarone/1.0 (address-search)' },
     cache: 'no-store',
   });
 
@@ -143,23 +148,30 @@ async function searchItalianAddresses(query: string): Promise<AddressSuggestion[
     throw new Error('Ricerca indirizzo temporaneamente non disponibile.');
   }
 
-  const payload = (await response.json()) as NominatimSearchItem[];
-  const unique = new Set<string>();
+  return (await response.json()) as NominatimSearchItem[];
+}
 
+async function searchItalianAddresses(query: string): Promise<AddressSuggestion[]> {
+  // Cerca con la query digitata e, se presente un numero civico finale, anche senza:
+  // così emergono più vie (es. "Via Urbino" a Roma) anche se il numero confonde il match.
+  const variant = queryWithoutHouseNumber(query);
+  const payload = (
+    await Promise.all(
+      [query, ...(variant ? [variant] : [])].map((q) => searchOnce(q).catch(() => [] as NominatimSearchItem[]))
+    )
+  ).flat();
+
+  const unique = new Set<string>();
   return payload
     .map((item) => mapSuggestion(item, query))
     .filter((item): item is AddressSuggestion => {
       if (!item) return false;
-      const key = [
-        item.dog_address_line,
-        item.dog_city,
-        item.dog_zip_code,
-        item.dog_province,
-      ].join('|');
+      const key = [item.dog_address_line, item.dog_city, item.dog_zip_code, item.dog_province].join('|');
       if (unique.has(key)) return false;
       unique.add(key);
       return true;
-    });
+    })
+    .slice(0, SEARCH_LIMIT);
 }
 
 export async function GET(request: Request) {
