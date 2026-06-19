@@ -688,13 +688,26 @@ export async function listAdminChatConversations(args?: {
   }
 
   const userPreviewMap = new Map<string, string>();
+  const conversationIdsWithUserMessage = new Set<string>();
   for (const row of (userMessagesData ?? []) as Array<{ conversation_id: string; body: string; created_at: string }>) {
+    conversationIdsWithUserMessage.add(row.conversation_id);
     if (userPreviewMap.has(row.conversation_id)) continue;
     const preview = buildMessagePreview(row.body);
     if (preview) {
       userPreviewMap.set(row.conversation_id, preview);
     }
   }
+
+  // Nasconde le chat "vuote": se il cliente non ha mai scritto nulla la conversazione
+  // (creata all'apertura della chat) è solo rumore. Teniamo solo quelle con almeno un
+  // messaggio utente o già prese in carico/handoff.
+  conversations = conversations.filter(
+    (conversation) =>
+      conversationIdsWithUserMessage.has(conversation.id) ||
+      conversation.status === 'HANDOFF_REQUESTED' ||
+      conversation.status === 'ADMIN_ACTIVE'
+  );
+  if (conversations.length === 0) return [];
 
   const adminLabelMap = new Map<string, string>();
   if (adminIds.length > 0) {

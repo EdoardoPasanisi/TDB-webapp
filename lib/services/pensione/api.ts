@@ -52,6 +52,29 @@ export async function savePensioneBooking(
   return response.json() as Promise<SavePensioneBookingResult>;
 }
 
+export async function deletePensioneBooking(bookingId: string): Promise<void> {
+  const normalizedBookingId = String(bookingId ?? '').trim();
+  if (!normalizedBookingId) {
+    throw new Error('Prenotazione non valida.');
+  }
+
+  const response = await fetch(`/api/pensione-bookings/${encodeURIComponent(normalizedBookingId)}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    let message = 'Errore durante l’eliminazione della prenotazione.';
+    try {
+      const json = (await response.clone().json()) as { error?: string };
+      if (json?.error) message = json.error;
+    } catch {}
+    throw new Error(message);
+  }
+}
+
 export async function cancelPensioneBooking(bookingId: string): Promise<void> {
   const normalizedBookingId = String(bookingId ?? '').trim();
   if (!normalizedBookingId) {

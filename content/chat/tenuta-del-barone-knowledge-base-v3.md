@@ -482,3 +482,73 @@ Nel rilascio iniziale:
 - leggere dati live solo tramite strumenti backend controllati
 - fare handoff rapido in caso di dubbio o urgenza
 - aggiornare la KB appena arrivano le risposte residue dell’amministrazione
+
+---
+
+## 17. Funzionamento dell’app (conoscenza operativa — il chatbot deve padroneggiarla)
+
+### Navigazione principale
+- **Servizi**: da qui si prenotano i servizi (Pensione, Asilo, Addestramento, Consulenza, ecc.).
+- **Calendario**: qui il cliente vede **tutte le sue prenotazioni** con il relativo **stato**, ne apre il **dettaglio**, le **modifica** e le **elimina**.
+- **Chat**: assistenza (questo chatbot, con possibilità di passare a un operatore).
+- **Profilo**: dati personali (anagrafica, contatti, residenza, indirizzo servizi, documenti) e **I miei pet**.
+
+### Stati di una prenotazione
+- **In attesa**: richiesta inviata, non ancora confermata dallo staff.
+- **Confermata**: accettata dallo staff (entra nel saldo dovuto).
+- **Pagata**: saldata.
+- **Annullata**: annullata (resta nello storico) — oppure eliminata definitivamente dal cliente.
+- Domanda tipica: *“Non so se la prenotazione è confermata / non la vedo”* → **si controlla nel Calendario**: lì si vede lo stato e si può aprire, modificare o eliminare la prenotazione.
+
+### Gestire le prenotazioni (cliente)
+- **Vedere/controllare lo stato**: sezione Calendario → la prenotazione → dettaglio.
+- **Modificare**: dal dettaglio, pulsante **Modifica**.
+- **Annullare**: pulsante **Annulla** (resta nello storico come annullata).
+- **Eliminare definitivamente**: pulsante **Elimina** (la rimuove dallo storico).
+
+### Pet (cani, gatti, altro)
+- Si gestiscono in **Profilo → I miei pet** (aggiungi/modifica/elimina). Per aggiungere si sceglie prima il tipo: **Cane**, **Gatto** o **Altro**.
+- Il microchip e il “nome sul libretto” riguardano **solo i cani**; i gatti non hanno microchip.
+
+### Requisiti per prenotare la pensione (obbligatori)
+- **Proprietario**: nome, cognome, telefono, codice fiscale, residenza completa, documento d’identità caricato (anche se non ancora accettato).
+- **Pet selezionato**: anno di nascita; per i **cani** anche microchip e nome sul libretto.
+- Se mancano questi dati, l’app mostra un avviso: si può comunque ottenere il **preventivo**, ma **non** completare la prenotazione finché non si inseriscono i dati.
+
+### Taxi dog
+- Si attiva in fase di prenotazione indicando l’indirizzo servizi. Il prezzo dipende dalla distanza (entro o oltre 40 km).
+- Se la distanza non è calcolabile sul momento, l’app applica la **tariffa massima**, che verrà poi verificata ed eventualmente ridotta dallo staff. La prenotazione resta comunque possibile.
+
+---
+
+## 18. Prezzi pensione (riferimento operativo)
+
+> Tariffe alloggio in €/giorno. Conteggio giorni: il primo giorno si conta sempre; l’ultimo si paga solo se si esce nel pomeriggio.
+
+### Alloggi (cani)
+- Box: **28 €/giorno**
+- Box con giardino: **35 €/giorno**
+- Chalet (solo cani di piccola taglia): **35 €/giorno**
+- Appartamento con giardino: **50 €/giorno**
+- Appartamento con giardino e presenza notturna: **100 €/giorno**
+- Hotel (stanza luxury con giardino e aria condizionata): **45 €/giorno**
+
+### Gatti
+- **Gattile**: **25 €/giorno** (per i gatti l’unica sistemazione è il gattile; i cani non usano il gattile).
+
+### Sconti per più pet (stessa prenotazione)
+- 2 pet: **-15%** sull’alloggio · 3 o più pet: **-20%** sull’alloggio.
+
+### Extra pensione (per pet)
+- Richiamo vaccinazione: **70 €**
+- Ricerca olfattiva (15 min): **20 €** a sessione
+- Dog fitness: **25 €** a sessione
+- Passeggiata: **15 €** a uscita
+- Trekking in campagna (45 min): **30 €** a sessione
+- Toelettatura/bagno: prezzo dinamico per taglia e difficoltà del mantello (usa lo strumento preventivi toelettatura per una stima sui pet del cliente).
+
+### Taxi dog (a seconda della distanza)
+- Entro 40 km: solo andata o solo ritorno **40 €**, andata e ritorno **60 €**.
+- Oltre 40 km: solo andata o solo ritorno **50 €**, andata e ritorno **70 €**.
+
+> Per asilo, addestramento e consulenza i prezzi sono quelli dell’app: usa lo strumento prezzi servizi per i valori aggiornati.

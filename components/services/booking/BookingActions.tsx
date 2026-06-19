@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/ui/Button';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
-import { cancelPensioneBooking } from '@/lib/services/pensione/api';
+import { cancelPensioneBooking, deletePensioneBooking } from '@/lib/services/pensione/api';
 
 type Props = {
   bookingId: string;
@@ -20,10 +20,27 @@ export function BookingActions({ bookingId }: Props) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
 
   const handleEdit = () => {
     // Pensione: edit via query param
     router.push(`/services/pensione?editBookingId=${encodeURIComponent(bookingId)}`);
+  };
+
+  const handleRemove = async () => {
+    setRemoving(true);
+    setRemoveError(null);
+    try {
+      await deletePensioneBooking(bookingId);
+      setRemoveOpen(false);
+      router.push('/services');
+    } catch (error) {
+      setRemoveError(getErrorMessage(error, 'Errore durante l’eliminazione.'));
+    } finally {
+      setRemoving(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -49,10 +66,49 @@ export function BookingActions({ bookingId }: Props) {
           Modifica
         </Button>
 
-        <Button type="button" variant="danger" onClick={() => setConfirmOpen(true)}>
+        <Button type="button" variant="danger" onClick={() => setRemoveOpen(true)}>
+          Elimina
+        </Button>
+
+        <Button type="button" variant="secondary" onClick={() => setConfirmOpen(true)}>
           Annulla
         </Button>
       </section>
+
+      <Modal
+        open={removeOpen}
+        title="Elimina prenotazione"
+        onClose={() => {
+          if (removing) return;
+          setRemoveOpen(false);
+          setRemoveError(null);
+        }}
+      >
+        <div className="space-y-4">
+          <p className="ui-body">
+            Vuoi eliminare definitivamente questa prenotazione? Verrà rimossa e non comparirà più nello storico.
+          </p>
+
+          {removeError ? <div className="ui-error">{removeError}</div> : null}
+
+          <div className="flex flex-col sm:flex-row gap-2 justify-end">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setRemoveOpen(false);
+                setRemoveError(null);
+              }}
+              disabled={removing}
+            >
+              Annulla
+            </Button>
+            <Button type="button" variant="danger" onClick={handleRemove} disabled={removing}>
+              {removing ? 'Eliminazione…' : 'Elimina definitivamente'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         open={confirmOpen}
