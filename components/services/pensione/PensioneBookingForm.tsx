@@ -303,13 +303,15 @@ export function PensioneBookingForm(props: Props) {
     setAddressInputFocused(false);
   };
 
+  const hasMissingBookingFields = missingRequiredFields.length > 0 || missingPetFields.length > 0;
+
   return (
     <div className="ui-container space-y-4 ui-minw0">
       <div className="space-y-2 ui-minw0">
         <h1 className="ui-title ui-minw0">{title}</h1>
       </div>
 
-      {missingRequiredFields.length || missingPetFields.length ? (
+      {hasMissingBookingFields ? (
         <div className="ui-alertWarn">
           <p className="ui-body font-[var(--font-weight-semibold)]">
             Non puoi completare la prenotazione senza alcuni dati obbligatori.
@@ -317,6 +319,28 @@ export function PensioneBookingForm(props: Props) {
           <p className="ui-muted mt-1">
             Puoi comunque continuare per vedere il preventivo: completa i dati mancanti qui sotto per poter prenotare.
           </p>
+          <div className="mt-3 space-y-2">
+            {missingRequiredFields.length ? (
+              <div>
+                <p className="ui-fine font-[var(--font-weight-semibold)]">Profilo</p>
+                <ul className="ui-muted mt-1 list-disc pl-5">
+                  {missingRequiredFields.map((field) => (
+                    <li key={field}>{field}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {missingPetFields.length ? (
+              <div>
+                <p className="ui-fine font-[var(--font-weight-semibold)]">Pet</p>
+                <ul className="ui-muted mt-1 list-disc pl-5">
+                  {missingPetFields.map((field) => (
+                    <li key={field}>{field}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </div>
       ) : null}
 

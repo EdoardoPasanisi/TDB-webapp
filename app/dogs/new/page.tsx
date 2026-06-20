@@ -20,9 +20,9 @@ function getErrorMessage(error: unknown): string {
 }
 
 const SPECIES_CARDS: { value: PetSpecies; label: string; tone: string }[] = [
-  { value: 'DOG', label: 'Cane', tone: 'ui-serviceTone-addestramento' },
-  { value: 'CAT', label: 'Gatto', tone: 'ui-serviceTone-asilo' },
-  { value: 'OTHER', label: 'Altro', tone: 'ui-serviceTone-pensione' },
+  { value: 'DOG', label: 'Cane', tone: 'ui-petTone-dog' },
+  { value: 'CAT', label: 'Gatto', tone: 'ui-petTone-cat' },
+  { value: 'OTHER', label: 'Altro', tone: 'ui-petTone-other' },
 ];
 
 export default function NewDogPage() {
@@ -120,13 +120,13 @@ export default function NewDogPage() {
                 className="w-full text-left"
                 aria-label={`Aggiungi ${card.label.toLowerCase()}`}
               >
-                <Card className="ui-cardHover">
+                <Card className={`ui-cardHover ui-petPickerCard ${card.tone}`}>
                   <CardContent className="p-0">
                     <div className="aspect-square flex flex-col items-center justify-center gap-3 px-2">
                       <div
-                        className={`flex h-20 w-20 items-center justify-center rounded-2xl ${card.tone}`}
+                        className={`ui-petPickerIcon flex h-20 w-20 items-center justify-center rounded-2xl ${card.tone}`}
                       >
-                        <PetSpeciesIcon species={card.value} className="h-12 w-12" />
+                        <PetSpeciesIcon species={card.value} className="h-14 w-14" />
                       </div>
                       <div className="ui-h2 text-center leading-tight">{card.label}</div>
                     </div>
