@@ -109,6 +109,9 @@ test('sanitizeDogInput deduplicates temperament values and normalizes optional f
   });
 
   assert.deepEqual(dog, {
+    species: 'DOG',
+    species_other: null,
+    libretto_name: 'Luna',
     name: 'Luna',
     breed: 'Golden Retriever',
     size_category: 'grande',
@@ -119,6 +122,10 @@ test('sanitizeDogInput deduplicates temperament values and normalizes optional f
     notes: 'Cane molto socievole',
     coat_color: 'oro',
     temperament: ['Giocherellona', 'Tranquilla'],
+    weight_kg: null,
+    origin_breeds: null,
+    show_weight: false,
+    show_origin_breeds: false,
     show_breed: true,
     show_sex: true,
     show_size: false,
@@ -185,6 +192,8 @@ test('sanitizeDogCardVisibilityPatch requires explicit booleans for dog card pre
       show_notes: false,
       show_coat_color: true,
       show_temperament: false,
+      show_weight: false,
+      show_origin_breeds: false,
     }
   );
 });

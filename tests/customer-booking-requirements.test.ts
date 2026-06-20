@@ -6,14 +6,20 @@ import {
   getMissingRequiredCustomerBookingFields,
 } from '../lib/bookings/customerBookingRequirements';
 
-test('getMissingRequiredCustomerBookingFields returns only missing booking identity fields', () => {
+test('getMissingRequiredCustomerBookingFields returns missing owner booking fields', () => {
   assert.deepEqual(
     getMissingRequiredCustomerBookingFields({
       first_name: 'Mario',
       last_name: '',
       phone: '  ',
     }),
-    ['Cognome', 'Numero di telefono']
+    [
+      'Cognome',
+      'Numero di telefono',
+      'Codice fiscale',
+      'Residenza completa',
+      'Documento di identità caricato',
+    ]
   );
 });
 
