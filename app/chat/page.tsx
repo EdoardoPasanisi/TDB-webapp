@@ -1,5 +1,5 @@
-import { UserChatPage } from '@/components/chat/UserChatPage';
+import { ChatHome } from '@/components/chat/ChatHome';
 
 export default function ChatPage() {
-  return <UserChatPage />;
+  return <ChatHome />;
 }

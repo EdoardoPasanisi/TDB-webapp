@@ -4,9 +4,12 @@ import { RouteAuthError, requireRequestUser, routeAuthErrorResponse } from '@/li
 import {
   createOperatorHandoff,
   ensureUserConversation,
+  getConversationForUser,
+  getUserConversationThread,
   getUserThread,
   insertChatMessage,
   listConversationMessages,
+  listUserConversations,
   seedConversationTitleFromMessage,
   startNewUserConversation,
 } from '@/lib/chat/db';
@@ -68,6 +71,24 @@ function readBodyString(body: unknown, key: string): string {
 export async function GET(request: Request) {
   try {
     const { userId } = await requireRequestUser(request);
+    const { searchParams } = new URL(request.url);
+
+    // Storico chat del cliente.
+    if (searchParams.get('list') === '1') {
+      const conversations = await listUserConversations(userId);
+      return NextResponse.json({ conversations });
+    }
+
+    // Thread di una conversazione specifica.
+    const conversationId = String(searchParams.get('conversationId') ?? '').trim();
+    if (conversationId) {
+      const thread = await getUserConversationThread(userId, conversationId);
+      if (!thread) {
+        return NextResponse.json({ error: 'Conversazione non trovata.' }, { status: 404 });
+      }
+      return NextResponse.json(thread);
+    }
+
     const thread = await getUserThread(userId);
     return NextResponse.json(thread);
   } catch (error) {
@@ -104,12 +125,20 @@ export async function POST(request: Request) {
 
     const body = await request.json().catch(() => null);
     const message = trimChatMessage(readBodyString(body, 'message'));
+    const requestedConversationId = readBodyString(body, 'conversationId').trim();
 
     if (!message) {
       return NextResponse.json({ error: 'Messaggio vuoto.' }, { status: 400 });
     }
 
-    let conversation = await ensureUserConversation(userId);
+    // Se il client indica una conversazione specifica la usiamo (verificando la proprietà),
+    // altrimenti ricadiamo sulla conversazione attiva.
+    let conversation = requestedConversationId
+      ? await getConversationForUser({ conversationId: requestedConversationId, userId })
+      : await ensureUserConversation(userId);
+    if (!conversation) {
+      return NextResponse.json({ error: 'Conversazione non trovata.' }, { status: 404 });
+    }
     await insertChatMessage({
       conversationId: conversation.id,
       senderType: 'USER',
@@ -122,7 +151,7 @@ export async function POST(request: Request) {
     });
 
     if (conversation.status !== 'BOT_ACTIVE') {
-      const thread = await getUserThread(userId);
+      const thread = (await getUserConversationThread(userId, conversation.id)) ?? (await getUserThread(userId));
       return NextResponse.json(thread);
     }
 
@@ -165,7 +194,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const thread = await getUserThread(userId);
+    const thread = (await getUserConversationThread(userId, conversation.id)) ?? (await getUserThread(userId));
     return NextResponse.json(thread);
   } catch (error) {
     if (error instanceof RouteAuthError) {

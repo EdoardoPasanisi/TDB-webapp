@@ -42,8 +42,11 @@ function bubbleClass(message: ChatMessageRow): string {
   return 'mr-auto bg-[rgba(255,255,255,0.04)] border-[rgba(255,255,255,0.14)]';
 }
 
-async function fetchThread(signal?: AbortSignal): Promise<ChatUserThreadResponse> {
-  const response = await fetch('/api/chat', {
+async function fetchThread(conversationId?: string, signal?: AbortSignal): Promise<ChatUserThreadResponse> {
+  const url = conversationId
+    ? `/api/chat?conversationId=${encodeURIComponent(conversationId)}`
+    : '/api/chat';
+  const response = await fetch(url, {
     method: 'GET',
     credentials: 'include',
     cache: 'no-store',
@@ -67,7 +70,13 @@ function getDisplayLabel(message: ChatMessageRow): string | null {
   return null;
 }
 
-export function UserChatPage() {
+export function UserChatPage({
+  conversationId,
+  onBack,
+}: {
+  conversationId?: string;
+  onBack?: () => void;
+} = {}) {
   const { user, loading: authLoading, error: authError } = useCurrentUser({
     redirectToIfUnauthenticated: '/login',
     enableRedirects: true,
@@ -96,7 +105,7 @@ export function UserChatPage() {
     if (!silent) setState('loading');
     setError(null);
     try {
-      const nextThread = await fetchThread();
+      const nextThread = await fetchThread(conversationId);
       setThread(nextThread);
       setState('ready');
     } catch (err) {
@@ -108,7 +117,8 @@ export function UserChatPage() {
   useEffect(() => {
     if (!user?.id) return;
     void load();
-  }, [user?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, conversationId]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -249,7 +259,7 @@ export function UserChatPage() {
         },
         credentials: 'include',
         cache: 'no-store',
-        body: JSON.stringify({ message }),
+        body: JSON.stringify(conversationId ? { message, conversationId } : { message }),
       });
 
       const json = (await response.json().catch(() => null)) as
@@ -340,14 +350,24 @@ export function UserChatPage() {
             </div>
 
             <div className="flex shrink-0 items-center gap-1.5">
-              <Button
-                variant="secondary"
-                className="ui-btnCompact !h-8 rounded-full !px-2.5 text-[12px]"
-                onClick={() => void startNewChat()}
-                disabled={sending || isOperatorMode}
-              >
-                Nuova chat
-              </Button>
+              {onBack ? (
+                <Button
+                  variant="secondary"
+                  className="ui-btnCompact !h-8 rounded-full !px-2.5 text-[12px]"
+                  onClick={onBack}
+                >
+                  ← Storico
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  className="ui-btnCompact !h-8 rounded-full !px-2.5 text-[12px]"
+                  onClick={() => void startNewChat()}
+                  disabled={sending || isOperatorMode}
+                >
+                  Nuova chat
+                </Button>
+              )}
             </div>
           </div>
 

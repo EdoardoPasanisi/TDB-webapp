@@ -565,6 +565,81 @@ export async function getUserThread(userId: string): Promise<{
   return { conversation, messages };
 }
 
+export type ChatConversationListItem = {
+  id: string;
+  title: string | null;
+  status: ChatConversationRow['status'];
+  lastMessageAt: string;
+  lastMessagePreview: string | null;
+  createdAt: string;
+};
+
+// Retention: in elenco mostriamo solo le chat degli ultimi N giorni (default 90 ~ 3 mesi).
+const USER_CHAT_RETENTION_DAYS = 90;
+
+/**
+ * Storico chat del cliente: conversazioni con almeno un messaggio dell'utente,
+ * negli ultimi USER_CHAT_RETENTION_DAYS giorni, dalla più recente.
+ */
+export async function listUserConversations(userId: string): Promise<ChatConversationListItem[]> {
+  const sinceIso = new Date(Date.now() - USER_CHAT_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from('chat_conversations')
+    .select('id, title, status, last_message_at, last_message_preview, created_at')
+    .eq('user_id', userId)
+    .gte('last_message_at', sinceIso)
+    .order('last_message_at', { ascending: false })
+    .limit(100);
+
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as Array<{
+    id: string;
+    title: string | null;
+    status: ChatConversationRow['status'];
+    last_message_at: string;
+    last_message_preview: string | null;
+    created_at: string;
+  }>;
+  if (rows.length === 0) return [];
+
+  // Tiene solo le conversazioni in cui il cliente ha effettivamente scritto.
+  const { data: userMessages, error: messagesError } = await supabaseAdmin
+    .from('chat_messages')
+    .select('conversation_id')
+    .in('conversation_id', rows.map((row) => row.id))
+    .eq('sender_type', 'USER');
+  if (messagesError) throw new Error(messagesError.message);
+
+  const withUserMessage = new Set(
+    ((userMessages ?? []) as Array<{ conversation_id: string }>).map((row) => row.conversation_id)
+  );
+
+  return rows
+    .filter((row) => withUserMessage.has(row.id))
+    .map((row) => ({
+      id: row.id,
+      title: row.title,
+      status: row.status,
+      lastMessageAt: row.last_message_at,
+      lastMessagePreview: row.last_message_preview,
+      createdAt: row.created_at,
+    }));
+}
+
+/** Thread di una specifica conversazione del cliente (verifica proprietà). */
+export async function getUserConversationThread(
+  userId: string,
+  conversationId: string
+): Promise<{ conversation: ChatConversationRow; messages: ChatMessageRow[] } | null> {
+  const conversation = await getConversationForUser({ conversationId, userId });
+  if (!conversation) return null;
+  const reconciled = await reconcileBotConversationForRead(conversation);
+  const messages = await listConversationMessages(reconciled.id);
+  return { conversation: reconciled, messages };
+}
+
 export async function startNewUserConversation(userId: string): Promise<{
   conversation: ChatConversationRow;
   messages: ChatMessageRow[];
