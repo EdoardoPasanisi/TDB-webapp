@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAdminJson, isAbortError } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import type {
@@ -45,6 +45,8 @@ export function ConfigTab({
   currentUserId?: string | null;
 }) {
   const confirm = useConfirm();
+  const staffEditorRef = useRef<HTMLDivElement | null>(null);
+  const staffSearchInputRef = useRef<HTMLInputElement | null>(null);
   const [monthDate, setMonthDate] = useState<Date>(() => new Date());
   const [selectedDayKey, setSelectedDayKey] = useState(todayIso());
   const [slotServiceType, setSlotServiceType] = useState<ServiceType | 'ALL'>('ALL');
@@ -101,6 +103,39 @@ export function ConfigTab({
   const roleOptions = canManageStaff
     ? STAFF_ROLE_OPTIONS
     : STAFF_ROLE_OPTIONS.filter((option) => option.value === 'VIEWER');
+
+  const scrollToStaffEditor = () => {
+    window.requestAnimationFrame(() => {
+      staffEditorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      staffSearchInputRef.current?.focus({ preventScroll: true });
+    });
+  };
+
+  const editStaffMember = (member: AdminStaffMember) => {
+    setError(null);
+    setStaffForm({
+      userId: member.userId,
+      role: member.role,
+    });
+    setStaffQuery(member.fullName);
+    setStaffCandidates([
+      {
+        userId: member.userId,
+        fullName: member.fullName,
+        email: member.email,
+        phone: null,
+        city: null,
+        dogsCount: 0,
+        activeBookings: 0,
+        pendingDocuments: 0,
+        dogNames: [],
+        staffRole: member.role,
+        walletDue: 0,
+      },
+    ]);
+    setStaffSearchState('ready');
+    scrollToStaffEditor();
+  };
 
   const slotCalendarItems = useMemo<Array<CalendarBookingItem & { dayKey?: string }>>(
     () =>
@@ -483,8 +518,9 @@ export function ConfigTab({
                 : 'Puoi aggiungere o rimuovere solo membri in Sola lettura. Gli amministratori li gestisce un Amministratore plus.'
             }
           />
-          <div className="grid gap-3">
+          <div ref={staffEditorRef} className="grid gap-3 scroll-mt-24">
             <input
+              ref={staffSearchInputRef}
               value={staffQuery}
               onChange={(event) => setStaffQuery(event.target.value)}
               className="ui-control ui-input"
@@ -493,8 +529,16 @@ export function ConfigTab({
             />
             {selectedStaffCandidate ? (
               <div className="ui-panelInset p-3">
-                <div className="ui-body font-[var(--font-weight-semibold)]">{selectedStaffCandidate.fullName}</div>
+                <div className="ui-body font-[var(--font-weight-semibold)]">
+                  {selectedExistingStaffMember ? 'Modifica ruolo staff' : 'Nuovo accesso staff'}
+                </div>
+                <div className="ui-body mt-1">{selectedStaffCandidate.fullName}</div>
                 <div className="ui-muted">{selectedStaffCandidate.email ?? 'Email non disponibile'}</div>
+                {selectedExistingStaffMember ? (
+                  <div className="ui-muted mt-1">
+                    Ruolo attuale: {getAdminRoleLabel(selectedExistingStaffMember.role)}
+                  </div>
+                ) : null}
               </div>
             ) : null}
             {staffSearchState === 'loading' ? <div className="ui-muted">Ricerca utenti…</div> : null}
@@ -541,7 +585,11 @@ export function ConfigTab({
                 ))}
               </select>
               <Button disabled={savingStaff || !staffForm.userId || !canManageSelectedTarget} onClick={saveStaff}>
-                {savingStaff ? 'Salvataggio...' : 'Salva ruolo staff'}
+                {savingStaff
+                  ? 'Salvataggio...'
+                  : selectedExistingStaffMember
+                    ? 'Aggiorna ruolo staff'
+                    : 'Salva ruolo staff'}
               </Button>
             </div>
             {isSelfStaffMember ? (
@@ -569,28 +617,7 @@ export function ConfigTab({
                         <Button
                           variant="secondary"
                           className="ui-btnCompact"
-                          onClick={() => {
-                            setStaffForm({
-                              userId: member.userId,
-                              role: member.role,
-                            });
-                            setStaffQuery(member.fullName);
-                            setStaffCandidates([
-                              {
-                                userId: member.userId,
-                                fullName: member.fullName,
-                                email: member.email,
-                                phone: null,
-                                city: null,
-                                dogsCount: 0,
-                                activeBookings: 0,
-                                pendingDocuments: 0,
-                                dogNames: [],
-                                staffRole: member.role,
-                                walletDue: 0,
-                              },
-                            ]);
-                          }}
+                          onClick={() => editStaffMember(member)}
                         >
                           Modifica
                         </Button>

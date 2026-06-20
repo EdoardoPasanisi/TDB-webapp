@@ -280,6 +280,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
                     submitting={savingDog}
                     photoEnabled={false}
                     allowManualSize
+                    lockSpecies
                     onCancel={() => setEditing(false)}
                   />
                 </CardContent>

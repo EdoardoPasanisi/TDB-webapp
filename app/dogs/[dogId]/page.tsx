@@ -415,6 +415,7 @@ function DogDetailInner() {
                 onSubmit={handleSubmit}
                 submitting={submitting}
                 deleting={deleting}
+                lockSpecies
                 onDelete={handleDelete}
                 onPhotoRemove={handleRemovePhoto}
                 onCancel={() => setMode('view')}

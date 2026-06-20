@@ -94,6 +94,7 @@ export function DogEditModal({
         deleting={deleting}
         photoEnabled={false}
         allowManualSize
+        lockSpecies={mode === 'edit'}
         onCancel={onClose}
         onDelete={mode === 'edit' ? handleDelete : undefined}
       />
