@@ -208,14 +208,27 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     if (selectedUserId) await loadDetail(selectedUserId);
   };
 
-  const handleDocumentDelete = async (documentId: string) => {
-    const ok = await confirm({
-      keyword: 'ELIMINA',
-      title: 'Elimina documento',
-      message: 'Il documento verrà rimosso definitivamente. Se è il documento d’identità registrato, il cliente dovrà ricaricarlo.',
+  const handleDocumentReRequest = async (documentId: string) => {
+    await fetchAdminJson(`/api/admin/documents/${documentId}/request-reupload`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     });
-    if (!ok) return;
-    await fetchAdminJson(`/api/admin/documents/${documentId}`, { method: 'DELETE' });
+    if (selectedUserId) await loadDetail(selectedUserId);
+  };
+
+  const handleDocumentUpload = async (documentId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`/api/admin/documents/${documentId}/upload`, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      body: formData,
+    });
+    if (!response.ok) {
+      const json = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(json?.error?.trim() || 'Non siamo riusciti a caricare il documento.');
+    }
     if (selectedUserId) await loadDetail(selectedUserId);
   };
 
@@ -636,8 +649,8 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                             document={document}
                             canManage={canManage}
                             onDecision={(status) => handleDocumentDecision(document.id, status)}
-                            onReRequest={() => handleDocumentDecision(document.id, 'REJECTED')}
-                            onDelete={() => handleDocumentDelete(document.id)}
+                            onReRequest={() => handleDocumentReRequest(document.id)}
+                            onUpload={(file) => handleDocumentUpload(document.id, file)}
                           />
                         ))}
                       </div>

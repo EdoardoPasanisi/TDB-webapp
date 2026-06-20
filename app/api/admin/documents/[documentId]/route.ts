@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
-import { deleteAdminDocument, updateAdminDocumentStatus } from '@/lib/admin/data';
+import { updateAdminDocumentStatus } from '@/lib/admin/data';
 import { createUserNotificationIfEnabled } from '@/lib/notifications/server';
 import { adminErrorResponse } from '@/lib/admin/route';
 import { assertUuid, sanitizeDocumentDecisionInput } from '@/lib/admin/validation';
@@ -41,24 +41,6 @@ export async function PATCH(
         },
       });
     }
-
-    return NextResponse.json({ ok: true });
-  } catch (error) {
-    return adminErrorResponse(error);
-  }
-}
-
-// Elimina definitivamente un documento del cliente.
-export async function DELETE(
-  request: Request,
-  context: { params: Promise<{ documentId: string }> }
-) {
-  try {
-    await requireStaffAccess(request, 'manage');
-
-    const { documentId } = await context.params;
-    const normalizedDocumentId = assertUuid(documentId, 'Documento');
-    await deleteAdminDocument(normalizedDocumentId);
 
     return NextResponse.json({ ok: true });
   } catch (error) {

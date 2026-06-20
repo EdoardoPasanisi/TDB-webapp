@@ -13,15 +13,16 @@ import type { PetSpecies } from '@/types/dog';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { PetSpeciesIcon } from '@/components/dogs/PetSpeciesIcon';
 
 function getErrorMessage(error: unknown): string {
   return humanizeErrorMessage(error, 'Non siamo riusciti a creare il profilo del pet. Riprova.');
 }
 
-const SPECIES_CARDS: { value: PetSpecies; label: string; icon: string; hint: string }[] = [
-  { value: 'DOG', label: 'Cane', icon: '🐶', hint: 'Razza, microchip, libretto…' },
-  { value: 'CAT', label: 'Gatto', icon: '🐱', hint: 'Razza felina, senza microchip' },
-  { value: 'OTHER', label: 'Altro', icon: '🐾', hint: 'Indica tu la specie' },
+const SPECIES_CARDS: { value: PetSpecies; label: string; tone: string }[] = [
+  { value: 'DOG', label: 'Cane', tone: 'ui-serviceTone-addestramento' },
+  { value: 'CAT', label: 'Gatto', tone: 'ui-serviceTone-asilo' },
+  { value: 'OTHER', label: 'Altro', tone: 'ui-serviceTone-pensione' },
 ];
 
 export default function NewDogPage() {
@@ -110,17 +111,27 @@ export default function NewDogPage() {
         </Card>
 
         {!species ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-3 gap-3">
             {SPECIES_CARDS.map((card) => (
               <button
                 key={card.value}
                 type="button"
                 onClick={() => setSpecies(card.value)}
-                className="ui-clickable rounded-[var(--radius)] p-5 text-center"
+                className="w-full text-left"
+                aria-label={`Aggiungi ${card.label.toLowerCase()}`}
               >
-                <div className="text-5xl leading-none">{card.icon}</div>
-                <div className="ui-h2 mt-3">{card.label}</div>
-                <div className="ui-muted mt-1">{card.hint}</div>
+                <Card className="ui-cardHover">
+                  <CardContent className="p-0">
+                    <div className="aspect-square flex flex-col items-center justify-center gap-3 px-2">
+                      <div
+                        className={`flex h-20 w-20 items-center justify-center rounded-2xl ${card.tone}`}
+                      >
+                        <PetSpeciesIcon species={card.value} className="h-12 w-12" />
+                      </div>
+                      <div className="ui-h2 text-center leading-tight">{card.label}</div>
+                    </div>
+                  </CardContent>
+                </Card>
               </button>
             ))}
           </div>

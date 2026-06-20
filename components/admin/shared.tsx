@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef, useState } from 'react';
 import type { CSSProperties, ReactNode } from 'react';
 import type {
   AdminAgendaItem,
@@ -761,17 +762,30 @@ export function DocumentCard({
   document,
   canManage,
   onDecision,
-  onDelete,
   onReRequest,
+  onUpload,
   onOpenOwner,
 }: {
   document: AdminDocumentRecord;
   canManage: boolean;
   onDecision?: (status: 'ACCEPTED' | 'REJECTED') => Promise<void> | void;
-  onDelete?: () => Promise<void> | void;
   onReRequest?: () => Promise<void> | void;
+  onUpload?: (file: File) => Promise<void> | void;
   onOpenOwner?: (userId: string) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleFileSelected = async (file: File | null) => {
+    if (!file || !onUpload) return;
+    setUploading(true);
+    try {
+      await onUpload(file);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <Card className="admin-listCard">
       <CardContent className="space-y-3">
@@ -823,14 +837,32 @@ export function DocumentCard({
               </Button>
             </>
           ) : null}
-          {canManage && document.status === 'ACCEPTED' && onReRequest ? (
-            <Button variant="secondary" className="ui-btnCompact" onClick={() => void onReRequest()}>
-              Richiedi di nuovo
-            </Button>
+          {canManage && onUpload ? (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  event.target.value = '';
+                  void handleFileSelected(file);
+                }}
+              />
+              <Button
+                variant="secondary"
+                className="ui-btnCompact"
+                disabled={uploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {uploading ? 'Caricamento…' : 'Modifica'}
+              </Button>
+            </>
           ) : null}
-          {canManage && document.status !== 'PENDING' && onDelete ? (
-            <Button variant="danger" className="ui-btnCompact" onClick={() => void onDelete()}>
-              Elimina
+          {canManage && document.status === 'ACCEPTED' && onReRequest ? (
+            <Button variant="danger" className="ui-btnCompact" onClick={() => void onReRequest()}>
+              Richiedi di nuovo
             </Button>
           ) : null}
         </div>

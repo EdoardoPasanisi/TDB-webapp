@@ -2428,16 +2428,19 @@ export async function updateAdminDocumentStatus(args: {
 }
 
 /**
- * Elimina un documento del cliente (riga + file). Se è il documento d'identità
- * attualmente registrato sul profilo, azzera anche id_document_path/uploaded_at.
+ * "Richiedi di nuovo": segna il documento come da rivedere e — se è il documento
+ * d'identità registrato sul profilo — azzera id_document_path così la prenotazione
+ * viene bloccata finché il cliente non ne carica uno nuovo.
  */
-export async function deleteAdminDocument(documentId: string): Promise<{
+export async function requestAdminDocumentReupload(documentId: string): Promise<{
   userId: string;
   kind: 'ID_DOCUMENT' | 'WAIVER_SIGNED';
+  previousStatus: 'PENDING' | 'ACCEPTED' | 'REJECTED';
 }> {
+  const now = new Date().toISOString();
   const { data: current, error: currentError } = await supabaseAdmin
     .from('user_documents')
-    .select('user_id, kind, path')
+    .select('user_id, kind, status, path')
     .eq('id', documentId)
     .maybeSingle();
 
@@ -2448,9 +2451,11 @@ export async function deleteAdminDocument(documentId: string): Promise<{
   const kind = current.kind as 'ID_DOCUMENT' | 'WAIVER_SIGNED';
   const path = String((current as { path?: string | null }).path ?? '').trim();
 
-  if (path) {
-    await supabaseAdmin.storage.from(IDENTITY_BUCKET).remove([path]).catch(() => undefined);
-  }
+  const { error } = await supabaseAdmin
+    .from('user_documents')
+    .update({ status: 'REJECTED', accepted_at: null, rejected_at: now })
+    .eq('id', documentId);
+  if (error) throw new Error(error.message);
 
   if (kind === 'ID_DOCUMENT') {
     const { data: profile } = await supabaseAdmin
@@ -2466,8 +2471,50 @@ export async function deleteAdminDocument(documentId: string): Promise<{
     }
   }
 
-  const { error } = await supabaseAdmin.from('user_documents').delete().eq('id', documentId);
+  return { userId, kind, previousStatus: current.status as 'PENDING' | 'ACCEPTED' | 'REJECTED' };
+}
+
+/**
+ * "Modifica": lo staff carica direttamente un nuovo file per il documento.
+ * Sostituisce il file, marca il documento come ACCETTATO e — se è il documento
+ * d'identità — aggiorna id_document_path sul profilo. Rimuove il vecchio file.
+ */
+export async function replaceAdminDocumentFile(args: {
+  documentId: string;
+  newPath: string;
+}): Promise<{ userId: string; kind: 'ID_DOCUMENT' | 'WAIVER_SIGNED' }> {
+  const { documentId, newPath } = args;
+  const now = new Date().toISOString();
+
+  const { data: current, error: currentError } = await supabaseAdmin
+    .from('user_documents')
+    .select('user_id, kind, path')
+    .eq('id', documentId)
+    .maybeSingle();
+
+  if (currentError) throw new Error(currentError.message);
+  if (!current) throw new Error('Documento non trovato.');
+
+  const userId = String(current.user_id);
+  const kind = current.kind as 'ID_DOCUMENT' | 'WAIVER_SIGNED';
+  const oldPath = String((current as { path?: string | null }).path ?? '').trim();
+
+  const { error } = await supabaseAdmin
+    .from('user_documents')
+    .update({ path: newPath, status: 'ACCEPTED', accepted_at: now, rejected_at: null })
+    .eq('id', documentId);
   if (error) throw new Error(error.message);
+
+  if (kind === 'ID_DOCUMENT') {
+    await supabaseAdmin
+      .from('profiles')
+      .update({ id_document_path: newPath, id_document_uploaded_at: now })
+      .eq('user_id', userId);
+  }
+
+  if (oldPath && oldPath !== newPath) {
+    await supabaseAdmin.storage.from(IDENTITY_BUCKET).remove([oldPath]).catch(() => undefined);
+  }
 
   return { userId, kind };
 }
