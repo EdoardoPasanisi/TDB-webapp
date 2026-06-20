@@ -11,6 +11,7 @@ export type CustomerBookingRequirementProfile = {
   zip_code?: string | null;
   province?: string | null;
   id_document_path?: string | null;
+  has_id_document?: boolean | null;
 };
 
 function isBlank(value: unknown): boolean {
@@ -38,7 +39,9 @@ export function getMissingRequiredOwnerBookingFields(
     !isBlank(profile?.province);
   if (!hasCompleteResidence) missing.push('Residenza completa');
 
-  if (isBlank(profile?.id_document_path)) missing.push('Documento di identità caricato');
+  const hasUploadedIdDocument =
+    profile?.has_id_document === true || !isBlank(profile?.id_document_path);
+  if (!hasUploadedIdDocument) missing.push('Documento di identità caricato');
 
   return missing;
 }

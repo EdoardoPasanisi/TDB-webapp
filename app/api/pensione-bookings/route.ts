@@ -183,21 +183,41 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Date prenotazione non valide.' }, { status: 400 });
     }
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .select('first_name, last_name, phone, fiscal_code, address_line, city, zip_code, province, id_document_path')
-      .eq('user_id', userId)
-      .maybeSingle();
+    const [
+      { data: profile, error: profileError },
+      { data: identityDocuments, error: identityDocumentsError },
+    ] = await Promise.all([
+      supabaseAdmin
+        .from('profiles')
+        .select('first_name, last_name, phone, fiscal_code, address_line, city, zip_code, province, id_document_path')
+        .eq('user_id', userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from('user_documents')
+        .select('path')
+        .eq('user_id', userId)
+        .eq('kind', 'ID_DOCUMENT')
+        .in('status', ['PENDING', 'ACCEPTED'])
+        .order('created_at', { ascending: false })
+        .limit(1),
+    ]);
 
-    if (profileError) {
+    if (profileError || identityDocumentsError) {
       return NextResponse.json(
         { error: 'Impossibile verificare i dati del profilo.' },
         { status: 500 }
       );
     }
 
+    const hasUploadedIdentityDocument = ((identityDocuments ?? []) as Array<{ path?: string | null }>).some(
+      (row) => String(row.path ?? '').trim().length > 0
+    );
+
     const missingRequiredFields = getMissingRequiredCustomerBookingFields(
-      (profile ?? null) as CustomerBookingRequirementProfile | null
+      {
+        ...((profile ?? {}) as CustomerBookingRequirementProfile),
+        has_id_document: hasUploadedIdentityDocument,
+      }
     );
 
     if (missingRequiredFields.length > 0) {

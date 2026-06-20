@@ -74,6 +74,9 @@ type TaxiDistanceApiResponse = {
 };
 
 type RequiredBookingProfileRow = import('@/lib/bookings/customerBookingRequirements').CustomerBookingRequirementProfile;
+type IdentityDocumentPresenceRow = {
+  path: string | null;
+};
 
 type PensioneBookingDraft = {
   startDate: string;
@@ -134,6 +137,53 @@ function hasTaxiServiceAddressMinimum(address: ProfileAddressRow | null): boolea
     String(address?.dog_address_line ?? '').trim().length > 0 &&
     String(address?.dog_city ?? '').trim().length > 0
   );
+}
+
+async function loadHasUploadedIdentityDocument(userId: string): Promise<boolean | null> {
+  const { data, error } = await supabase
+    .from('user_documents')
+    .select('path')
+    .eq('user_id', userId)
+    .eq('kind', 'ID_DOCUMENT')
+    .in('status', ['PENDING', 'ACCEPTED'])
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.error('Identity document presence check failed:', error);
+    return null;
+  }
+
+  return ((data ?? []) as IdentityDocumentPresenceRow[]).some((row) =>
+    String(row.path ?? '').trim().length > 0
+  );
+}
+
+function buildRequiredBookingProfileRow(
+  profile: RequiredBookingProfileRow | null,
+  hasUploadedIdentityDocument: boolean | null
+): RequiredBookingProfileRow {
+  return {
+    ...(profile ?? {}),
+    has_id_document: hasUploadedIdentityDocument === true,
+  };
+}
+
+function buildMissingPetBookingFields(selectedDogIds: string[], dogs: DogLite[]): string[] {
+  const missing: string[] = [];
+  for (const dogId of selectedDogIds) {
+    const dog = dogs.find((d) => d.id === dogId);
+    if (!dog) continue;
+    const fields = getMissingRequiredPetBookingFields({
+      name: dog.name,
+      species: dog.species,
+      birth_date: dog.birth_date,
+      microchip: dog.microchip,
+      libretto_name: dog.libretto_name,
+    });
+    if (fields.length > 0) missing.push(`${dog.name}: ${fields.join(', ')}`);
+  }
+  return missing;
 }
 
 export function usePensioneBooking() {
@@ -221,7 +271,11 @@ export function usePensioneBooking() {
 
       const userId = userData.user.id;
 
-      const [{ data: dogsData, error: dogsError }, { data: profileData, error: profileError }] =
+      const [
+        { data: dogsData, error: dogsError },
+        { data: profileData, error: profileError },
+        hasUploadedIdentityDocument,
+      ] =
         await Promise.all([
           supabase
             .from('dogs')
@@ -236,6 +290,7 @@ export function usePensioneBooking() {
             )
             .eq('user_id', userId)
             .maybeSingle(),
+          loadHasUploadedIdentityDocument(userId),
         ]);
 
       if (dogsError) {
@@ -251,6 +306,7 @@ export function usePensioneBooking() {
             'Non siamo riusciti a leggere l’indirizzo servizi del profilo.'
           )
         );
+        setMissingRequiredFields([]);
       }
 
       setTaxiServiceAddress(normalizeTaxiServiceAddress((profileData ?? null) as ProfileAddressRow | null));
@@ -276,9 +332,16 @@ export function usePensioneBooking() {
       setDogs(dogList);
 
       // Mostra subito i dati proprietario mancanti (alert all'ingresso pensione).
-      setMissingRequiredFields(
-        getMissingRequiredCustomerBookingFields((profileData ?? null) as RequiredBookingProfileRow | null)
-      );
+      if (!profileError) {
+        setMissingRequiredFields(
+          getMissingRequiredCustomerBookingFields(
+            buildRequiredBookingProfileRow(
+              (profileData ?? null) as RequiredBookingProfileRow | null,
+              hasUploadedIdentityDocument
+            )
+          )
+        );
+      }
 
       const initialPerDog: Record<string, PerDogForm> = {};
       for (const dog of dogList) {
@@ -503,6 +566,7 @@ export function usePensioneBooking() {
   const toggleDogSelection = useCallback(
     (dogId: string) => {
       if (isSingleDog) return;
+      setMissingPetFields([]);
 
       setSelectedDogIds((prev) => {
         if (prev.includes(dogId)) return prev.filter((id) => id !== dogId);
@@ -583,11 +647,14 @@ export function usePensioneBooking() {
       return ['Nome', 'Cognome', 'Numero di telefono'];
     }
 
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('first_name, last_name, phone, fiscal_code, address_line, city, zip_code, province, id_document_path')
-      .eq('user_id', userData.user.id)
-      .maybeSingle();
+    const [{ data: profile, error: profileError }, hasUploadedIdentityDocument] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('first_name, last_name, phone, fiscal_code, address_line, city, zip_code, province, id_document_path')
+        .eq('user_id', userData.user.id)
+        .maybeSingle(),
+      loadHasUploadedIdentityDocument(userData.user.id),
+    ]);
 
     if (profileError) {
       throw new Error(
@@ -596,7 +663,10 @@ export function usePensioneBooking() {
     }
 
     return getMissingRequiredCustomerBookingFields(
-      (profile ?? null) as RequiredBookingProfileRow | null
+      buildRequiredBookingProfileRow(
+        (profile ?? null) as RequiredBookingProfileRow | null,
+        hasUploadedIdentityDocument
+      )
     );
   }, [router]);
 
@@ -662,19 +732,7 @@ export function usePensioneBooking() {
     }
 
     // Requisiti pet (anno di nascita; microchip + libretto per i cani).
-    const petMissing: string[] = [];
-    for (const dogId of effectiveSelectedDogIds) {
-      const dog = dogs.find((d) => d.id === dogId);
-      if (!dog) continue;
-      const miss = getMissingRequiredPetBookingFields({
-        name: dog.name,
-        species: dog.species,
-        birth_date: dog.birth_date,
-        microchip: dog.microchip,
-        libretto_name: dog.libretto_name,
-      });
-      if (miss.length > 0) petMissing.push(`${dog.name}: ${miss.join(', ')}`);
-    }
+    const petMissing = buildMissingPetBookingFields(effectiveSelectedDogIds, dogs);
     if (petMissing.length > 0) {
       setMissingPetFields(petMissing);
       return;
