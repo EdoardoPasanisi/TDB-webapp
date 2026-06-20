@@ -208,6 +208,17 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     if (selectedUserId) await loadDetail(selectedUserId);
   };
 
+  const handleDocumentDelete = async (documentId: string) => {
+    const ok = await confirm({
+      keyword: 'ELIMINA',
+      title: 'Elimina documento',
+      message: 'Il documento verrà rimosso definitivamente. Se è il documento d’identità registrato, il cliente dovrà ricaricarlo.',
+    });
+    if (!ok) return;
+    await fetchAdminJson(`/api/admin/documents/${documentId}`, { method: 'DELETE' });
+    if (selectedUserId) await loadDetail(selectedUserId);
+  };
+
   const handleBookingStatus = async (item: AdminAgendaItem, status: BookingStatus | ServiceStatus) => {
     const kind = item.kind === 'SERVICE_SLOT' ? 'service-slot' : 'pensione';
     await fetchAdminJson(`/api/admin/bookings/${kind}/${item.id}`, {
@@ -625,6 +636,8 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                             document={document}
                             canManage={canManage}
                             onDecision={(status) => handleDocumentDecision(document.id, status)}
+                            onReRequest={() => handleDocumentDecision(document.id, 'REJECTED')}
+                            onDelete={() => handleDocumentDelete(document.id)}
                           />
                         ))}
                       </div>

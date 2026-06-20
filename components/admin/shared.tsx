@@ -761,11 +761,15 @@ export function DocumentCard({
   document,
   canManage,
   onDecision,
+  onDelete,
+  onReRequest,
   onOpenOwner,
 }: {
   document: AdminDocumentRecord;
   canManage: boolean;
   onDecision?: (status: 'ACCEPTED' | 'REJECTED') => Promise<void> | void;
+  onDelete?: () => Promise<void> | void;
+  onReRequest?: () => Promise<void> | void;
   onOpenOwner?: (userId: string) => void;
 }) {
   return (
@@ -818,6 +822,16 @@ export function DocumentCard({
                 Rifiuta
               </Button>
             </>
+          ) : null}
+          {canManage && document.status === 'ACCEPTED' && onReRequest ? (
+            <Button variant="secondary" className="ui-btnCompact" onClick={() => void onReRequest()}>
+              Richiedi di nuovo
+            </Button>
+          ) : null}
+          {canManage && document.status !== 'PENDING' && onDelete ? (
+            <Button variant="danger" className="ui-btnCompact" onClick={() => void onDelete()}>
+              Elimina
+            </Button>
           ) : null}
         </div>
 

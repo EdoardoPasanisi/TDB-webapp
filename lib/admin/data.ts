@@ -2427,6 +2427,51 @@ export async function updateAdminDocumentStatus(args: {
   };
 }
 
+/**
+ * Elimina un documento del cliente (riga + file). Se è il documento d'identità
+ * attualmente registrato sul profilo, azzera anche id_document_path/uploaded_at.
+ */
+export async function deleteAdminDocument(documentId: string): Promise<{
+  userId: string;
+  kind: 'ID_DOCUMENT' | 'WAIVER_SIGNED';
+}> {
+  const { data: current, error: currentError } = await supabaseAdmin
+    .from('user_documents')
+    .select('user_id, kind, path')
+    .eq('id', documentId)
+    .maybeSingle();
+
+  if (currentError) throw new Error(currentError.message);
+  if (!current) throw new Error('Documento non trovato.');
+
+  const userId = String(current.user_id);
+  const kind = current.kind as 'ID_DOCUMENT' | 'WAIVER_SIGNED';
+  const path = String((current as { path?: string | null }).path ?? '').trim();
+
+  if (path) {
+    await supabaseAdmin.storage.from(IDENTITY_BUCKET).remove([path]).catch(() => undefined);
+  }
+
+  if (kind === 'ID_DOCUMENT') {
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('id_document_path')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (profile && String((profile as { id_document_path?: string | null }).id_document_path ?? '') === path) {
+      await supabaseAdmin
+        .from('profiles')
+        .update({ id_document_path: null, id_document_uploaded_at: null })
+        .eq('user_id', userId);
+    }
+  }
+
+  const { error } = await supabaseAdmin.from('user_documents').delete().eq('id', documentId);
+  if (error) throw new Error(error.message);
+
+  return { userId, kind };
+}
+
 export async function updateAdminBookingStatus(args: {
   kind: AdminBookingKind;
   bookingId: string;
