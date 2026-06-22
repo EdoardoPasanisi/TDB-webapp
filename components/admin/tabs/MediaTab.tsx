@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import * as tus from 'tus-js-client';
 import { fetchAdminJson, isAbortError } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { CUSTOMER_MEDIA_ACCEPT } from '@/lib/media/config';
@@ -8,6 +9,7 @@ import { supabase } from '@/lib/supabaseClient';
 import {
   CUSTOMER_MEDIA_MIME_TYPES,
   MAX_CUSTOMER_MEDIA_BYTES,
+  MAX_CUSTOMER_VIDEO_BYTES,
   validateUploadBytes,
   validateUploadFile,
 } from '@/lib/validation/uploads';
@@ -19,7 +21,6 @@ import {
   EmptyCard,
   ErrorCard,
   LoadingCard,
-  ModalFrame,
   cx,
   formatDateTime,
   type LoadState,
@@ -30,48 +31,29 @@ type MediaDraft = {
   file: File | null;
 };
 
-type RecorderModalState = {
-  bookingId: string;
-  ownerName: string;
-  status: 'idle' | 'starting' | 'recording' | 'ready';
-  elapsedSeconds: number;
-  file: File | null;
-  previewUrl: string | null;
-  previewDataUrl: string | null;
-  posterUrl: string | null;
-  previewPlaybackFailed: boolean;
-  error: string | null;
+type MediaUploadResponse = {
+  upload:
+    | { provider: 'supabase'; bucket: string; storagePath: string; token: string }
+    | { provider: 'cloudflare_stream'; uid: string; uploadUrl: string };
 };
 
-type SignedMediaUploadResponse = {
-  upload: {
-    bucket: string;
-    storagePath: string;
-    token: string;
-  };
-};
+// Cloudflare richiede chunk multipli di 256 KiB (>= 5 MB): 50 MB e un buon compromesso su mobile.
+const TUS_CHUNK_SIZE = 50 * 1024 * 1024;
 
-const RECORDING_MAX_SECONDS = 120;
-const RECORDING_VIDEO_BITS_PER_SECOND = 2_000_000;
-const RECORDING_AUDIO_BITS_PER_SECOND = 96_000;
-
-const RECORDING_MIME_CANDIDATES = [
-  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
-  'video/mp4;codecs=avc1.4D401E,mp4a.40.2',
-  'video/mp4;codecs=avc1.64001F,mp4a.40.2',
-  'video/mp4',
-  'video/webm;codecs=vp9,opus',
-  'video/webm;codecs=vp8,opus',
-  'video/webm',
-];
+function isVideoFile(file: File): boolean {
+  return String(file.type ?? '').toLowerCase().startsWith('video/');
+}
 
 async function validateMediaDraftFile(file: File): Promise<string | null> {
+  const video = isVideoFile(file);
   const metadataError = validateUploadFile({
     file,
     allowedMimeTypes: CUSTOMER_MEDIA_MIME_TYPES,
-    maxBytes: MAX_CUSTOMER_MEDIA_BYTES,
+    maxBytes: video ? MAX_CUSTOMER_VIDEO_BYTES : MAX_CUSTOMER_MEDIA_BYTES,
     invalidTypeMessage: 'Formato non valido. Usa JPG, PNG, WebP, MP4, MOV o WebM.',
-    tooLargeMessage: 'Il media è troppo grande. Limite massimo: 50MB.',
+    tooLargeMessage: video
+      ? 'Il video è troppo grande. Limite massimo: 2GB.'
+      : 'La foto è troppo grande. Limite massimo: 50MB.',
   });
 
   if (metadataError) return metadataError;
@@ -80,27 +62,31 @@ async function validateMediaDraftFile(file: File): Promise<string | null> {
   return validateUploadBytes(file, headerBytes);
 }
 
-function chooseRecordingMimeType(): string | null {
-  if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
-    return null;
-  }
+function uploadVideoToCloudflare(args: {
+  uploadUrl: string;
+  file: File;
+  onProgress: (percent: number) => void;
+}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const upload = new tus.Upload(args.file, {
+      uploadUrl: args.uploadUrl,
+      chunkSize: TUS_CHUNK_SIZE,
+      retryDelays: [0, 3000, 5000, 10000, 20000],
+      metadata: {
+        filename: args.file.name,
+        filetype: args.file.type,
+      },
+      onError: (error) => reject(error),
+      onProgress: (bytesSent, bytesTotal) => {
+        if (bytesTotal > 0) {
+          args.onProgress(Math.min(100, Math.round((bytesSent / bytesTotal) * 100)));
+        }
+      },
+      onSuccess: () => resolve(),
+    });
 
-  return RECORDING_MIME_CANDIDATES.find((mimeType) => window.MediaRecorder.isTypeSupported(mimeType)) ?? null;
-}
-
-function getUploadMimeType(mimeType: string): string {
-  return mimeType.split(';')[0]?.trim().toLowerCase() || 'video/webm';
-}
-
-function getRecordingExtension(mimeType: string): string {
-  return getUploadMimeType(mimeType) === 'video/mp4' ? 'mp4' : 'webm';
-}
-
-function formatElapsed(seconds: number): string {
-  const safeSeconds = Math.max(0, Math.floor(seconds));
-  const minutes = Math.floor(safeSeconds / 60);
-  const remainingSeconds = safeSeconds % 60;
-  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+    upload.start();
+  });
 }
 
 function formatFileSize(bytes: number): string {
@@ -170,32 +156,7 @@ export function MediaTab() {
   const [items, setItems] = useState<AdminMediaRecapItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, MediaDraft>>({});
   const [uploadingBookingId, setUploadingBookingId] = useState<string | null>(null);
-  const [recorderModal, setRecorderModal] = useState<RecorderModalState | null>(null);
-  const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
-  const recordedPreviewRef = useRef<HTMLVideoElement | null>(null);
-  const recorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const chunksRef = useRef<BlobPart[]>([]);
-  const recordingPosterUrlRef = useRef<string | null>(null);
-  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const setCameraPreviewNode = useCallback((node: HTMLVideoElement | null) => {
-    cameraPreviewRef.current = node;
-    if (node && streamRef.current) {
-      node.srcObject = streamRef.current;
-      void node.play().catch(() => undefined);
-    }
-  }, []);
-
-  useEffect(() => {
-    const video = recordedPreviewRef.current;
-    const previewSource = recorderModal?.previewDataUrl ?? recorderModal?.previewUrl;
-    if (!video || !previewSource) return;
-
-    video.load();
-    void video.play().catch(() => undefined);
-  }, [recorderModal?.previewDataUrl, recorderModal?.previewUrl]);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setState('loading');
@@ -243,306 +204,6 @@ export function MediaTab() {
     }));
   }
 
-  function captureRecordingPoster(): string | null {
-    const video = cameraPreviewRef.current;
-    if (!video?.videoWidth || !video.videoHeight) return null;
-
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext('2d');
-    if (!context) return null;
-
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.82);
-  }
-
-  function retryRecordedPreviewWithDataUrl(file: File, previewUrl: string) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : null;
-      setRecorderModal((current) =>
-        current?.previewUrl === previewUrl
-          ? {
-              ...current,
-              previewDataUrl: dataUrl,
-              previewPlaybackFailed: !dataUrl,
-            }
-          : current
-      );
-    };
-    reader.onerror = () => {
-      setRecorderModal((current) =>
-        current?.previewUrl === previewUrl ? { ...current, previewPlaybackFailed: true } : current
-      );
-    };
-    reader.readAsDataURL(file);
-  }
-
-  const clearRecordingTimers = useCallback(() => {
-    if (elapsedTimerRef.current) {
-      clearInterval(elapsedTimerRef.current);
-      elapsedTimerRef.current = null;
-    }
-
-    if (maxDurationTimerRef.current) {
-      clearTimeout(maxDurationTimerRef.current);
-      maxDurationTimerRef.current = null;
-    }
-  }, []);
-
-  const releaseCameraStream = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    if (cameraPreviewRef.current) {
-      cameraPreviewRef.current.srcObject = null;
-    }
-  }, []);
-
-  const discardActiveRecording = useCallback(() => {
-    clearRecordingTimers();
-    recordingPosterUrlRef.current = null;
-
-    const recorder = recorderRef.current;
-    if (recorder && recorder.state !== 'inactive') {
-      recorder.ondataavailable = null;
-      recorder.onstop = null;
-      try {
-        recorder.stop();
-      } catch {}
-    }
-
-    recorderRef.current = null;
-    chunksRef.current = [];
-    releaseCameraStream();
-  }, [clearRecordingTimers, releaseCameraStream]);
-
-  function closeRecorderModal() {
-    discardActiveRecording();
-    if (recorderModal?.previewUrl) {
-      URL.revokeObjectURL(recorderModal.previewUrl);
-    }
-    setRecorderModal(null);
-  }
-
-  function openRecorderModal(item: AdminMediaRecapItem) {
-    if (recorderModal?.previewUrl) {
-      URL.revokeObjectURL(recorderModal.previewUrl);
-    }
-    discardActiveRecording();
-    setRecorderModal({
-      bookingId: item.bookingId,
-      ownerName: item.ownerName,
-      status: 'idle',
-      elapsedSeconds: 0,
-      file: null,
-      previewUrl: null,
-      previewDataUrl: null,
-      posterUrl: null,
-      previewPlaybackFailed: false,
-      error: null,
-    });
-  }
-
-  async function getRecordingStream(): Promise<MediaStream> {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      throw new Error('La registrazione video non è supportata su questo dispositivo.');
-    }
-
-    const preferredConstraints: MediaStreamConstraints = {
-      video: {
-        facingMode: { ideal: 'environment' },
-        width: { ideal: 1280, max: 1280 },
-        height: { ideal: 720, max: 720 },
-        frameRate: { ideal: 30, max: 30 },
-      },
-      audio: true,
-    };
-
-    try {
-      return await navigator.mediaDevices.getUserMedia(preferredConstraints);
-    } catch {
-      return navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' } },
-        audio: true,
-      });
-    }
-  }
-
-  async function startRecording() {
-    if (!recorderModal) return;
-
-    const mimeType = chooseRecordingMimeType();
-    if (!mimeType) {
-      setRecorderModal((current) =>
-        current
-          ? {
-              ...current,
-              error: 'La registrazione video non è supportata da questo browser. Usa il selettore file.',
-            }
-          : current
-      );
-      return;
-    }
-
-    if (recorderModal.previewUrl) {
-      URL.revokeObjectURL(recorderModal.previewUrl);
-    }
-
-    discardActiveRecording();
-    setRecorderModal((current) =>
-      current
-        ? {
-            ...current,
-            status: 'starting',
-            elapsedSeconds: 0,
-            file: null,
-            previewUrl: null,
-            previewDataUrl: null,
-            posterUrl: null,
-            previewPlaybackFailed: false,
-            error: null,
-          }
-        : current
-    );
-
-    try {
-      const stream = await getRecordingStream();
-      streamRef.current = stream;
-      if (cameraPreviewRef.current) {
-        cameraPreviewRef.current.srcObject = stream;
-        await cameraPreviewRef.current.play().catch(() => undefined);
-      }
-
-      chunksRef.current = [];
-      const recorder = new MediaRecorder(stream, {
-        mimeType,
-        videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND,
-        audioBitsPerSecond: RECORDING_AUDIO_BITS_PER_SECOND,
-      });
-      const recordedMimeType = recorder.mimeType || mimeType;
-
-      recorderRef.current = recorder;
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-      recorder.onstop = () => {
-        clearRecordingTimers();
-        releaseCameraStream();
-        recorderRef.current = null;
-
-        const previewMimeType = recordedMimeType || mimeType;
-        const uploadMimeType = getUploadMimeType(previewMimeType);
-        const blob = new Blob(chunksRef.current, { type: previewMimeType });
-        chunksRef.current = [];
-
-        if (blob.size <= 0) {
-          setRecorderModal((current) =>
-            current ? { ...current, status: 'idle', error: 'Il video registrato è vuoto. Riprova.' } : current
-          );
-          return;
-        }
-
-        const file = new File(
-          [blob],
-          `video-pensione-${new Date().toISOString().replace(/[:.]/g, '-')}.${getRecordingExtension(previewMimeType)}`,
-          { type: uploadMimeType }
-        );
-        const previewUrl = URL.createObjectURL(blob);
-        const posterUrl = recordingPosterUrlRef.current;
-        recordingPosterUrlRef.current = null;
-
-        setRecorderModal((current) =>
-          current
-            ? {
-                ...current,
-                status: 'ready',
-                file,
-                previewUrl,
-                previewDataUrl: null,
-                posterUrl,
-                previewPlaybackFailed: false,
-                error:
-                  file.size > MAX_CUSTOMER_MEDIA_BYTES
-                    ? `Il video registrato pesa ${formatFileSize(file.size)}. Riduci la durata e riprova.`
-                    : null,
-              }
-            : current
-        );
-      };
-      recorder.onerror = () => {
-        clearRecordingTimers();
-        releaseCameraStream();
-        recorderRef.current = null;
-        setRecorderModal((current) =>
-          current ? { ...current, status: 'idle', error: 'Registrazione interrotta. Riprova.' } : current
-        );
-      };
-
-      const startedAt = Date.now();
-      recorder.start();
-      setRecorderModal((current) =>
-        current ? { ...current, status: 'recording', elapsedSeconds: 0, error: null } : current
-      );
-      elapsedTimerRef.current = setInterval(() => {
-        setRecorderModal((current) =>
-          current
-            ? {
-                ...current,
-                elapsedSeconds: Math.min(RECORDING_MAX_SECONDS, Math.floor((Date.now() - startedAt) / 1000)),
-              }
-            : current
-        );
-      }, 500);
-      maxDurationTimerRef.current = setTimeout(() => {
-        stopRecording();
-      }, RECORDING_MAX_SECONDS * 1000);
-    } catch (err) {
-      clearRecordingTimers();
-      releaseCameraStream();
-      setRecorderModal((current) =>
-        current
-          ? {
-              ...current,
-              status: 'idle',
-              error: humanizeErrorMessage(
-                err,
-                'Non siamo riusciti ad accedere alla camera. Controlla i permessi e riprova.'
-              ),
-            }
-          : current
-      );
-    }
-  }
-
-  function stopRecording() {
-    const recorder = recorderRef.current;
-    if (!recorder || recorder.state === 'inactive') return;
-    clearRecordingTimers();
-    recordingPosterUrlRef.current = captureRecordingPoster();
-    recorder.stop();
-  }
-
-  function useRecordedVideo() {
-    if (!recorderModal?.file) return;
-    updateDraft(recorderModal.bookingId, { file: recorderModal.file });
-    if (recorderModal.previewUrl) {
-      URL.revokeObjectURL(recorderModal.previewUrl);
-    }
-    setRecorderModal(null);
-  }
-
-  useEffect(() => {
-    return () => {
-      discardActiveRecording();
-      if (recorderModal?.previewUrl) {
-        URL.revokeObjectURL(recorderModal.previewUrl);
-      }
-    };
-  }, [discardActiveRecording, recorderModal?.previewUrl]);
-
   async function uploadForBooking(item: AdminMediaRecapItem) {
     const draft = drafts[item.bookingId];
     if (!draft?.file) {
@@ -550,46 +211,60 @@ export function MediaTab() {
       return;
     }
 
+    const file = draft.file;
     setUploadingBookingId(item.bookingId);
+    setUploadProgress(null);
     setError(null);
 
     try {
-      const validationError = await validateMediaDraftFile(draft.file);
+      const validationError = await validateMediaDraftFile(file);
       if (validationError) {
         throw new Error(validationError);
       }
 
-      const signedUpload = await fetchAdminJson<SignedMediaUploadResponse>('/api/admin/media/upload-url', {
+      const { upload } = await fetchAdminJson<MediaUploadResponse>('/api/admin/media/upload-url', {
         method: 'POST',
         body: JSON.stringify({
           bookingId: item.bookingId,
-          fileName: draft.file.name,
-          mimeType: draft.file.type,
-          size: draft.file.size,
+          fileName: file.name,
+          mimeType: file.type,
+          size: file.size,
         }),
       });
 
-      const { error: uploadError } = await supabase.storage
-        .from(signedUpload.upload.bucket)
-        .uploadToSignedUrl(signedUpload.upload.storagePath, signedUpload.upload.token, draft.file, {
-          cacheControl: '31536000',
-          contentType: draft.file.type || 'application/octet-stream',
-          upsert: false,
-        });
+      const completeBody: Record<string, unknown> = {
+        bookingId: item.bookingId,
+        caption: draft.caption.trim(),
+        mimeType: file.type,
+        size: file.size,
+      };
 
-      if (uploadError) {
-        throw new Error(humanizeErrorMessage(uploadError, 'Non siamo riusciti a caricare il media.'));
+      if (upload.provider === 'cloudflare_stream') {
+        setUploadProgress(0);
+        await uploadVideoToCloudflare({
+          uploadUrl: upload.uploadUrl,
+          file,
+          onProgress: setUploadProgress,
+        });
+        completeBody.streamUid = upload.uid;
+      } else {
+        const { error: uploadError } = await supabase.storage
+          .from(upload.bucket)
+          .uploadToSignedUrl(upload.storagePath, upload.token, file, {
+            cacheControl: '31536000',
+            contentType: file.type || 'application/octet-stream',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(humanizeErrorMessage(uploadError, 'Non siamo riusciti a caricare il media.'));
+        }
+        completeBody.storagePath = upload.storagePath;
       }
 
       await fetchAdminJson('/api/admin/media/complete', {
         method: 'POST',
-        body: JSON.stringify({
-          bookingId: item.bookingId,
-          caption: draft.caption.trim(),
-          storagePath: signedUpload.upload.storagePath,
-          mimeType: draft.file.type,
-          size: draft.file.size,
-        }),
+        body: JSON.stringify(completeBody),
       });
 
       setDrafts((current) => ({
@@ -602,6 +277,7 @@ export function MediaTab() {
       setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare il media.'));
     } finally {
       setUploadingBookingId(null);
+      setUploadProgress(null);
     }
   }
 
@@ -612,9 +288,6 @@ export function MediaTab() {
   if (state === 'error') {
     return <ErrorCard error={error ?? 'Errore caricamento media.'} onRetry={() => void load()} />;
   }
-
-  const isRecorderFullscreen =
-    recorderModal?.status === 'starting' || recorderModal?.status === 'recording';
 
   return (
     <div className="space-y-4">
@@ -656,6 +329,7 @@ export function MediaTab() {
             const priority = priorityTone(item.priority);
             const draft = drafts[item.bookingId] ?? { caption: '', file: null };
             const isUploading = uploadingBookingId === item.bookingId;
+            const draftIsVideo = draft.file ? isVideoFile(draft.file) : false;
 
             return (
               <Card key={item.bookingId} className="admin-listCard overflow-hidden">
@@ -742,18 +416,8 @@ export function MediaTab() {
                           />
                         </label>
 
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            className="w-full sm:w-auto"
-                            onClick={() => openRecorderModal(item)}
-                          >
-                            Registra video
-                          </Button>
-                          <div className="ui-fine text-[rgba(255,255,255,0.62)]">
-                            Video registrati dall’app: max {formatElapsed(RECORDING_MAX_SECONDS)}, qualità ridotta.
-                          </div>
+                        <div className="ui-fine text-[rgba(255,255,255,0.62)]">
+                          I video vengono elaborati dopo l’invio e diventano visibili al cliente in pochi minuti.
                         </div>
                       </div>
 
@@ -763,13 +427,18 @@ export function MediaTab() {
                         disabled={isUploading || !draft.file}
                         onClick={() => void uploadForBooking(item)}
                       >
-                        {isUploading ? 'Invio…' : 'Invia media'}
+                        {isUploading
+                          ? uploadProgress != null
+                            ? `Invio… ${uploadProgress}%`
+                            : 'Invio…'
+                          : 'Invia media'}
                       </Button>
                     </div>
 
                     {draft.file ? (
                       <div className="ui-fine text-[rgba(255,255,255,0.62)] break-all">
                         File selezionato: {draft.file.name} ({formatFileSize(draft.file.size)})
+                        {draftIsVideo ? ' · video' : ''}
                       </div>
                     ) : null}
                   </div>
@@ -779,154 +448,6 @@ export function MediaTab() {
           })}
         </div>
       )}
-
-      {recorderModal && isRecorderFullscreen ? (
-        <div className="fixed inset-0 z-[70] flex flex-col bg-black text-white">
-          <video
-            ref={setCameraPreviewNode}
-            autoPlay
-            muted
-            playsInline
-            className="min-h-0 flex-1 bg-black object-cover"
-          />
-
-          <div className="pointer-events-none absolute left-0 right-0 top-0 flex justify-center px-4 pt-[calc(env(safe-area-inset-top)+16px)]">
-            <div className="rounded-full bg-black/55 px-4 py-2 text-center text-[15px] font-semibold backdrop-blur">
-              {recorderModal.status === 'starting'
-                ? 'Apertura camera…'
-                : `${formatElapsed(recorderModal.elapsedSeconds)} / ${formatElapsed(RECORDING_MAX_SECONDS)}`}
-            </div>
-          </div>
-
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/85 to-transparent px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-14">
-            <Button
-              type="button"
-              variant="danger"
-              fullWidth
-              onClick={recorderModal.status === 'starting' ? closeRecorderModal : stopRecording}
-            >
-              {recorderModal.status === 'starting' ? 'Annulla' : 'Interrompi video'}
-            </Button>
-          </div>
-        </div>
-      ) : null}
-
-      <ModalFrame
-        open={Boolean(recorderModal && !isRecorderFullscreen)}
-        title={recorderModal ? `Registra video per ${recorderModal.ownerName}` : 'Registra video'}
-        onClose={closeRecorderModal}
-        maxWidthClassName="sm:max-w-2xl"
-      >
-        {recorderModal ? (
-          <div className="space-y-4">
-            <div className="overflow-hidden rounded-[var(--radius)] border border-[rgba(255,255,255,0.12)] bg-black">
-              {recorderModal.previewUrl ? (
-                recorderModal.previewPlaybackFailed ? (
-                  <div className="relative flex aspect-video w-full items-center justify-center bg-black">
-                    {recorderModal.posterUrl ? (
-                      <div
-                        role="img"
-                        aria-label="Anteprima del video registrato"
-                        className="h-full w-full bg-contain bg-center bg-no-repeat"
-                        style={{ backgroundImage: `url(${recorderModal.posterUrl})` }}
-                      />
-                    ) : null}
-                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-3 py-2 text-sm text-white">
-                      Anteprima video non riproducibile su questo dispositivo. Puoi comunque usare il video registrato.
-                    </div>
-                  </div>
-                ) : (
-                  <video
-                    ref={recordedPreviewRef}
-                    key={recorderModal.previewDataUrl ?? recorderModal.previewUrl}
-                    src={recorderModal.previewDataUrl ?? recorderModal.previewUrl}
-                    controls
-                    autoPlay
-                    muted
-                    playsInline
-                    preload="auto"
-                    poster={recorderModal.posterUrl ?? undefined}
-                    onError={() => {
-                      const previewUrl = recorderModal.previewUrl;
-                      if (!previewUrl) return;
-
-                      if (!recorderModal.previewDataUrl && recorderModal.file) {
-                        retryRecordedPreviewWithDataUrl(recorderModal.file, previewUrl);
-                        return;
-                      }
-
-                      setRecorderModal((current) =>
-                        current?.previewUrl === previewUrl
-                          ? { ...current, previewPlaybackFailed: true }
-                          : current
-                      );
-                    }}
-                    className="aspect-video w-full bg-black object-contain"
-                  />
-                )
-              ) : (
-                <video
-                  ref={setCameraPreviewNode}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="aspect-video w-full bg-black object-contain"
-                />
-              )}
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="ui-panelInset p-3">
-                <div className="ui-muted">Durata</div>
-                <div className="ui-title mt-1">
-                  {formatElapsed(recorderModal.elapsedSeconds)} / {formatElapsed(RECORDING_MAX_SECONDS)}
-                </div>
-              </div>
-              <div className="ui-panelInset p-3">
-                <div className="ui-muted">Qualità</div>
-                <div className="ui-body mt-1">720p circa, bitrate ridotto</div>
-              </div>
-              <div className="ui-panelInset p-3">
-                <div className="ui-muted">Dimensione</div>
-                <div className="ui-body mt-1">
-                  {recorderModal.file ? formatFileSize(recorderModal.file.size) : 'Disponibile a fine registrazione'}
-                </div>
-              </div>
-            </div>
-
-            {recorderModal.error ? <div className="ui-error">{recorderModal.error}</div> : null}
-
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-              {recorderModal.status === 'recording' ? (
-                <Button type="button" variant="danger" onClick={stopRecording}>
-                  Ferma registrazione
-                </Button>
-              ) : null}
-
-              {recorderModal.status === 'idle' || recorderModal.status === 'ready' ? (
-                <Button type="button" variant="secondary" onClick={() => void startRecording()}>
-                  {recorderModal.status === 'ready' ? 'Registra di nuovo' : 'Avvia registrazione'}
-                </Button>
-              ) : null}
-
-              {recorderModal.status === 'starting' ? (
-                <Button type="button" variant="secondary" disabled>
-                  Apertura camera…
-                </Button>
-              ) : null}
-
-              <Button
-                type="button"
-                variant="primary"
-                disabled={!recorderModal.file || recorderModal.file.size > MAX_CUSTOMER_MEDIA_BYTES}
-                onClick={useRecordedVideo}
-              >
-                Usa questo video
-              </Button>
-            </div>
-          </div>
-        ) : null}
-      </ModalFrame>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
 import { adminErrorResponse } from '@/lib/admin/route';
 import { assertUuid } from '@/lib/admin/validation';
-import { completeSignedMediaUploadForBooking } from '@/lib/media/server';
+import { completeMediaUploadForBooking } from '@/lib/media/server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,16 +14,18 @@ export async function POST(request: Request) {
       bookingId?: unknown;
       caption?: unknown;
       storagePath?: unknown;
+      streamUid?: unknown;
       mimeType?: unknown;
       size?: unknown;
     } | null;
 
     const bookingId = assertUuid(String(body?.bookingId ?? '').trim(), 'Prenotazione');
-    const media = await completeSignedMediaUploadForBooking({
+    const media = await completeMediaUploadForBooking({
       bookingId,
       caption: String(body?.caption ?? '').trim() || null,
       staffUserId: access.userId,
-      storagePath: String(body?.storagePath ?? '').trim(),
+      storagePath: String(body?.storagePath ?? '').trim() || null,
+      streamUid: String(body?.streamUid ?? '').trim() || null,
       mimeType: String(body?.mimeType ?? '').trim(),
       size: Number(body?.size ?? 0),
     });

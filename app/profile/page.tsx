@@ -382,21 +382,31 @@ export default function ProfileOverviewPage() {
 
                     <div className="overflow-hidden rounded-[calc(var(--radius)+2px)] border border-[rgba(255,255,255,0.08)] bg-black">
                       {item.mediaType === 'VIDEO' ? (
-                        <video
-                          controls
-                          playsInline
-                          preload="auto"
-                          className="block h-auto max-h-[420px] w-full bg-black object-contain"
-                        >
-                          <source src={item.mediaUrl} type={item.mimeType} />
-                        </video>
-                      ) : (
+                        item.status === 'ready' && item.mediaUrl ? (
+                          <div className="relative aspect-video w-full bg-black">
+                            <iframe
+                              src={item.mediaUrl}
+                              title={item.caption || 'Video del tuo pet'}
+                              loading="lazy"
+                              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                              allowFullScreen
+                              className="absolute inset-0 h-full w-full border-0"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex aspect-video w-full items-center justify-center bg-black px-4 text-center">
+                            <span className="ui-muted">
+                              Video in elaborazione: sarà visibile tra pochi minuti.
+                            </span>
+                          </div>
+                        )
+                      ) : item.mediaUrl ? (
                         <img
                           src={item.mediaUrl}
                           alt={item.caption || 'Media del tuo pet'}
                           className="block h-auto max-h-[420px] w-full object-cover"
                         />
-                      )}
+                      ) : null}
                     </div>
 
                     {item.caption ? <div className="ui-body">{item.caption}</div> : null}

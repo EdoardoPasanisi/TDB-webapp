@@ -4,6 +4,9 @@ export const MAX_DOG_PHOTO_BYTES = 5 * MB;
 export const MAX_PROFILE_PHOTO_BYTES = 5 * MB;
 export const MAX_USER_DOCUMENT_BYTES = 10 * MB;
 export const MAX_CUSTOMER_MEDIA_BYTES = 50 * MB;
+// I video non passano da Supabase ma da Cloudflare Stream (upload resumable):
+// qui imponiamo solo un tetto applicativo di sicurezza.
+export const MAX_CUSTOMER_VIDEO_BYTES = 2 * 1024 * MB;
 
 export const DOG_PHOTO_MIME_TYPES = new Set([
   'image/jpeg',

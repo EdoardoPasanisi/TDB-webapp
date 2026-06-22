@@ -1,11 +1,25 @@
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { CUSTOMER_MEDIA_BUCKET } from '@/lib/media/config';
+import {
+  buildSignedIframeUrl,
+  createStreamDirectUpload,
+  getStreamVideo,
+  signStreamPlaybackToken,
+} from '@/lib/media/cloudflare';
 import { createUserNotificationIfEnabled } from '@/lib/notifications/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ADMIN_ACTIVE_STATUSES, formatPersonName } from '@/lib/admin/utils';
-import type { CustomerMediaRow, CustomerMediaType, CustomerMediaViewItem, AdminMediaRecapItem } from '@/types/media';
+import type {
+  AdminMediaRecapItem,
+  CustomerMediaProvider,
+  CustomerMediaRow,
+  CustomerMediaStatus,
+  CustomerMediaType,
+  CustomerMediaViewItem,
+} from '@/types/media';
 import {
   MAX_CUSTOMER_MEDIA_BYTES,
+  MAX_CUSTOMER_VIDEO_BYTES,
   CUSTOMER_MEDIA_MIME_TYPES,
   validateUploadBytes,
   validateUploadFile,
@@ -156,9 +170,36 @@ export async function listVisibleMediaForUser(userId: string): Promise<CustomerM
   const rows = (data ?? []).map(castMediaRow);
   if (rows.length === 0) return [];
 
-  const { data: signedData } = await supabaseAdmin.storage
-    .from(CUSTOMER_MEDIA_BUCKET)
-    .createSignedUrls(rows.map((row) => row.storage_path), 60 * 30);
+  // Riconcilia i video ancora in elaborazione (fallback se il webhook non e arrivato).
+  await Promise.all(
+    rows
+      .filter((row) => row.provider === 'cloudflare_stream' && row.status === 'processing' && row.stream_uid)
+      .map(async (row) => {
+        try {
+          const video = await getStreamVideo(row.stream_uid!);
+          if (video?.ready) {
+            row.status = 'ready';
+            row.duration_seconds = video.durationSeconds;
+            row.thumbnail_url = video.thumbnailUrl;
+            await markStreamVideoReady({
+              streamUid: row.stream_uid!,
+              durationSeconds: video.durationSeconds,
+              thumbnailUrl: video.thumbnailUrl,
+            });
+          }
+        } catch (reconcileError) {
+          console.error('Cloudflare status reconcile failed:', reconcileError);
+        }
+      })
+  );
+
+  const imagePaths = rows
+    .filter((row) => row.provider !== 'cloudflare_stream' && row.storage_path)
+    .map((row) => row.storage_path as string);
+
+  const { data: signedData } = imagePaths.length
+    ? await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).createSignedUrls(imagePaths, 60 * 30)
+    : { data: [] as Array<{ path: string | null; signedUrl: string }> };
 
   const urlMap = new Map<string, string>(
     (signedData ?? [])
@@ -166,8 +207,27 @@ export async function listVisibleMediaForUser(userId: string): Promise<CustomerM
       .map((item) => [item.path!, item.signedUrl] as [string, string])
   );
 
-  return rows
-    .map((row) => {
+  const items = await Promise.all(
+    rows.map(async (row): Promise<CustomerMediaViewItem | null> => {
+      if (row.provider === 'cloudflare_stream') {
+        if (!row.stream_uid) return null;
+        const mediaUrl =
+          row.status === 'ready'
+            ? buildSignedIframeUrl(await signStreamPlaybackToken(row.stream_uid))
+            : null;
+        return {
+          id: row.id,
+          mediaType: 'VIDEO',
+          caption: row.caption,
+          createdAt: row.created_at,
+          visibleUntil: row.visible_until,
+          status: row.status,
+          mediaUrl,
+          mimeType: null,
+        };
+      }
+
+      if (!row.storage_path) return null;
       const signedUrl = urlMap.get(row.storage_path);
       if (!signedUrl) return null;
       return {
@@ -176,12 +236,14 @@ export async function listVisibleMediaForUser(userId: string): Promise<CustomerM
         caption: row.caption,
         createdAt: row.created_at,
         visibleUntil: row.visible_until,
-        signedUrl,
-        mediaUrl: row.media_type === 'VIDEO' ? `/api/media/${row.id}/content` : signedUrl,
+        status: 'ready',
+        mediaUrl: signedUrl,
         mimeType: getCustomerMediaMimeTypeFromPath(row.storage_path),
-      } satisfies CustomerMediaViewItem;
+      };
     })
-    .filter((item): item is CustomerMediaViewItem => Boolean(item));
+  );
+
+  return items.filter((item): item is CustomerMediaViewItem => Boolean(item));
 }
 
 export async function listAdminMediaRecap(): Promise<AdminMediaRecapItem[]> {
@@ -339,25 +401,51 @@ function getStorageInfoContentType(info: unknown): string | null {
   return value || null;
 }
 
+async function notifyCustomerMediaAvailable(args: {
+  userId: string;
+  bookingId: string;
+  mediaType: CustomerMediaType;
+}): Promise<void> {
+  try {
+    await createUserNotificationIfEnabled({
+      userId: args.userId,
+      type: 'MEDIA_AVAILABLE',
+      title: args.mediaType === 'VIDEO' ? 'Nuovo video disponibile' : 'Nuova foto disponibile',
+      body: 'Abbiamo caricato un nuovo contenuto del tuo cane nella sezione I tuoi media.',
+      data: {
+        href: '/profile',
+        bookingId: args.bookingId,
+      },
+    });
+  } catch (notificationError) {
+    console.error('Customer media notification failed:', notificationError);
+  }
+}
+
 async function registerUploadedMediaForBooking(args: {
   booking: Omit<BookingMediaUploadRow, 'booking_dogs'>;
   caption?: string | null;
   staffUserId: string;
-  storagePath: string;
   mediaType: CustomerMediaType;
+  provider: CustomerMediaProvider;
+  status: CustomerMediaStatus;
+  storagePath?: string | null;
+  streamUid?: string | null;
+  durationSeconds?: number | null;
+  thumbnailUrl?: string | null;
 }): Promise<CustomerMediaRow> {
-  const { data: existingData, error: existingError } = await supabaseAdmin
-    .from('customer_media')
-    .select('*')
-    .eq('storage_path', args.storagePath)
-    .maybeSingle();
+  const dedupColumn = args.streamUid ? 'stream_uid' : 'storage_path';
+  const dedupValue = args.streamUid ?? args.storagePath ?? null;
 
-  if (existingError) {
-    throw new Error(existingError.message);
-  }
+  if (dedupValue) {
+    const { data: existingData, error: existingError } = await supabaseAdmin
+      .from('customer_media')
+      .select('*')
+      .eq(dedupColumn, dedupValue)
+      .maybeSingle();
 
-  if (existingData) {
-    return castMediaRow(existingData);
+    if (existingError) throw new Error(existingError.message);
+    if (existingData) return castMediaRow(existingData);
   }
 
   const { data, error } = await supabaseAdmin
@@ -366,7 +454,12 @@ async function registerUploadedMediaForBooking(args: {
       user_id: args.booking.user_id,
       booking_id: args.booking.id,
       media_type: args.mediaType,
-      storage_path: args.storagePath,
+      provider: args.provider,
+      status: args.status,
+      storage_path: args.storagePath ?? null,
+      stream_uid: args.streamUid ?? null,
+      duration_seconds: args.durationSeconds ?? null,
+      thumbnail_url: args.thumbnailUrl ?? null,
       caption: String(args.caption ?? '').trim() || null,
       visible_until: computeVisibleUntil(args.booking.end_date ?? args.booking.start_date, args.booking.departure_time),
       created_by_staff_user_id: args.staffUserId,
@@ -375,40 +468,76 @@ async function registerUploadedMediaForBooking(args: {
     .single();
 
   if (error || !data) {
-    await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([args.storagePath]).catch(() => undefined);
+    if (args.storagePath) {
+      await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([args.storagePath]).catch(() => undefined);
+    }
     throw new Error(error?.message ?? 'Non siamo riusciti a registrare il media.');
   }
 
-  try {
-    await createUserNotificationIfEnabled({
+  // I video Cloudflare arrivano in stato "processing": la notifica parte dal webhook
+  // quando il transcoding e completo. Foto (e video gia pronti) notificano subito.
+  if (args.status === 'ready') {
+    await notifyCustomerMediaAvailable({
       userId: args.booking.user_id,
-      type: 'MEDIA_AVAILABLE',
-      title: args.mediaType === 'VIDEO' ? 'Nuovo video disponibile' : 'Nuova foto disponibile',
-      body: 'Abbiamo caricato un nuovo contenuto del tuo cane nella sezione I tuoi media.',
-      data: {
-        href: '/profile',
-        bookingId: args.booking.id,
-      },
+      bookingId: args.booking.id,
+      mediaType: args.mediaType,
     });
-  } catch (notificationError) {
-    console.error('Customer media notification failed:', notificationError);
   }
 
   return castMediaRow(data);
 }
 
-export async function createSignedMediaUploadForBooking(args: {
+export type MediaUploadTarget =
+  | {
+      provider: 'supabase';
+      mediaType: 'IMAGE';
+      bucket: string;
+      storagePath: string;
+      signedUrl: string;
+      token: string;
+    }
+  | {
+      provider: 'cloudflare_stream';
+      mediaType: 'VIDEO';
+      uid: string;
+      uploadUrl: string;
+    };
+
+export async function createMediaUploadForBooking(args: {
   bookingId: string;
   fileName?: string | null;
   mimeType: string;
   size: number;
-}): Promise<{
-  bucket: string;
-  storagePath: string;
-  signedUrl: string;
-  token: string;
-}> {
+}): Promise<MediaUploadTarget> {
   const mimeType = normalizeMimeType(args.mimeType);
+
+  if (getMediaTypeFromMimeType(mimeType) === 'VIDEO') {
+    const validationError = validateUploadMetadata({
+      size: args.size,
+      mimeType,
+      allowedMimeTypes: CUSTOMER_MEDIA_MIME_TYPES,
+      maxBytes: MAX_CUSTOMER_VIDEO_BYTES,
+      invalidTypeMessage: 'Formato non valido. Usa MP4, MOV o WebM.',
+      tooLargeMessage: 'Il video è troppo grande. Limite massimo: 2GB.',
+    });
+    if (validationError) throw new Error(validationError);
+
+    const booking = await getBookingForMediaUpload(args.bookingId);
+    const upload = await createStreamDirectUpload({
+      size: args.size,
+      name: args.fileName ?? undefined,
+      bookingId: booking.id,
+      userId: booking.user_id,
+    });
+
+    return {
+      provider: 'cloudflare_stream',
+      mediaType: 'VIDEO',
+      uid: upload.uid,
+      uploadUrl: upload.uploadUrl,
+    };
+  }
+
   const validationError = validateCustomerMediaMetadata({ mimeType, size: args.size });
   if (validationError) {
     throw new Error(validationError);
@@ -431,6 +560,8 @@ export async function createSignedMediaUploadForBooking(args: {
   }
 
   return {
+    provider: 'supabase',
+    mediaType: 'IMAGE',
     bucket: CUSTOMER_MEDIA_BUCKET,
     storagePath: data.path || storagePath,
     signedUrl: data.signedUrl,
@@ -438,15 +569,58 @@ export async function createSignedMediaUploadForBooking(args: {
   };
 }
 
-export async function completeSignedMediaUploadForBooking(args: {
+async function readStorageHeaderBytes(storagePath: string, length: number): Promise<Uint8Array> {
+  const { data: signed, error: signedError } = await supabaseAdmin.storage
+    .from(CUSTOMER_MEDIA_BUCKET)
+    .createSignedUrl(storagePath, 60);
+
+  if (signedError || !signed?.signedUrl) {
+    throw new Error(humanizeErrorMessage(signedError, 'Non siamo riusciti a verificare il media caricato.'));
+  }
+
+  const response = await fetch(signed.signedUrl, {
+    headers: { Range: `bytes=0-${length - 1}` },
+    cache: 'no-store',
+  });
+
+  if (!response.ok && response.status !== 206) {
+    throw new Error('Non siamo riusciti a verificare il media caricato.');
+  }
+
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+export async function completeMediaUploadForBooking(args: {
   bookingId: string;
   caption?: string | null;
   staffUserId: string;
-  storagePath: string;
+  storagePath?: string | null;
+  streamUid?: string | null;
   mimeType?: string | null;
   size?: number | null;
 }): Promise<CustomerMediaRow> {
   const booking = await getBookingForMediaUpload(args.bookingId);
+  const streamUid = String(args.streamUid ?? '').trim();
+
+  if (streamUid) {
+    const video = await getStreamVideo(streamUid);
+    if (!video) {
+      throw new Error('Il video caricato non è stato trovato su Cloudflare.');
+    }
+
+    return registerUploadedMediaForBooking({
+      booking,
+      caption: args.caption,
+      staffUserId: args.staffUserId,
+      mediaType: 'VIDEO',
+      provider: 'cloudflare_stream',
+      status: video.ready ? 'ready' : 'processing',
+      streamUid,
+      durationSeconds: video.durationSeconds,
+      thumbnailUrl: video.thumbnailUrl,
+    });
+  }
+
   const storagePath = String(args.storagePath ?? '').trim();
   assertStoragePathMatchesBooking({ storagePath, booking });
 
@@ -466,24 +640,7 @@ export async function completeSignedMediaUploadForBooking(args: {
     throw new Error(validationError);
   }
 
-  const { data: downloadedMedia, error: downloadError } = await supabaseAdmin.storage
-    .from(CUSTOMER_MEDIA_BUCKET)
-    .download(storagePath);
-
-  if (downloadError || !downloadedMedia) {
-    throw new Error(humanizeErrorMessage(downloadError, 'Non siamo riusciti a verificare il media caricato.'));
-  }
-
-  const downloadedSizeError = validateCustomerMediaMetadata({
-    mimeType: objectMimeType,
-    size: downloadedMedia.size,
-  });
-  if (downloadedSizeError) {
-    await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([storagePath]).catch(() => undefined);
-    throw new Error(downloadedSizeError);
-  }
-
-  const headerBytes = new Uint8Array(await downloadedMedia.slice(0, 16).arrayBuffer());
+  const headerBytes = await readStorageHeaderBytes(storagePath, 16);
   const signatureError = validateUploadBytes({ type: objectMimeType }, headerBytes);
   if (signatureError) {
     await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([storagePath]).catch(() => undefined);
@@ -494,8 +651,38 @@ export async function completeSignedMediaUploadForBooking(args: {
     booking,
     caption: args.caption,
     staffUserId: args.staffUserId,
-    storagePath,
     mediaType: getMediaTypeFromMimeType(objectMimeType),
+    provider: 'supabase',
+    status: 'ready',
+    storagePath,
+  });
+}
+
+/** Aggiorna lo stato di un video Cloudflare (chiamato dal webhook) e notifica il cliente. */
+export async function markStreamVideoReady(args: {
+  streamUid: string;
+  durationSeconds?: number | null;
+  thumbnailUrl?: string | null;
+}): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from('customer_media')
+    .update({
+      status: 'ready',
+      duration_seconds: args.durationSeconds ?? null,
+      thumbnail_url: args.thumbnailUrl ?? null,
+    })
+    .eq('stream_uid', args.streamUid)
+    .eq('status', 'processing')
+    .select('user_id, booking_id, media_type')
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return; // gia pronto o non trovato: nessuna doppia notifica
+
+  await notifyCustomerMediaAvailable({
+    userId: (data as { user_id: string }).user_id,
+    bookingId: (data as { booking_id: string }).booking_id,
+    mediaType: (data as { media_type: CustomerMediaType }).media_type,
   });
 }
 
@@ -505,6 +692,12 @@ export async function uploadMediaForBooking(args: {
   staffUserId: string;
   file: File;
 }): Promise<CustomerMediaRow> {
+  // Upload diretto a Supabase: riservato alle foto. I video passano da Cloudflare
+  // Stream tramite il flusso resumable (createMediaUploadForBooking + complete).
+  if (getMediaTypeFromFile(args.file) === 'VIDEO') {
+    throw new Error('I video vanno caricati con il caricamento resumable, non con questo endpoint.');
+  }
+
   const validationError = validateUploadFile({
     file: args.file,
     allowedMimeTypes: CUSTOMER_MEDIA_MIME_TYPES,
@@ -551,7 +744,9 @@ export async function uploadMediaForBooking(args: {
     booking,
     caption: args.caption,
     staffUserId: args.staffUserId,
-    storagePath,
     mediaType,
+    provider: 'supabase',
+    status: 'ready',
+    storagePath,
   });
 }
