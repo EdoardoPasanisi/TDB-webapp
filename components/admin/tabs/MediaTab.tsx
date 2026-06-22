@@ -37,6 +37,8 @@ type RecorderModalState = {
   elapsedSeconds: number;
   file: File | null;
   previewUrl: string | null;
+  posterUrl: string | null;
+  previewPlaybackFailed: boolean;
   error: string | null;
 };
 
@@ -53,8 +55,8 @@ const RECORDING_VIDEO_BITS_PER_SECOND = 2_000_000;
 const RECORDING_AUDIO_BITS_PER_SECOND = 96_000;
 
 const RECORDING_MIME_CANDIDATES = [
-  'video/mp4;codecs=h264,aac',
   'video/mp4',
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
   'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
   'video/webm',
@@ -167,9 +169,11 @@ export function MediaTab() {
   const [uploadingBookingId, setUploadingBookingId] = useState<string | null>(null);
   const [recorderModal, setRecorderModal] = useState<RecorderModalState | null>(null);
   const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const recordedPreviewRef = useRef<HTMLVideoElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  const recordingPosterUrlRef = useRef<string | null>(null);
   const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -180,6 +184,14 @@ export function MediaTab() {
       void node.play().catch(() => undefined);
     }
   }, []);
+
+  useEffect(() => {
+    const video = recordedPreviewRef.current;
+    if (!video || !recorderModal?.previewUrl) return;
+
+    video.load();
+    void video.play().catch(() => undefined);
+  }, [recorderModal?.previewUrl]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setState('loading');
@@ -227,6 +239,20 @@ export function MediaTab() {
     }));
   }
 
+  function captureRecordingPoster(): string | null {
+    const video = cameraPreviewRef.current;
+    if (!video?.videoWidth || !video.videoHeight) return null;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  }
+
   const clearRecordingTimers = useCallback(() => {
     if (elapsedTimerRef.current) {
       clearInterval(elapsedTimerRef.current);
@@ -249,6 +275,7 @@ export function MediaTab() {
 
   const discardActiveRecording = useCallback(() => {
     clearRecordingTimers();
+    recordingPosterUrlRef.current = null;
 
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
@@ -284,6 +311,8 @@ export function MediaTab() {
       elapsedSeconds: 0,
       file: null,
       previewUrl: null,
+      posterUrl: null,
+      previewPlaybackFailed: false,
       error: null,
     });
   }
@@ -342,6 +371,8 @@ export function MediaTab() {
             elapsedSeconds: 0,
             file: null,
             previewUrl: null,
+            posterUrl: null,
+            previewPlaybackFailed: false,
             error: null,
           }
         : current
@@ -374,8 +405,9 @@ export function MediaTab() {
         releaseCameraStream();
         recorderRef.current = null;
 
-        const uploadMimeType = getUploadMimeType(recordedMimeType);
-        const blob = new Blob(chunksRef.current, { type: uploadMimeType });
+        const previewMimeType = recordedMimeType || mimeType;
+        const uploadMimeType = getUploadMimeType(previewMimeType);
+        const blob = new Blob(chunksRef.current, { type: previewMimeType });
         chunksRef.current = [];
 
         if (blob.size <= 0) {
@@ -387,10 +419,12 @@ export function MediaTab() {
 
         const file = new File(
           [blob],
-          `video-pensione-${new Date().toISOString().replace(/[:.]/g, '-')}.${getRecordingExtension(recordedMimeType)}`,
+          `video-pensione-${new Date().toISOString().replace(/[:.]/g, '-')}.${getRecordingExtension(previewMimeType)}`,
           { type: uploadMimeType }
         );
-        const previewUrl = URL.createObjectURL(file);
+        const previewUrl = URL.createObjectURL(blob);
+        const posterUrl = recordingPosterUrlRef.current;
+        recordingPosterUrlRef.current = null;
 
         setRecorderModal((current) =>
           current
@@ -399,6 +433,8 @@ export function MediaTab() {
                 status: 'ready',
                 file,
                 previewUrl,
+                posterUrl,
+                previewPlaybackFailed: false,
                 error:
                   file.size > MAX_CUSTOMER_MEDIA_BYTES
                     ? `Il video registrato pesa ${formatFileSize(file.size)}. Riduci la durata e riprova.`
@@ -456,6 +492,7 @@ export function MediaTab() {
     const recorder = recorderRef.current;
     if (!recorder || recorder.state === 'inactive') return;
     clearRecordingTimers();
+    recordingPosterUrlRef.current = captureRecordingPoster();
     recorder.stop();
   }
 
@@ -755,14 +792,41 @@ export function MediaTab() {
           <div className="space-y-4">
             <div className="overflow-hidden rounded-[var(--radius)] border border-[rgba(255,255,255,0.12)] bg-black">
               {recorderModal.previewUrl ? (
-                <video
-                  key={recorderModal.previewUrl}
-                  src={recorderModal.previewUrl}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="aspect-video w-full bg-black object-contain"
-                />
+                recorderModal.previewPlaybackFailed ? (
+                  <div className="relative flex aspect-video w-full items-center justify-center bg-black">
+                    {recorderModal.posterUrl ? (
+                      <div
+                        role="img"
+                        aria-label="Anteprima del video registrato"
+                        className="h-full w-full bg-contain bg-center bg-no-repeat"
+                        style={{ backgroundImage: `url(${recorderModal.posterUrl})` }}
+                      />
+                    ) : null}
+                    <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-3 py-2 text-sm text-white">
+                      Anteprima video non riproducibile su questo dispositivo. Puoi comunque usare il video registrato.
+                    </div>
+                  </div>
+                ) : (
+                  <video
+                    ref={recordedPreviewRef}
+                    key={recorderModal.previewUrl}
+                    src={recorderModal.previewUrl}
+                    controls
+                    autoPlay
+                    muted
+                    playsInline
+                    preload="auto"
+                    poster={recorderModal.posterUrl ?? undefined}
+                    onError={() => {
+                      setRecorderModal((current) =>
+                        current?.previewUrl === recorderModal.previewUrl
+                          ? { ...current, previewPlaybackFailed: true }
+                          : current
+                      );
+                    }}
+                    className="aspect-video w-full bg-black object-contain"
+                  />
+                )
               ) : (
                 <video
                   ref={setCameraPreviewNode}
