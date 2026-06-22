@@ -173,6 +173,14 @@ export function MediaTab() {
   const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const setCameraPreviewNode = useCallback((node: HTMLVideoElement | null) => {
+    cameraPreviewRef.current = node;
+    if (node && streamRef.current) {
+      node.srcObject = streamRef.current;
+      void node.play().catch(() => undefined);
+    }
+  }, []);
+
   const load = useCallback(async (signal?: AbortSignal) => {
     setState('loading');
     setError(null);
@@ -353,6 +361,7 @@ export function MediaTab() {
         videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND,
         audioBitsPerSecond: RECORDING_AUDIO_BITS_PER_SECOND,
       });
+      const recordedMimeType = recorder.mimeType || mimeType;
 
       recorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
@@ -365,7 +374,7 @@ export function MediaTab() {
         releaseCameraStream();
         recorderRef.current = null;
 
-        const uploadMimeType = getUploadMimeType(mimeType);
+        const uploadMimeType = getUploadMimeType(recordedMimeType);
         const blob = new Blob(chunksRef.current, { type: uploadMimeType });
         chunksRef.current = [];
 
@@ -378,7 +387,7 @@ export function MediaTab() {
 
         const file = new File(
           [blob],
-          `video-pensione-${new Date().toISOString().replace(/[:.]/g, '-')}.${getRecordingExtension(mimeType)}`,
+          `video-pensione-${new Date().toISOString().replace(/[:.]/g, '-')}.${getRecordingExtension(recordedMimeType)}`,
           { type: uploadMimeType }
         );
         const previewUrl = URL.createObjectURL(file);
@@ -408,7 +417,7 @@ export function MediaTab() {
       };
 
       const startedAt = Date.now();
-      recorder.start(1000);
+      recorder.start();
       setRecorderModal((current) =>
         current ? { ...current, status: 'recording', elapsedSeconds: 0, error: null } : current
       );
@@ -537,6 +546,9 @@ export function MediaTab() {
   if (state === 'error') {
     return <ErrorCard error={error ?? 'Errore caricamento media.'} onRetry={() => void load()} />;
   }
+
+  const isRecorderFullscreen =
+    recorderModal?.status === 'starting' || recorderModal?.status === 'recording';
 
   return (
     <div className="space-y-4">
@@ -702,8 +714,39 @@ export function MediaTab() {
         </div>
       )}
 
+      {recorderModal && isRecorderFullscreen ? (
+        <div className="fixed inset-0 z-[70] flex flex-col bg-black text-white">
+          <video
+            ref={setCameraPreviewNode}
+            autoPlay
+            muted
+            playsInline
+            className="min-h-0 flex-1 bg-black object-cover"
+          />
+
+          <div className="pointer-events-none absolute left-0 right-0 top-0 flex justify-center px-4 pt-[calc(env(safe-area-inset-top)+16px)]">
+            <div className="rounded-full bg-black/55 px-4 py-2 text-center text-[15px] font-semibold backdrop-blur">
+              {recorderModal.status === 'starting'
+                ? 'Apertura camera…'
+                : `${formatElapsed(recorderModal.elapsedSeconds)} / ${formatElapsed(RECORDING_MAX_SECONDS)}`}
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/85 to-transparent px-5 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-14">
+            <Button
+              type="button"
+              variant="danger"
+              fullWidth
+              onClick={recorderModal.status === 'starting' ? closeRecorderModal : stopRecording}
+            >
+              {recorderModal.status === 'starting' ? 'Annulla' : 'Interrompi video'}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       <ModalFrame
-        open={Boolean(recorderModal)}
+        open={Boolean(recorderModal && !isRecorderFullscreen)}
         title={recorderModal ? `Registra video per ${recorderModal.ownerName}` : 'Registra video'}
         onClose={closeRecorderModal}
         maxWidthClassName="sm:max-w-2xl"
@@ -713,14 +756,16 @@ export function MediaTab() {
             <div className="overflow-hidden rounded-[var(--radius)] border border-[rgba(255,255,255,0.12)] bg-black">
               {recorderModal.previewUrl ? (
                 <video
+                  key={recorderModal.previewUrl}
                   src={recorderModal.previewUrl}
                   controls
                   playsInline
+                  preload="metadata"
                   className="aspect-video w-full bg-black object-contain"
                 />
               ) : (
                 <video
-                  ref={cameraPreviewRef}
+                  ref={setCameraPreviewNode}
                   autoPlay
                   muted
                   playsInline
