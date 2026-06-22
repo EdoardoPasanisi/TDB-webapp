@@ -64,7 +64,9 @@ export async function createStreamDirectUpload(args: {
       Authorization: `Bearer ${getApiToken()}`,
       'Tus-Resumable': '1.0.0',
       'Upload-Length': String(args.size),
-      'Upload-Creator': `${args.userId}:${args.bookingId}`,
+      // Cloudflare limita il creator ID a 64 caratteri: uno UUID solo (36) ci sta.
+      // Il booking resta tracciato lato nostro (customer_media.booking_id).
+      'Upload-Creator': args.userId,
       'Upload-Metadata': metadata,
     },
   });
