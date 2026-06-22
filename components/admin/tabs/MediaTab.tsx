@@ -37,6 +37,7 @@ type RecorderModalState = {
   elapsedSeconds: number;
   file: File | null;
   previewUrl: string | null;
+  previewDataUrl: string | null;
   posterUrl: string | null;
   previewPlaybackFailed: boolean;
   error: string | null;
@@ -55,8 +56,10 @@ const RECORDING_VIDEO_BITS_PER_SECOND = 2_000_000;
 const RECORDING_AUDIO_BITS_PER_SECOND = 96_000;
 
 const RECORDING_MIME_CANDIDATES = [
-  'video/mp4',
   'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4;codecs=avc1.4D401E,mp4a.40.2',
+  'video/mp4;codecs=avc1.64001F,mp4a.40.2',
+  'video/mp4',
   'video/webm;codecs=vp9,opus',
   'video/webm;codecs=vp8,opus',
   'video/webm',
@@ -187,11 +190,12 @@ export function MediaTab() {
 
   useEffect(() => {
     const video = recordedPreviewRef.current;
-    if (!video || !recorderModal?.previewUrl) return;
+    const previewSource = recorderModal?.previewDataUrl ?? recorderModal?.previewUrl;
+    if (!video || !previewSource) return;
 
     video.load();
     void video.play().catch(() => undefined);
-  }, [recorderModal?.previewUrl]);
+  }, [recorderModal?.previewDataUrl, recorderModal?.previewUrl]);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setState('loading');
@@ -253,6 +257,28 @@ export function MediaTab() {
     return canvas.toDataURL('image/jpeg', 0.82);
   }
 
+  function retryRecordedPreviewWithDataUrl(file: File, previewUrl: string) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : null;
+      setRecorderModal((current) =>
+        current?.previewUrl === previewUrl
+          ? {
+              ...current,
+              previewDataUrl: dataUrl,
+              previewPlaybackFailed: !dataUrl,
+            }
+          : current
+      );
+    };
+    reader.onerror = () => {
+      setRecorderModal((current) =>
+        current?.previewUrl === previewUrl ? { ...current, previewPlaybackFailed: true } : current
+      );
+    };
+    reader.readAsDataURL(file);
+  }
+
   const clearRecordingTimers = useCallback(() => {
     if (elapsedTimerRef.current) {
       clearInterval(elapsedTimerRef.current);
@@ -311,6 +337,7 @@ export function MediaTab() {
       elapsedSeconds: 0,
       file: null,
       previewUrl: null,
+      previewDataUrl: null,
       posterUrl: null,
       previewPlaybackFailed: false,
       error: null,
@@ -371,6 +398,7 @@ export function MediaTab() {
             elapsedSeconds: 0,
             file: null,
             previewUrl: null,
+            previewDataUrl: null,
             posterUrl: null,
             previewPlaybackFailed: false,
             error: null,
@@ -433,6 +461,7 @@ export function MediaTab() {
                 status: 'ready',
                 file,
                 previewUrl,
+                previewDataUrl: null,
                 posterUrl,
                 previewPlaybackFailed: false,
                 error:
@@ -809,8 +838,8 @@ export function MediaTab() {
                 ) : (
                   <video
                     ref={recordedPreviewRef}
-                    key={recorderModal.previewUrl}
-                    src={recorderModal.previewUrl}
+                    key={recorderModal.previewDataUrl ?? recorderModal.previewUrl}
+                    src={recorderModal.previewDataUrl ?? recorderModal.previewUrl}
                     controls
                     autoPlay
                     muted
@@ -818,8 +847,16 @@ export function MediaTab() {
                     preload="auto"
                     poster={recorderModal.posterUrl ?? undefined}
                     onError={() => {
+                      const previewUrl = recorderModal.previewUrl;
+                      if (!previewUrl) return;
+
+                      if (!recorderModal.previewDataUrl && recorderModal.file) {
+                        retryRecordedPreviewWithDataUrl(recorderModal.file, previewUrl);
+                        return;
+                      }
+
                       setRecorderModal((current) =>
-                        current?.previewUrl === recorderModal.previewUrl
+                        current?.previewUrl === previewUrl
                           ? { ...current, previewPlaybackFailed: true }
                           : current
                       );
