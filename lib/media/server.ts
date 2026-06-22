@@ -1,4 +1,5 @@
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { CUSTOMER_MEDIA_BUCKET } from '@/lib/media/config';
 import { createUserNotificationIfEnabled } from '@/lib/notifications/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ADMIN_ACTIVE_STATUSES, formatPersonName } from '@/lib/admin/utils';
@@ -8,9 +9,8 @@ import {
   CUSTOMER_MEDIA_MIME_TYPES,
   validateUploadBytes,
   validateUploadFile,
+  validateUploadMetadata,
 } from '@/lib/validation/uploads';
-
-const CUSTOMER_MEDIA_BUCKET = 'customer-media';
 
 type BookingMediaUploadRow = {
   id: string;
@@ -46,7 +46,14 @@ function castMediaRow(row: unknown): CustomerMediaRow {
   return row as CustomerMediaRow;
 }
 
-function guessMediaExtension(file: File): string {
+function normalizeMimeType(value: string | null | undefined): string {
+  return String(value ?? '').trim().toLowerCase();
+}
+
+function guessMediaExtensionFromMetadata(args: {
+  mimeType: string | null | undefined;
+  fileName?: string | null;
+}): string {
   const byType: Record<string, string> = {
     'image/jpeg': 'jpg',
     'image/jpg': 'jpg',
@@ -56,14 +63,23 @@ function guessMediaExtension(file: File): string {
     'video/quicktime': 'mov',
     'video/webm': 'webm',
   };
-  if (byType[file.type]) return byType[file.type];
+  const mimeType = normalizeMimeType(args.mimeType);
+  if (byType[mimeType]) return byType[mimeType];
 
-  const match = file.name.toLowerCase().match(/\.([a-z0-9]+)$/);
+  const match = String(args.fileName ?? '').toLowerCase().match(/\.([a-z0-9]+)$/);
   return match?.[1] ?? 'bin';
 }
 
+function guessMediaExtension(file: File): string {
+  return guessMediaExtensionFromMetadata({ mimeType: file.type, fileName: file.name });
+}
+
+function getMediaTypeFromMimeType(mimeType: string | null | undefined): CustomerMediaType {
+  return normalizeMimeType(mimeType).startsWith('video/') ? 'VIDEO' : 'IMAGE';
+}
+
 function getMediaTypeFromFile(file: File): CustomerMediaType {
-  return String(file.type).startsWith('video/') ? 'VIDEO' : 'IMAGE';
+  return getMediaTypeFromMimeType(file.type);
 }
 
 function computeVisibleUntil(endDate: string | null, departureTime: string | null): string {
@@ -80,7 +96,8 @@ function buildMediaPath(args: {
   ext: string;
 }): string {
   const stamp = Date.now();
-  return `${args.userId}/${args.bookingId}/${stamp}.${args.ext}`;
+  const token = crypto.randomUUID();
+  return `${args.userId}/${args.bookingId}/${stamp}-${token}.${args.ext}`;
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -234,6 +251,237 @@ export async function listAdminMediaRecap(): Promise<AdminMediaRecapItem[]> {
     });
 }
 
+function validateCustomerMediaMetadata(args: {
+  mimeType: string | null | undefined;
+  size: number;
+}): string | null {
+  return validateUploadMetadata({
+    size: args.size,
+    mimeType: args.mimeType,
+    allowedMimeTypes: CUSTOMER_MEDIA_MIME_TYPES,
+    maxBytes: MAX_CUSTOMER_MEDIA_BYTES,
+    invalidTypeMessage: 'Formato non valido. Usa JPG, PNG, WebP, MP4, MOV o WebM.',
+    tooLargeMessage: 'Il media è troppo grande. Limite massimo: 50MB.',
+  });
+}
+
+async function getBookingForMediaUpload(bookingId: string): Promise<Omit<BookingMediaUploadRow, 'booking_dogs'>> {
+  const { data: bookingData, error: bookingError } = await supabaseAdmin
+    .from('bookings')
+    .select('id, user_id, service_type, status, start_date, end_date, departure_time')
+    .eq('id', bookingId)
+    .maybeSingle();
+
+  const booking = (bookingData ?? null) as Omit<BookingMediaUploadRow, 'booking_dogs'> | null;
+  if (bookingError || !booking) {
+    throw new Error(bookingError?.message ?? 'Prenotazione pensione non trovata.');
+  }
+
+  if (booking.service_type !== 'PENSIONE') {
+    throw new Error('Puoi inviare media solo per prenotazioni pensione.');
+  }
+
+  if (!booking.status || !ADMIN_ACTIVE_STATUSES.includes(booking.status as (typeof ADMIN_ACTIVE_STATUSES)[number])) {
+    throw new Error('Puoi inviare media solo per pensioni attive.');
+  }
+
+  return booking;
+}
+
+function assertStoragePathMatchesBooking(args: {
+  storagePath: string;
+  booking: Omit<BookingMediaUploadRow, 'booking_dogs'>;
+}): void {
+  const storagePath = String(args.storagePath ?? '').trim();
+  const expectedPrefix = `${args.booking.user_id}/${args.booking.id}/`;
+
+  if (!storagePath || storagePath.includes('..') || !storagePath.startsWith(expectedPrefix)) {
+    throw new Error('Percorso media non valido.');
+  }
+}
+
+function getStorageInfoSize(info: unknown): number | null {
+  const record = (info ?? {}) as Record<string, unknown>;
+  const metadata = (record.metadata ?? {}) as Record<string, unknown>;
+  const rawSize = record.size ?? metadata.size ?? metadata.contentLength;
+  const size = typeof rawSize === 'number' ? rawSize : Number(rawSize);
+  return Number.isFinite(size) ? size : null;
+}
+
+function getStorageInfoContentType(info: unknown): string | null {
+  const record = (info ?? {}) as Record<string, unknown>;
+  const metadata = (record.metadata ?? {}) as Record<string, unknown>;
+  const raw =
+    record.contentType ??
+    record.content_type ??
+    metadata.mimetype ??
+    metadata.mimeType ??
+    metadata.contentType ??
+    metadata.content_type;
+  const value = normalizeMimeType(String(raw ?? ''));
+  return value || null;
+}
+
+async function registerUploadedMediaForBooking(args: {
+  booking: Omit<BookingMediaUploadRow, 'booking_dogs'>;
+  caption?: string | null;
+  staffUserId: string;
+  storagePath: string;
+  mediaType: CustomerMediaType;
+}): Promise<CustomerMediaRow> {
+  const { data: existingData, error: existingError } = await supabaseAdmin
+    .from('customer_media')
+    .select('*')
+    .eq('storage_path', args.storagePath)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (existingData) {
+    return castMediaRow(existingData);
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('customer_media')
+    .insert({
+      user_id: args.booking.user_id,
+      booking_id: args.booking.id,
+      media_type: args.mediaType,
+      storage_path: args.storagePath,
+      caption: String(args.caption ?? '').trim() || null,
+      visible_until: computeVisibleUntil(args.booking.end_date ?? args.booking.start_date, args.booking.departure_time),
+      created_by_staff_user_id: args.staffUserId,
+    })
+    .select('*')
+    .single();
+
+  if (error || !data) {
+    await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([args.storagePath]).catch(() => undefined);
+    throw new Error(error?.message ?? 'Non siamo riusciti a registrare il media.');
+  }
+
+  try {
+    await createUserNotificationIfEnabled({
+      userId: args.booking.user_id,
+      type: 'MEDIA_AVAILABLE',
+      title: args.mediaType === 'VIDEO' ? 'Nuovo video disponibile' : 'Nuova foto disponibile',
+      body: 'Abbiamo caricato un nuovo contenuto del tuo cane nella sezione I tuoi media.',
+      data: {
+        href: '/profile',
+        bookingId: args.booking.id,
+      },
+    });
+  } catch (notificationError) {
+    console.error('Customer media notification failed:', notificationError);
+  }
+
+  return castMediaRow(data);
+}
+
+export async function createSignedMediaUploadForBooking(args: {
+  bookingId: string;
+  fileName?: string | null;
+  mimeType: string;
+  size: number;
+}): Promise<{
+  bucket: string;
+  storagePath: string;
+  signedUrl: string;
+  token: string;
+}> {
+  const mimeType = normalizeMimeType(args.mimeType);
+  const validationError = validateCustomerMediaMetadata({ mimeType, size: args.size });
+  if (validationError) {
+    throw new Error(validationError);
+  }
+
+  const booking = await getBookingForMediaUpload(args.bookingId);
+  const ext = guessMediaExtensionFromMetadata({ mimeType, fileName: args.fileName });
+  const storagePath = buildMediaPath({
+    userId: booking.user_id,
+    bookingId: booking.id,
+    ext,
+  });
+
+  const { data, error } = await supabaseAdmin.storage
+    .from(CUSTOMER_MEDIA_BUCKET)
+    .createSignedUploadUrl(storagePath, { upsert: false });
+
+  if (error || !data) {
+    throw new Error(humanizeErrorMessage(error, 'Non siamo riusciti a preparare il caricamento del media.'));
+  }
+
+  return {
+    bucket: CUSTOMER_MEDIA_BUCKET,
+    storagePath: data.path || storagePath,
+    signedUrl: data.signedUrl,
+    token: data.token,
+  };
+}
+
+export async function completeSignedMediaUploadForBooking(args: {
+  bookingId: string;
+  caption?: string | null;
+  staffUserId: string;
+  storagePath: string;
+  mimeType?: string | null;
+  size?: number | null;
+}): Promise<CustomerMediaRow> {
+  const booking = await getBookingForMediaUpload(args.bookingId);
+  const storagePath = String(args.storagePath ?? '').trim();
+  assertStoragePathMatchesBooking({ storagePath, booking });
+
+  const { data: info, error: infoError } = await supabaseAdmin.storage
+    .from(CUSTOMER_MEDIA_BUCKET)
+    .info(storagePath);
+
+  if (infoError || !info) {
+    throw new Error(humanizeErrorMessage(infoError, 'Non siamo riusciti a verificare il media caricato.'));
+  }
+
+  const objectSize = getStorageInfoSize(info) ?? (args.size != null ? Number(args.size) : 0);
+  const objectMimeType = getStorageInfoContentType(info) ?? normalizeMimeType(args.mimeType);
+  const validationError = validateCustomerMediaMetadata({ mimeType: objectMimeType, size: objectSize });
+  if (validationError) {
+    await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([storagePath]).catch(() => undefined);
+    throw new Error(validationError);
+  }
+
+  const { data: downloadedMedia, error: downloadError } = await supabaseAdmin.storage
+    .from(CUSTOMER_MEDIA_BUCKET)
+    .download(storagePath);
+
+  if (downloadError || !downloadedMedia) {
+    throw new Error(humanizeErrorMessage(downloadError, 'Non siamo riusciti a verificare il media caricato.'));
+  }
+
+  const downloadedSizeError = validateCustomerMediaMetadata({
+    mimeType: objectMimeType,
+    size: downloadedMedia.size,
+  });
+  if (downloadedSizeError) {
+    await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([storagePath]).catch(() => undefined);
+    throw new Error(downloadedSizeError);
+  }
+
+  const headerBytes = new Uint8Array(await downloadedMedia.slice(0, 16).arrayBuffer());
+  const signatureError = validateUploadBytes({ type: objectMimeType }, headerBytes);
+  if (signatureError) {
+    await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([storagePath]).catch(() => undefined);
+    throw new Error(signatureError);
+  }
+
+  return registerUploadedMediaForBooking({
+    booking,
+    caption: args.caption,
+    staffUserId: args.staffUserId,
+    storagePath,
+    mediaType: getMediaTypeFromMimeType(objectMimeType),
+  });
+}
+
 export async function uploadMediaForBooking(args: {
   bookingId: string;
   caption?: string | null;
@@ -252,24 +500,7 @@ export async function uploadMediaForBooking(args: {
     throw new Error(validationError);
   }
 
-  const { data: bookingData, error: bookingError } = await supabaseAdmin
-    .from('bookings')
-    .select('id, user_id, service_type, status, start_date, end_date, departure_time')
-    .eq('id', args.bookingId)
-    .maybeSingle();
-
-  const booking = (bookingData ?? null) as Omit<BookingMediaUploadRow, 'booking_dogs'> | null;
-  if (bookingError || !booking) {
-    throw new Error(bookingError?.message ?? 'Prenotazione pensione non trovata.');
-  }
-
-  if (booking.service_type !== 'PENSIONE') {
-    throw new Error('Puoi inviare media solo per prenotazioni pensione.');
-  }
-
-  if (!booking.status || !ADMIN_ACTIVE_STATUSES.includes(booking.status as (typeof ADMIN_ACTIVE_STATUSES)[number])) {
-    throw new Error('Puoi inviare media solo per pensioni attive.');
-  }
+  const booking = await getBookingForMediaUpload(args.bookingId);
 
   const ext = guessMediaExtension(args.file);
   const storagePath = buildMediaPath({
@@ -299,35 +530,11 @@ export async function uploadMediaForBooking(args: {
     throw new Error(humanizeErrorMessage(uploadError, 'Non siamo riusciti a caricare il media.'));
   }
 
-  const { data, error } = await supabaseAdmin
-    .from('customer_media')
-    .insert({
-      user_id: booking.user_id,
-      booking_id: booking.id,
-      media_type: mediaType,
-      storage_path: storagePath,
-      caption: String(args.caption ?? '').trim() || null,
-      visible_until: computeVisibleUntil(booking.end_date ?? booking.start_date, booking.departure_time),
-      created_by_staff_user_id: args.staffUserId,
-    })
-    .select('*')
-    .single();
-
-  if (error || !data) {
-    await supabaseAdmin.storage.from(CUSTOMER_MEDIA_BUCKET).remove([storagePath]).catch(() => undefined);
-    throw new Error(error?.message ?? 'Non siamo riusciti a registrare il media.');
-  }
-
-  await createUserNotificationIfEnabled({
-    userId: booking.user_id,
-    type: 'MEDIA_AVAILABLE',
-    title: mediaType === 'VIDEO' ? 'Nuovo video disponibile' : 'Nuova foto disponibile',
-    body: 'Abbiamo caricato un nuovo contenuto del tuo cane nella sezione I tuoi media.',
-    data: {
-      href: '/profile',
-      bookingId: booking.id,
-    },
+  return registerUploadedMediaForBooking({
+    booking,
+    caption: args.caption,
+    staffUserId: args.staffUserId,
+    storagePath,
+    mediaType,
   });
-
-  return castMediaRow(data);
 }

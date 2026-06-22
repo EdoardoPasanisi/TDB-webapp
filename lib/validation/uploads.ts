@@ -22,7 +22,7 @@ export const USER_DOCUMENT_MIME_TYPES = new Set([
   'image/webp',
 ]);
 
-export const CUSTOMER_MEDIA_MIME_TYPES = new Set([
+export const CUSTOMER_MEDIA_MIME_TYPE_LIST = [
   'image/jpeg',
   'image/jpg',
   'image/png',
@@ -30,7 +30,9 @@ export const CUSTOMER_MEDIA_MIME_TYPES = new Set([
   'video/mp4',
   'video/quicktime',
   'video/webm',
-]);
+] as const;
+
+export const CUSTOMER_MEDIA_MIME_TYPES = new Set(CUSTOMER_MEDIA_MIME_TYPE_LIST);
 
 type ValidateFileArgs = {
   file: File;
@@ -40,26 +42,48 @@ type ValidateFileArgs = {
   tooLargeMessage: string;
 };
 
+type ValidateMetadataArgs = {
+  size: number;
+  mimeType: string | null | undefined;
+  allowedMimeTypes: Set<string>;
+  maxBytes: number;
+  invalidTypeMessage: string;
+  tooLargeMessage: string;
+};
+
 export function validateUploadFile(args: ValidateFileArgs): string | null {
   const { file, allowedMimeTypes, maxBytes, invalidTypeMessage, tooLargeMessage } = args;
 
-  if (file.size <= 0) {
+  return validateUploadMetadata({
+    size: file.size,
+    mimeType: file.type,
+    allowedMimeTypes,
+    maxBytes,
+    invalidTypeMessage,
+    tooLargeMessage,
+  });
+}
+
+export function validateUploadMetadata(args: ValidateMetadataArgs): string | null {
+  const { size, mimeType, allowedMimeTypes, maxBytes, invalidTypeMessage, tooLargeMessage } = args;
+
+  if (!Number.isFinite(size) || size <= 0) {
     return 'Il file selezionato è vuoto.';
   }
 
-  if (file.size > maxBytes) {
+  if (size > maxBytes) {
     return tooLargeMessage;
   }
 
-  const mimeType = String(file.type ?? '').trim().toLowerCase();
-  if (!allowedMimeTypes.has(mimeType)) {
+  const normalizedMimeType = String(mimeType ?? '').trim().toLowerCase();
+  if (!allowedMimeTypes.has(normalizedMimeType)) {
     return invalidTypeMessage;
   }
 
   return null;
 }
 
-export function validateUploadBytes(file: File, bytes: Uint8Array): string | null {
+export function validateUploadBytes(file: Pick<File, 'type'>, bytes: Uint8Array): string | null {
   const mimeType = String(file.type ?? '').trim().toLowerCase();
 
   if (mimeType === 'application/pdf') {

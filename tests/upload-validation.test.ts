@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { validateUploadBytes, validateUploadFile } from '../lib/validation/uploads';
+import { validateUploadBytes, validateUploadFile, validateUploadMetadata } from '../lib/validation/uploads';
 
 test('validateUploadFile accepts a supported document within size limit', () => {
   const file = new File([new Uint8Array([1, 2, 3])], 'document.pdf', {
@@ -65,6 +65,32 @@ test('validateUploadFile rejects unsupported mime types', () => {
   });
 
   assert.equal(result, 'Formato non valido.');
+});
+
+test('validateUploadMetadata accepts supported upload metadata', () => {
+  const result = validateUploadMetadata({
+    size: 512,
+    mimeType: 'image/webp',
+    allowedMimeTypes: new Set(['image/webp']),
+    maxBytes: 1024,
+    invalidTypeMessage: 'Formato non valido.',
+    tooLargeMessage: 'File troppo grande.',
+  });
+
+  assert.equal(result, null);
+});
+
+test('validateUploadMetadata rejects invalid size values', () => {
+  const result = validateUploadMetadata({
+    size: Number.NaN,
+    mimeType: 'image/webp',
+    allowedMimeTypes: new Set(['image/webp']),
+    maxBytes: 1024,
+    invalidTypeMessage: 'Formato non valido.',
+    tooLargeMessage: 'File troppo grande.',
+  });
+
+  assert.equal(result, 'Il file selezionato è vuoto.');
 });
 
 test('validateUploadBytes accepts matching PDF signatures', () => {

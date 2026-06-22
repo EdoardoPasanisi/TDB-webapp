@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchAdminJson, isAbortError } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { CUSTOMER_MEDIA_ACCEPT } from '@/lib/media/config';
+import { supabase } from '@/lib/supabaseClient';
+import {
+  CUSTOMER_MEDIA_MIME_TYPES,
+  MAX_CUSTOMER_MEDIA_BYTES,
+  validateUploadBytes,
+  validateUploadFile,
+} from '@/lib/validation/uploads';
 import type { AdminMediaRecapItem } from '@/types/media';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -20,6 +28,29 @@ type MediaDraft = {
   caption: string;
   file: File | null;
 };
+
+type SignedMediaUploadResponse = {
+  upload: {
+    bucket: string;
+    storagePath: string;
+    token: string;
+  };
+};
+
+async function validateMediaDraftFile(file: File): Promise<string | null> {
+  const metadataError = validateUploadFile({
+    file,
+    allowedMimeTypes: CUSTOMER_MEDIA_MIME_TYPES,
+    maxBytes: MAX_CUSTOMER_MEDIA_BYTES,
+    invalidTypeMessage: 'Formato non valido. Usa JPG, PNG, WebP, MP4, MOV o WebM.',
+    tooLargeMessage: 'Il media è troppo grande. Limite massimo: 50MB.',
+  });
+
+  if (metadataError) return metadataError;
+
+  const headerBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  return validateUploadBytes(file, headerBytes);
+}
 
 function priorityTone(priority: AdminMediaRecapItem['priority']) {
   if (priority === 'URGENT') {
@@ -141,22 +172,43 @@ export function MediaTab() {
     setError(null);
 
     try {
-      const formData = new FormData();
-      formData.set('bookingId', item.bookingId);
-      formData.set('caption', draft.caption.trim());
-      formData.set('file', draft.file);
+      const validationError = await validateMediaDraftFile(draft.file);
+      if (validationError) {
+        throw new Error(validationError);
+      }
 
-      const response = await fetch('/api/admin/media', {
+      const signedUpload = await fetchAdminJson<SignedMediaUploadResponse>('/api/admin/media/upload-url', {
         method: 'POST',
-        body: formData,
-        credentials: 'include',
-        cache: 'no-store',
+        body: JSON.stringify({
+          bookingId: item.bookingId,
+          fileName: draft.file.name,
+          mimeType: draft.file.type,
+          size: draft.file.size,
+        }),
       });
 
-      const json = (await response.json().catch(() => null)) as { error?: string } | null;
-      if (!response.ok) {
-        throw new Error(json?.error ?? 'Non siamo riusciti a caricare il media.');
+      const { error: uploadError } = await supabase.storage
+        .from(signedUpload.upload.bucket)
+        .uploadToSignedUrl(signedUpload.upload.storagePath, signedUpload.upload.token, draft.file, {
+          cacheControl: '31536000',
+          contentType: draft.file.type || 'application/octet-stream',
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(humanizeErrorMessage(uploadError, 'Non siamo riusciti a caricare il media.'));
       }
+
+      await fetchAdminJson('/api/admin/media/complete', {
+        method: 'POST',
+        body: JSON.stringify({
+          bookingId: item.bookingId,
+          caption: draft.caption.trim(),
+          storagePath: signedUpload.upload.storagePath,
+          mimeType: draft.file.type,
+          size: draft.file.size,
+        }),
+      });
 
       setDrafts((current) => ({
         ...current,
@@ -295,7 +347,7 @@ export function MediaTab() {
                           <input
                             key={draft.file?.name ?? `${item.bookingId}-empty`}
                             type="file"
-                            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                            accept={CUSTOMER_MEDIA_ACCEPT}
                             className="ui-control ui-input file:mr-3 file:border-0 file:bg-transparent file:font-semibold file:text-[var(--brand-accent)]"
                             onChange={(event) =>
                               updateDraft(item.bookingId, {
