@@ -561,17 +561,32 @@ function buildSingleDogServiceSummaryLines(args: {
   }
 
   if (serviceKey === 'TAXI_DOG') {
-    if (taxiLine) {
-      lines.push(taxiLine);
-    }
-    const normalizedTaxiTime = formatTimeOnly(taxiTime);
-    if (normalizedTaxiTime) {
-      lines.push(`Orario: ${normalizedTaxiTime}`);
-    }
-    const address = formatServiceAddress(profile);
-    if (address) {
-      lines.push(address);
-    }
+    lines.push(...buildTaxiDogSummaryLines({ profile, taxiLine, taxiTime }));
+  }
+
+  return lines;
+}
+
+function buildTaxiDogSummaryLines(args: {
+  profile?: Profile | ProfileSummaryRow;
+  taxiLine?: string | null;
+  taxiTime?: string | null;
+}): string[] {
+  const { profile, taxiLine = null, taxiTime = null } = args;
+  const lines: string[] = [];
+
+  if (taxiLine) {
+    lines.push(taxiLine);
+  }
+
+  const normalizedTaxiTime = formatTimeOnly(taxiTime);
+  if (normalizedTaxiTime) {
+    lines.push(`Orario: ${normalizedTaxiTime}`);
+  }
+
+  const address = formatServiceAddress(profile);
+  if (address) {
+    lines.push(address);
   }
 
   return lines;
@@ -876,134 +891,60 @@ function buildPensioneAgendaItems(args: {
         }
 
         if (serviceKey === 'TAXI_DOG') {
-          const taxiItemsByDog = bookingDogs.flatMap((bookingDog) => {
-            const dog = firstRelation(bookingDog.dogs);
-            const dogName = (dog?.name ?? '').trim() || 'Cane';
-            const lastDay = row.end_date ?? row.start_date;
-
-            if (row.taxi_option === 'ONE_WAY') {
-              return [{
-                itemKey: `PENSIONE:${row.id}:TAXI_DOG:${bookingDog.dog_id}:andata`,
-                kind: 'PENSIONE',
-                id: row.id,
-                userId: row.user_id,
-                userName,
-                userEmail: profile?.email ?? null,
-                dogNames: [dogName],
-                serviceKey,
-                serviceType,
-                serviceVariant: null,
-                serviceLabel,
-                status: derivedStatus,
-                startAt: buildPointDateTime(row.start_date, row.taxi_pickup_time ?? row.arrival_time ?? null),
-                endAt: null,
-                totalPrice: row.total_price ?? null,
-                notes: row.notes ?? null,
-                isActive: isActiveBookingStatus(derivedStatus),
-                meta: [],
-                summaryLines: buildSingleDogServiceSummaryLines({
-                  bookingDog,
-                  serviceKey,
-                  profile,
-                  taxiLine: 'Solo andata',
-                  taxiTime: row.taxi_pickup_time ?? row.arrival_time ?? null,
-                }),
-              } satisfies AdminAgendaItem];
-            }
-
-            if (row.taxi_option === 'RETURN_ONLY') {
-              return [{
-                itemKey: `PENSIONE:${row.id}:TAXI_DOG:${bookingDog.dog_id}:ritorno`,
-                kind: 'PENSIONE',
-                id: row.id,
-                userId: row.user_id,
-                userName,
-                userEmail: profile?.email ?? null,
-                dogNames: [dogName],
-                serviceKey,
-                serviceType,
-                serviceVariant: null,
-                serviceLabel,
-                status: derivedStatus,
-                startAt: buildPointDateTime(lastDay, row.taxi_return_time ?? row.departure_time ?? null),
-                endAt: null,
-                totalPrice: row.total_price ?? null,
-                notes: row.notes ?? null,
-                isActive: isActiveBookingStatus(derivedStatus),
-                meta: [],
-                summaryLines: buildSingleDogServiceSummaryLines({
-                  bookingDog,
-                  serviceKey,
-                  profile,
-                  taxiLine: 'Solo ritorno',
-                  taxiTime: row.taxi_return_time ?? row.departure_time ?? null,
-                }),
-              } satisfies AdminAgendaItem];
-            }
-
-            if (row.taxi_option === 'ROUND_TRIP') {
-              return [
-                {
-                  itemKey: `PENSIONE:${row.id}:TAXI_DOG:${bookingDog.dog_id}:andata`,
-                  kind: 'PENSIONE',
-                  id: row.id,
-                  userId: row.user_id,
-                  userName,
-                  userEmail: profile?.email ?? null,
-                  dogNames: [dogName],
-                  serviceKey,
-                  serviceType,
-                  serviceVariant: null,
-                  serviceLabel,
-                  status: derivedStatus,
-                  startAt: buildPointDateTime(row.start_date, row.taxi_pickup_time ?? row.arrival_time ?? null),
-                  endAt: null,
-                  totalPrice: row.total_price ?? null,
-                  notes: row.notes ?? null,
-                  isActive: isActiveBookingStatus(derivedStatus),
-                  meta: [],
-                  summaryLines: buildSingleDogServiceSummaryLines({
-                    bookingDog,
-                    serviceKey,
-                    profile,
-                    taxiLine: 'Andata',
-                    taxiTime: row.taxi_pickup_time ?? row.arrival_time ?? null,
-                  }),
-                } satisfies AdminAgendaItem,
-                {
-                  itemKey: `PENSIONE:${row.id}:TAXI_DOG:${bookingDog.dog_id}:ritorno`,
-                  kind: 'PENSIONE',
-                  id: row.id,
-                  userId: row.user_id,
-                  userName,
-                  userEmail: profile?.email ?? null,
-                  dogNames: [dogName],
-                  serviceKey,
-                  serviceType,
-                  serviceVariant: null,
-                  serviceLabel,
-                  status: derivedStatus,
-                  startAt: buildPointDateTime(lastDay, row.taxi_return_time ?? row.departure_time ?? null),
-                  endAt: null,
-                  totalPrice: row.total_price ?? null,
-                  notes: row.notes ?? null,
-                  isActive: isActiveBookingStatus(derivedStatus),
-                  meta: [],
-                  summaryLines: buildSingleDogServiceSummaryLines({
-                    bookingDog,
-                    serviceKey,
-                    profile,
-                    taxiLine: 'Ritorno',
-                    taxiTime: row.taxi_return_time ?? row.departure_time ?? null,
-                  }),
-                } satisfies AdminAgendaItem,
-              ];
-            }
-
-            return [];
+          const lastDay = row.end_date ?? row.start_date;
+          const buildTaxiItem = (
+            direction: 'andata' | 'ritorno',
+            taxiLine: string,
+            serviceDate: string,
+            taxiTime: string | null | undefined
+          ): AdminAgendaItem => ({
+            itemKey: `PENSIONE:${row.id}:TAXI_DOG:${direction}`,
+            kind: 'PENSIONE',
+            id: row.id,
+            userId: row.user_id,
+            userName,
+            userEmail: profile?.email ?? null,
+            dogNames,
+            serviceKey,
+            serviceType,
+            serviceVariant: null,
+            serviceLabel,
+            status: derivedStatus,
+            startAt: buildPointDateTime(serviceDate, taxiTime ?? null),
+            endAt: null,
+            totalPrice: row.total_price ?? null,
+            notes: row.notes ?? null,
+            isActive: isActiveBookingStatus(derivedStatus),
+            meta: [],
+            summaryLines: buildTaxiDogSummaryLines({
+              profile,
+              taxiLine,
+              taxiTime,
+            }),
           });
 
-          return taxiItemsByDog.filter((item) =>
+          const taxiItemsByTrip: AdminAgendaItem[] = [];
+
+          if (row.taxi_option === 'ONE_WAY') {
+            taxiItemsByTrip.push(
+              buildTaxiItem('andata', 'Solo andata', row.start_date, row.taxi_pickup_time ?? row.arrival_time ?? null)
+            );
+          }
+
+          if (row.taxi_option === 'RETURN_ONLY') {
+            taxiItemsByTrip.push(
+              buildTaxiItem('ritorno', 'Solo ritorno', lastDay, row.taxi_return_time ?? row.departure_time ?? null)
+            );
+          }
+
+          if (row.taxi_option === 'ROUND_TRIP') {
+            taxiItemsByTrip.push(
+              buildTaxiItem('andata', 'Andata', row.start_date, row.taxi_pickup_time ?? row.arrival_time ?? null),
+              buildTaxiItem('ritorno', 'Ritorno', lastDay, row.taxi_return_time ?? row.departure_time ?? null)
+            );
+          }
+
+          return taxiItemsByTrip.filter((item) =>
             agendaItemFallsWithinDateRange({
               startAt: item.startAt,
               endAt: item.endAt,
