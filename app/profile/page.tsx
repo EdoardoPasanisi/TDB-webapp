@@ -384,14 +384,15 @@ export default function ProfileOverviewPage() {
                       {item.mediaType === 'VIDEO' ? (
                         <video
                           controls
-                          preload="metadata"
+                          playsInline
+                          preload="auto"
                           className="block h-auto max-h-[420px] w-full bg-black object-contain"
                         >
-                          <source src={item.signedUrl} />
+                          <source src={item.mediaUrl} type={item.mimeType} />
                         </video>
                       ) : (
                         <img
-                          src={item.signedUrl}
+                          src={item.mediaUrl}
                           alt={item.caption || 'Media del tuo pet'}
                           className="block h-auto max-h-[420px] w-full object-cover"
                         />

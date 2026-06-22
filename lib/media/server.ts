@@ -74,6 +74,21 @@ function guessMediaExtension(file: File): string {
   return guessMediaExtensionFromMetadata({ mimeType: file.type, fileName: file.name });
 }
 
+export function getCustomerMediaMimeTypeFromPath(storagePath: string): string {
+  const extension = String(storagePath ?? '').toLowerCase().match(/\.([a-z0-9]+)(?:[?#].*)?$/)?.[1] ?? '';
+  const byExtension: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    webm: 'video/webm',
+  };
+
+  return byExtension[extension] ?? 'application/octet-stream';
+}
+
 function getMediaTypeFromMimeType(mimeType: string | null | undefined): CustomerMediaType {
   return normalizeMimeType(mimeType).startsWith('video/') ? 'VIDEO' : 'IMAGE';
 }
@@ -162,6 +177,8 @@ export async function listVisibleMediaForUser(userId: string): Promise<CustomerM
         createdAt: row.created_at,
         visibleUntil: row.visible_until,
         signedUrl,
+        mediaUrl: row.media_type === 'VIDEO' ? `/api/media/${row.id}/content` : signedUrl,
+        mimeType: getCustomerMediaMimeTypeFromPath(row.storage_path),
       } satisfies CustomerMediaViewItem;
     })
     .filter((item): item is CustomerMediaViewItem => Boolean(item));

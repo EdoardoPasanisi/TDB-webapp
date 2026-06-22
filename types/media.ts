@@ -20,6 +20,8 @@ export type CustomerMediaViewItem = {
   createdAt: string;
   visibleUntil: string;
   signedUrl: string;
+  mediaUrl: string;
+  mimeType: string;
 };
 
 export type AdminMediaRecapItem = {
