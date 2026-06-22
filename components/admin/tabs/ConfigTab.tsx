@@ -94,7 +94,7 @@ export function ConfigTab({
     [staff, staffForm.userId]
   );
 
-  // Un Amministratore plus può gestire qualunque ruolo, tranne sé stesso (anti-lockout).
+  // Un Admin può gestire qualunque ruolo, tranne sé stesso (anti-lockout).
   // Un ADMIN può gestire solo i membri "Sola lettura".
   const isSelfStaffMember = Boolean(currentUserId) && staffForm.userId === currentUserId;
   const canManageRole = (role: StaffRole | null | undefined) =>
@@ -398,7 +398,7 @@ export function ConfigTab({
       return;
     }
     if (!canManageSelectedTarget) {
-      setError('Solo un Amministratore plus può gestire un altro amministratore.');
+      setError('Solo un Admin può gestire un altro amministratore.');
       return;
     }
     setSavingStaff(true);
@@ -425,7 +425,7 @@ export function ConfigTab({
       return;
     }
     if (!canManageRole(member.role)) {
-      setError('Solo un Amministratore plus può rimuovere un altro amministratore.');
+      setError('Solo un Admin può rimuovere un altro amministratore.');
       return;
     }
 
@@ -514,8 +514,8 @@ export function ConfigTab({
             title="Staff gestionale"
             subtitle={
               canManageStaff
-                ? 'Assegna ruolo: Amministratore plus, Poteri completi o Sola lettura.'
-                : 'Puoi aggiungere o rimuovere solo membri in Sola lettura. Gli amministratori li gestisce un Amministratore plus.'
+                ? 'Assegna ruolo: Admin, Poteri completi o Sola lettura.'
+                : 'Puoi aggiungere o rimuovere solo membri in Sola lettura. Gli amministratori li gestisce un Admin.'
             }
           />
           <div ref={staffEditorRef} className="grid gap-3 scroll-mt-24">
@@ -595,7 +595,7 @@ export function ConfigTab({
             {isSelfStaffMember ? (
               <div className="ui-muted">Non puoi modificare il tuo stesso ruolo staff.</div>
             ) : !canManageSelectedTarget ? (
-              <div className="ui-muted">Solo un Amministratore plus può gestire questo amministratore.</div>
+              <div className="ui-muted">Solo un Admin può gestire questo amministratore.</div>
             ) : null}
 
             {staffState === 'loading' || staffState === 'idle' ? <LoadingCard label="Caricamento staff..." /> : null}

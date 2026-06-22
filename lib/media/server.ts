@@ -83,13 +83,23 @@ function buildMediaPath(args: {
   return `${args.userId}/${args.bookingId}/${stamp}.${args.ext}`;
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function getDaysWithoutMedia(lastMediaAt: string | null, startDate: string): number {
+  const reference = lastMediaAt
+    ? new Date(lastMediaAt).getTime()
+    : new Date(`${startDate}T00:00:00`).getTime();
+
+  if (!Number.isFinite(reference)) return 0;
+  return Math.max(0, Math.floor((Date.now() - reference) / DAY_MS));
+}
+
 function computePriority(lastMediaAt: string | null, startDate: string): {
   priority: AdminMediaRecapItem['priority'];
   priorityScore: number;
 } {
   if (!lastMediaAt) {
-    const start = new Date(`${startDate}T00:00:00`).getTime();
-    const days = Number.isFinite(start) ? Math.max(0, (Date.now() - start) / (24 * 60 * 60 * 1000)) : 0;
+    const days = getDaysWithoutMedia(null, startDate);
     return { priority: 'URGENT', priorityScore: 10_000 + days };
   }
 
@@ -190,7 +200,8 @@ export async function listAdminMediaRecap(): Promise<AdminMediaRecapItem[]> {
       const profile = profileMap.get(booking.user_id) ?? null;
       const mediaItems = mediaByBookingId.get(booking.id) ?? [];
       const latest = mediaItems[0] ?? null;
-      const { priority, priorityScore } = computePriority(latest?.created_at ?? null, booking.start_date);
+      const lastMediaAt = latest?.created_at ?? null;
+      const { priority, priorityScore } = computePriority(lastMediaAt, booking.start_date);
 
       return {
         bookingId: booking.id,
@@ -206,8 +217,9 @@ export async function listAdminMediaRecap(): Promise<AdminMediaRecapItem[]> {
         startDate: booking.start_date,
         endDate: booking.end_date ?? null,
         status: booking.status ?? null,
-        lastMediaAt: latest?.created_at ?? null,
+        lastMediaAt,
         lastMediaType: latest?.media_type ?? null,
+        daysWithoutMedia: getDaysWithoutMedia(lastMediaAt, booking.start_date),
         mediaCount: mediaItems.length,
         priority,
         priorityScore,

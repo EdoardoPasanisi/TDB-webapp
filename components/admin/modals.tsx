@@ -55,6 +55,7 @@ export function UserDetailModal({
   const [detail, setDetail] = useState<AdminUserDetail | null>(null);
   const [selectedDogId, setSelectedDogId] = useState<string | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<AdminAgendaItem | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!open || !userId) return;
@@ -75,7 +76,7 @@ export function UserDetailModal({
       });
 
     return () => controller.abort();
-  }, [open, userId]);
+  }, [open, userId, reloadKey]);
 
   return (
     <ModalFrame
@@ -184,12 +185,18 @@ export function UserDetailModal({
             dogId={selectedDogId}
             open={Boolean(selectedDogId)}
             onClose={() => setSelectedDogId(null)}
+            canManage={canManage}
           />
           <BookingDetailModal
             key={selectedBooking ? `${selectedBooking.kind}-${selectedBooking.id}` : 'user-booking-detail-empty'}
             item={selectedBooking}
             open={Boolean(selectedBooking)}
             onClose={() => setSelectedBooking(null)}
+            canManage={canManage}
+            onDeleted={() => {
+              setSelectedBooking(null);
+              setReloadKey((value) => value + 1);
+            }}
           />
         </>
       ) : null}
@@ -202,16 +209,19 @@ export function DogDetailModal({
   open,
   onClose,
   onOpenOwner,
+  canManage = false,
 }: {
   dogId: string | null;
   open: boolean;
   onClose: () => void;
   onOpenOwner?: (userId: string) => void;
+  canManage?: boolean;
 }) {
   const [state, setState] = useState<LoadState>(() => (open && dogId ? 'loading' : 'idle'));
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<AdminDogDetail | null>(null);
   const [selectedBooking, setSelectedBooking] = useState<AdminAgendaItem | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     if (!open || !dogId) return;
@@ -232,7 +242,7 @@ export function DogDetailModal({
       });
 
     return () => controller.abort();
-  }, [dogId, open]);
+  }, [dogId, open, reloadKey]);
 
   return (
     <ModalFrame open={open} title={detail?.dog.name ?? 'Dettaglio cane'} onClose={onClose}>
@@ -288,6 +298,11 @@ export function DogDetailModal({
             item={selectedBooking}
             open={Boolean(selectedBooking)}
             onClose={() => setSelectedBooking(null)}
+            canManage={canManage}
+            onDeleted={() => {
+              setSelectedBooking(null);
+              setReloadKey((value) => value + 1);
+            }}
           />
         </>
       ) : null}

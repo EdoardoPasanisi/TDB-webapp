@@ -786,6 +786,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
               dogId={selectedDogId}
               open={Boolean(selectedDogId)}
               onClose={() => setSelectedDogId(null)}
+              canManage={canManage}
             />
             <DogEditModal
               key={editingDog ? `edit-${editingDog.id}` : 'users-dog-edit-empty'}

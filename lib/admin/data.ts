@@ -1941,9 +1941,7 @@ export async function getAdminOverview(
   const presentDogIds = unique(
     activePensioneToday.flatMap((row) => (row.booking_dogs ?? []).map((bookingDog) => bookingDog.dog_id))
   );
-  const todayServiceKeys = ADMIN_SERVICE_OPTIONS
-    .filter((option) => option.key !== 'PENSIONE')
-    .map((option) => option.key);
+  const todayServiceKeys: AdminServiceKey[] = ['TERAPIA', 'TAXI_DOG', 'TOELETTATURA'];
   const todayServices = uniqueAgendaItems(
     todayServiceKeys.flatMap((serviceKey) => [
       ...buildPensioneAgendaItems({
@@ -1967,12 +1965,11 @@ export async function getAdminOverview(
   )
     .filter((item) => item.isActive)
     .sort(compareAscByStart);
-  const serviceCountsToday = ADMIN_SERVICE_OPTIONS
-    .filter((option) => option.key !== 'PENSIONE')
-    .map((option) => ({
-      serviceKey: option.key,
-      label: option.label,
-      count: todayServices.filter((item) => item.serviceKey === option.key).length,
+  const serviceCountsToday = todayServiceKeys
+    .map((serviceKey) => ({
+      serviceKey,
+      label: getAdminServiceLabel(serviceKey),
+      count: todayServices.filter((item) => item.serviceKey === serviceKey).length,
     }))
     .filter((entry) => entry.count > 0);
   const urgentItems = uniqueAgendaItems([

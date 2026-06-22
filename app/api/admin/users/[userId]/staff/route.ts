@@ -31,13 +31,13 @@ export async function PUT(
       const currentRole = await getStaffRoleForUser(normalizedUserId);
       if (currentRole === 'ADMIN' || currentRole === 'SUPER_ADMIN') {
         return NextResponse.json(
-          { error: 'Solo un Amministratore plus può modificare un amministratore.' },
+          { error: 'Solo un Admin può modificare un amministratore.' },
           { status: 403 }
         );
       }
       if (nextRole && nextRole !== 'VIEWER') {
         return NextResponse.json(
-          { error: 'Solo un Amministratore plus può assegnare ruoli amministrativi.' },
+          { error: 'Solo un Admin può assegnare ruoli amministrativi.' },
           { status: 403 }
         );
       }

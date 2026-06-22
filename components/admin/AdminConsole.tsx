@@ -134,7 +134,7 @@ export function AdminConsole({ initialTabFromQuery = null }: { initialTabFromQue
     if (effectiveTab === 'dogs') return <DogsTab canManage={canManage} />;
     if (effectiveTab === 'services') return <ServicesTab canManage={canManage} />;
     if (effectiveTab === 'chat' && access) return <ChatTab access={access} />;
-    if (effectiveTab === 'media') return <MediaTab canManage={canManage} />;
+    if (effectiveTab === 'media') return <MediaTab />;
     if (effectiveTab === 'config' && canManage)
       return (
         <ConfigTab

@@ -33,6 +33,7 @@ export type AdminMediaRecapItem = {
   status: string | null;
   lastMediaAt: string | null;
   lastMediaType: CustomerMediaType | null;
+  daysWithoutMedia: number;
   mediaCount: number;
   priority: 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW';
   priorityScore: number;

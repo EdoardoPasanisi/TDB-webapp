@@ -86,7 +86,7 @@ export async function requireStaffAccess(
   }
 
   if (mode === 'super' && !access.canManageStaff) {
-    throw new AdminAccessError(403, 'Solo un Amministratore plus può gestire i membri dello staff.');
+    throw new AdminAccessError(403, 'Solo un Admin può gestire i membri dello staff.');
   }
 
   if (request) {

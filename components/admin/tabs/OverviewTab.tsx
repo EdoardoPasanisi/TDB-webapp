@@ -220,6 +220,8 @@ export function OverviewTab({ canManage }: { canManage: boolean }) {
         item={selectedBooking}
         open={Boolean(selectedBooking)}
         onClose={() => setSelectedBooking(null)}
+        canManage={canManage}
+        onDeleted={() => void load()}
       />
       <UserDetailModal
         key={selectedUserId ?? 'overview-user-detail-empty'}

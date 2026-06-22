@@ -16,10 +16,6 @@ import {
   type LoadState,
 } from '@/components/admin/shared';
 
-type MediaTabProps = {
-  canManage: boolean;
-};
-
 type MediaDraft = {
   caption: string;
   file: File | null;
@@ -75,7 +71,13 @@ function formatServiceWindow(item: AdminMediaRecapItem) {
   return `${start} → ${end}`;
 }
 
-export function MediaTab({ canManage }: MediaTabProps) {
+function formatDaysWithoutMedia(days: number) {
+  if (days <= 0) return 'Oggi';
+  if (days === 1) return '1 giorno';
+  return `${days} giorni`;
+}
+
+export function MediaTab() {
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<AdminMediaRecapItem[]>([]);
@@ -205,12 +207,6 @@ export function MediaTab({ canManage }: MediaTabProps) {
             </div>
           </div>
 
-          {!canManage ? (
-            <div className="ui-alertWarn">
-              Vista in sola lettura. Il caricamento dei media è disponibile solo per account con poteri completi.
-            </div>
-          ) : null}
-
           {error ? <div className="ui-error">{error}</div> : null}
         </CardContent>
       </Card>
@@ -258,6 +254,8 @@ export function MediaTab({ canManage }: MediaTabProps) {
                       <div className="ui-body mt-1">
                         {item.lastMediaAt ? formatDateTime(item.lastMediaAt) : 'Mai inviato'}
                       </div>
+                      <div className="ui-muted mt-3">Senza media da</div>
+                      <div className="ui-body mt-1">{formatDaysWithoutMedia(item.daysWithoutMedia)}</div>
                     </div>
                   </div>
 
@@ -278,54 +276,52 @@ export function MediaTab({ canManage }: MediaTabProps) {
                     </div>
                   </div>
 
-                  {canManage ? (
-                    <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.22)] bg-[rgba(255,130,0,0.05)] p-3 space-y-3">
-                      <div className="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-end">
-                        <div className="space-y-2">
-                          <label className="space-y-1 block">
-                            <span className="ui-label">Didascalia opzionale</span>
-                            <input
-                              type="text"
-                              value={draft.caption}
-                              onChange={(event) => updateDraft(item.bookingId, { caption: event.target.value })}
-                              className="ui-control ui-input"
-                              placeholder="Es. Passeggiata del pomeriggio"
-                            />
-                          </label>
+                  <div className="rounded-[var(--radius)] border border-[rgba(255,130,0,0.22)] bg-[rgba(255,130,0,0.05)] p-3 space-y-3">
+                    <div className="grid gap-3 xl:grid-cols-[1fr_auto] xl:items-end">
+                      <div className="space-y-2">
+                        <label className="space-y-1 block">
+                          <span className="ui-label">Didascalia opzionale</span>
+                          <input
+                            type="text"
+                            value={draft.caption}
+                            onChange={(event) => updateDraft(item.bookingId, { caption: event.target.value })}
+                            className="ui-control ui-input"
+                            placeholder="Es. Passeggiata del pomeriggio"
+                          />
+                        </label>
 
-                          <label className="space-y-1 block">
-                            <span className="ui-label">Foto o video</span>
-                            <input
-                              key={draft.file?.name ?? `${item.bookingId}-empty`}
-                              type="file"
-                              accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
-                              className="ui-control ui-input file:mr-3 file:border-0 file:bg-transparent file:font-semibold file:text-[var(--brand-accent)]"
-                              onChange={(event) =>
-                                updateDraft(item.bookingId, {
-                                  file: event.target.files?.[0] ?? null,
-                                })
-                              }
-                            />
-                          </label>
-                        </div>
-
-                        <Button
-                          variant="primary"
-                          className={cx('w-full xl:w-auto', isUploading && 'opacity-80')}
-                          disabled={isUploading || !draft.file}
-                          onClick={() => void uploadForBooking(item)}
-                        >
-                          {isUploading ? 'Invio…' : 'Invia media'}
-                        </Button>
+                        <label className="space-y-1 block">
+                          <span className="ui-label">Foto o video</span>
+                          <input
+                            key={draft.file?.name ?? `${item.bookingId}-empty`}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                            className="ui-control ui-input file:mr-3 file:border-0 file:bg-transparent file:font-semibold file:text-[var(--brand-accent)]"
+                            onChange={(event) =>
+                              updateDraft(item.bookingId, {
+                                file: event.target.files?.[0] ?? null,
+                              })
+                            }
+                          />
+                        </label>
                       </div>
 
-                      {draft.file ? (
-                        <div className="ui-fine text-[rgba(255,255,255,0.62)] break-all">
-                          File selezionato: {draft.file.name}
-                        </div>
-                      ) : null}
+                      <Button
+                        variant="primary"
+                        className={cx('w-full xl:w-auto', isUploading && 'opacity-80')}
+                        disabled={isUploading || !draft.file}
+                        onClick={() => void uploadForBooking(item)}
+                      >
+                        {isUploading ? 'Invio…' : 'Invia media'}
+                      </Button>
                     </div>
-                  ) : null}
+
+                    {draft.file ? (
+                      <div className="ui-fine text-[rgba(255,255,255,0.62)] break-all">
+                        File selezionato: {draft.file.name}
+                      </div>
+                    ) : null}
+                  </div>
                 </CardContent>
               </Card>
             );

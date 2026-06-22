@@ -29,18 +29,18 @@ export async function POST(request: Request) {
     }
 
     // Un ADMIN può gestire solo i membri "Sola lettura": non può creare/declassare
-    // altri ADMIN o Amministratori plus. Solo il SUPER_ADMIN gestisce gli admin.
+    // altri ruoli amministrativi. Solo il SUPER_ADMIN gestisce gli admin.
     if (!access.canManageStaff) {
       if (input.role !== 'VIEWER') {
         return NextResponse.json(
-          { error: 'Solo un Amministratore plus può assegnare ruoli amministrativi.' },
+          { error: 'Solo un Admin può assegnare ruoli amministrativi.' },
           { status: 403 }
         );
       }
       const currentRole = await getStaffRoleForUser(input.userId);
       if (currentRole === 'ADMIN' || currentRole === 'SUPER_ADMIN') {
         return NextResponse.json(
-          { error: 'Solo un Amministratore plus può modificare un amministratore.' },
+          { error: 'Solo un Admin può modificare un amministratore.' },
           { status: 403 }
         );
       }

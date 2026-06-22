@@ -11,7 +11,7 @@ export type AdminStaffAccess = {
   email: string | null;
   role: StaffRole;
   canManage: boolean;
-  // Solo l'Amministratore plus (SUPER_ADMIN) può gestire gli altri membri staff.
+  // Solo l'Admin (SUPER_ADMIN) può gestire gli altri membri staff.
   canManageStaff: boolean;
 };
 
