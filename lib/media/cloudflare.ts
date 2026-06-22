@@ -1,5 +1,5 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { importPKCS8, SignJWT } from 'jose';
+import { createHmac, createPrivateKey, timingSafeEqual, type KeyObject } from 'node:crypto';
+import { SignJWT } from 'jose';
 
 const CF_API_BASE = 'https://api.cloudflare.com/client/v4';
 
@@ -129,12 +129,17 @@ export async function getStreamVideo(uid: string): Promise<StreamVideoStatus | n
   };
 }
 
-let cachedSigningKey: Promise<CryptoKey> | null = null;
+let cachedSigningKey: KeyObject | null = null;
 
-function loadSigningKey(): Promise<CryptoKey> {
+function loadSigningKey(): KeyObject {
   if (!cachedSigningKey) {
-    const pem = Buffer.from(readEnv('CLOUDFLARE_STREAM_SIGNING_KEY'), 'base64').toString('utf8');
-    cachedSigningKey = importPKCS8(pem, 'RS256');
+    // Il campo `pem` di Cloudflare è già base64; toleriamo anche un doppio base64
+    // e qualsiasi formato di chiave (PKCS#1 "RSA PRIVATE KEY" o PKCS#8 "PRIVATE KEY").
+    let pem = readEnv('CLOUDFLARE_STREAM_SIGNING_KEY').trim();
+    for (let i = 0; i < 2 && !pem.includes('-----BEGIN'); i += 1) {
+      pem = Buffer.from(pem, 'base64').toString('utf8');
+    }
+    cachedSigningKey = createPrivateKey(pem);
   }
   return cachedSigningKey;
 }
@@ -142,7 +147,7 @@ function loadSigningKey(): Promise<CryptoKey> {
 /** Firma un token di playback a scadenza per un singolo video. */
 export async function signStreamPlaybackToken(uid: string): Promise<string> {
   const keyId = readEnv('CLOUDFLARE_STREAM_SIGNING_KEY_ID');
-  const key = await loadSigningKey();
+  const key = loadSigningKey();
 
   return new SignJWT({ kid: keyId })
     .setProtectedHeader({ alg: 'RS256', kid: keyId })
