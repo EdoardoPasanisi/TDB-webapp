@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAdminJson, isAbortError } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { CUSTOMER_MEDIA_ACCEPT } from '@/lib/media/config';
@@ -19,6 +19,7 @@ import {
   EmptyCard,
   ErrorCard,
   LoadingCard,
+  ModalFrame,
   cx,
   formatDateTime,
   type LoadState,
@@ -29,6 +30,16 @@ type MediaDraft = {
   file: File | null;
 };
 
+type RecorderModalState = {
+  bookingId: string;
+  ownerName: string;
+  status: 'idle' | 'starting' | 'recording' | 'ready';
+  elapsedSeconds: number;
+  file: File | null;
+  previewUrl: string | null;
+  error: string | null;
+};
+
 type SignedMediaUploadResponse = {
   upload: {
     bucket: string;
@@ -36,6 +47,18 @@ type SignedMediaUploadResponse = {
     token: string;
   };
 };
+
+const RECORDING_MAX_SECONDS = 120;
+const RECORDING_VIDEO_BITS_PER_SECOND = 2_000_000;
+const RECORDING_AUDIO_BITS_PER_SECOND = 96_000;
+
+const RECORDING_MIME_CANDIDATES = [
+  'video/mp4;codecs=h264,aac',
+  'video/mp4',
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm',
+];
 
 async function validateMediaDraftFile(file: File): Promise<string | null> {
   const metadataError = validateUploadFile({
@@ -50,6 +73,34 @@ async function validateMediaDraftFile(file: File): Promise<string | null> {
 
   const headerBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
   return validateUploadBytes(file, headerBytes);
+}
+
+function chooseRecordingMimeType(): string | null {
+  if (typeof window === 'undefined' || typeof window.MediaRecorder === 'undefined') {
+    return null;
+  }
+
+  return RECORDING_MIME_CANDIDATES.find((mimeType) => window.MediaRecorder.isTypeSupported(mimeType)) ?? null;
+}
+
+function getUploadMimeType(mimeType: string): string {
+  return mimeType.split(';')[0]?.trim().toLowerCase() || 'video/webm';
+}
+
+function getRecordingExtension(mimeType: string): string {
+  return getUploadMimeType(mimeType) === 'video/mp4' ? 'mp4' : 'webm';
+}
+
+function formatElapsed(seconds: number): string {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainingSeconds = safeSeconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 MB';
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function priorityTone(priority: AdminMediaRecapItem['priority']) {
@@ -114,6 +165,13 @@ export function MediaTab() {
   const [items, setItems] = useState<AdminMediaRecapItem[]>([]);
   const [drafts, setDrafts] = useState<Record<string, MediaDraft>>({});
   const [uploadingBookingId, setUploadingBookingId] = useState<string | null>(null);
+  const [recorderModal, setRecorderModal] = useState<RecorderModalState | null>(null);
+  const cameraPreviewRef = useRef<HTMLVideoElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const elapsedTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const maxDurationTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setState('loading');
@@ -160,6 +218,255 @@ export function MediaTab() {
       },
     }));
   }
+
+  const clearRecordingTimers = useCallback(() => {
+    if (elapsedTimerRef.current) {
+      clearInterval(elapsedTimerRef.current);
+      elapsedTimerRef.current = null;
+    }
+
+    if (maxDurationTimerRef.current) {
+      clearTimeout(maxDurationTimerRef.current);
+      maxDurationTimerRef.current = null;
+    }
+  }, []);
+
+  const releaseCameraStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (cameraPreviewRef.current) {
+      cameraPreviewRef.current.srcObject = null;
+    }
+  }, []);
+
+  const discardActiveRecording = useCallback(() => {
+    clearRecordingTimers();
+
+    const recorder = recorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.ondataavailable = null;
+      recorder.onstop = null;
+      try {
+        recorder.stop();
+      } catch {}
+    }
+
+    recorderRef.current = null;
+    chunksRef.current = [];
+    releaseCameraStream();
+  }, [clearRecordingTimers, releaseCameraStream]);
+
+  function closeRecorderModal() {
+    discardActiveRecording();
+    if (recorderModal?.previewUrl) {
+      URL.revokeObjectURL(recorderModal.previewUrl);
+    }
+    setRecorderModal(null);
+  }
+
+  function openRecorderModal(item: AdminMediaRecapItem) {
+    if (recorderModal?.previewUrl) {
+      URL.revokeObjectURL(recorderModal.previewUrl);
+    }
+    discardActiveRecording();
+    setRecorderModal({
+      bookingId: item.bookingId,
+      ownerName: item.ownerName,
+      status: 'idle',
+      elapsedSeconds: 0,
+      file: null,
+      previewUrl: null,
+      error: null,
+    });
+  }
+
+  async function getRecordingStream(): Promise<MediaStream> {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('La registrazione video non è supportata su questo dispositivo.');
+    }
+
+    const preferredConstraints: MediaStreamConstraints = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280, max: 1280 },
+        height: { ideal: 720, max: 720 },
+        frameRate: { ideal: 30, max: 30 },
+      },
+      audio: true,
+    };
+
+    try {
+      return await navigator.mediaDevices.getUserMedia(preferredConstraints);
+    } catch {
+      return navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' } },
+        audio: true,
+      });
+    }
+  }
+
+  async function startRecording() {
+    if (!recorderModal) return;
+
+    const mimeType = chooseRecordingMimeType();
+    if (!mimeType) {
+      setRecorderModal((current) =>
+        current
+          ? {
+              ...current,
+              error: 'La registrazione video non è supportata da questo browser. Usa il selettore file.',
+            }
+          : current
+      );
+      return;
+    }
+
+    if (recorderModal.previewUrl) {
+      URL.revokeObjectURL(recorderModal.previewUrl);
+    }
+
+    discardActiveRecording();
+    setRecorderModal((current) =>
+      current
+        ? {
+            ...current,
+            status: 'starting',
+            elapsedSeconds: 0,
+            file: null,
+            previewUrl: null,
+            error: null,
+          }
+        : current
+    );
+
+    try {
+      const stream = await getRecordingStream();
+      streamRef.current = stream;
+      if (cameraPreviewRef.current) {
+        cameraPreviewRef.current.srcObject = stream;
+        await cameraPreviewRef.current.play().catch(() => undefined);
+      }
+
+      chunksRef.current = [];
+      const recorder = new MediaRecorder(stream, {
+        mimeType,
+        videoBitsPerSecond: RECORDING_VIDEO_BITS_PER_SECOND,
+        audioBitsPerSecond: RECORDING_AUDIO_BITS_PER_SECOND,
+      });
+
+      recorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          chunksRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = () => {
+        clearRecordingTimers();
+        releaseCameraStream();
+        recorderRef.current = null;
+
+        const uploadMimeType = getUploadMimeType(mimeType);
+        const blob = new Blob(chunksRef.current, { type: uploadMimeType });
+        chunksRef.current = [];
+
+        if (blob.size <= 0) {
+          setRecorderModal((current) =>
+            current ? { ...current, status: 'idle', error: 'Il video registrato è vuoto. Riprova.' } : current
+          );
+          return;
+        }
+
+        const file = new File(
+          [blob],
+          `video-pensione-${new Date().toISOString().replace(/[:.]/g, '-')}.${getRecordingExtension(mimeType)}`,
+          { type: uploadMimeType }
+        );
+        const previewUrl = URL.createObjectURL(file);
+
+        setRecorderModal((current) =>
+          current
+            ? {
+                ...current,
+                status: 'ready',
+                file,
+                previewUrl,
+                error:
+                  file.size > MAX_CUSTOMER_MEDIA_BYTES
+                    ? `Il video registrato pesa ${formatFileSize(file.size)}. Riduci la durata e riprova.`
+                    : null,
+              }
+            : current
+        );
+      };
+      recorder.onerror = () => {
+        clearRecordingTimers();
+        releaseCameraStream();
+        recorderRef.current = null;
+        setRecorderModal((current) =>
+          current ? { ...current, status: 'idle', error: 'Registrazione interrotta. Riprova.' } : current
+        );
+      };
+
+      const startedAt = Date.now();
+      recorder.start(1000);
+      setRecorderModal((current) =>
+        current ? { ...current, status: 'recording', elapsedSeconds: 0, error: null } : current
+      );
+      elapsedTimerRef.current = setInterval(() => {
+        setRecorderModal((current) =>
+          current
+            ? {
+                ...current,
+                elapsedSeconds: Math.min(RECORDING_MAX_SECONDS, Math.floor((Date.now() - startedAt) / 1000)),
+              }
+            : current
+        );
+      }, 500);
+      maxDurationTimerRef.current = setTimeout(() => {
+        stopRecording();
+      }, RECORDING_MAX_SECONDS * 1000);
+    } catch (err) {
+      clearRecordingTimers();
+      releaseCameraStream();
+      setRecorderModal((current) =>
+        current
+          ? {
+              ...current,
+              status: 'idle',
+              error: humanizeErrorMessage(
+                err,
+                'Non siamo riusciti ad accedere alla camera. Controlla i permessi e riprova.'
+              ),
+            }
+          : current
+      );
+    }
+  }
+
+  function stopRecording() {
+    const recorder = recorderRef.current;
+    if (!recorder || recorder.state === 'inactive') return;
+    clearRecordingTimers();
+    recorder.stop();
+  }
+
+  function useRecordedVideo() {
+    if (!recorderModal?.file) return;
+    updateDraft(recorderModal.bookingId, { file: recorderModal.file });
+    if (recorderModal.previewUrl) {
+      URL.revokeObjectURL(recorderModal.previewUrl);
+    }
+    setRecorderModal(null);
+  }
+
+  useEffect(() => {
+    return () => {
+      discardActiveRecording();
+      if (recorderModal?.previewUrl) {
+        URL.revokeObjectURL(recorderModal.previewUrl);
+      }
+    };
+  }, [discardActiveRecording, recorderModal?.previewUrl]);
 
   async function uploadForBooking(item: AdminMediaRecapItem) {
     const draft = drafts[item.bookingId];
@@ -356,6 +663,20 @@ export function MediaTab() {
                             }
                           />
                         </label>
+
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            className="w-full sm:w-auto"
+                            onClick={() => openRecorderModal(item)}
+                          >
+                            Registra video
+                          </Button>
+                          <div className="ui-fine text-[rgba(255,255,255,0.62)]">
+                            Video registrati dall’app: max {formatElapsed(RECORDING_MAX_SECONDS)}, qualità ridotta.
+                          </div>
+                        </div>
                       </div>
 
                       <Button
@@ -370,7 +691,7 @@ export function MediaTab() {
 
                     {draft.file ? (
                       <div className="ui-fine text-[rgba(255,255,255,0.62)] break-all">
-                        File selezionato: {draft.file.name}
+                        File selezionato: {draft.file.name} ({formatFileSize(draft.file.size)})
                       </div>
                     ) : null}
                   </div>
@@ -380,6 +701,86 @@ export function MediaTab() {
           })}
         </div>
       )}
+
+      <ModalFrame
+        open={Boolean(recorderModal)}
+        title={recorderModal ? `Registra video per ${recorderModal.ownerName}` : 'Registra video'}
+        onClose={closeRecorderModal}
+        maxWidthClassName="sm:max-w-2xl"
+      >
+        {recorderModal ? (
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-[var(--radius)] border border-[rgba(255,255,255,0.12)] bg-black">
+              {recorderModal.previewUrl ? (
+                <video
+                  src={recorderModal.previewUrl}
+                  controls
+                  playsInline
+                  className="aspect-video w-full bg-black object-contain"
+                />
+              ) : (
+                <video
+                  ref={cameraPreviewRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="aspect-video w-full bg-black object-contain"
+                />
+              )}
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="ui-panelInset p-3">
+                <div className="ui-muted">Durata</div>
+                <div className="ui-title mt-1">
+                  {formatElapsed(recorderModal.elapsedSeconds)} / {formatElapsed(RECORDING_MAX_SECONDS)}
+                </div>
+              </div>
+              <div className="ui-panelInset p-3">
+                <div className="ui-muted">Qualità</div>
+                <div className="ui-body mt-1">720p circa, bitrate ridotto</div>
+              </div>
+              <div className="ui-panelInset p-3">
+                <div className="ui-muted">Dimensione</div>
+                <div className="ui-body mt-1">
+                  {recorderModal.file ? formatFileSize(recorderModal.file.size) : 'Disponibile a fine registrazione'}
+                </div>
+              </div>
+            </div>
+
+            {recorderModal.error ? <div className="ui-error">{recorderModal.error}</div> : null}
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+              {recorderModal.status === 'recording' ? (
+                <Button type="button" variant="danger" onClick={stopRecording}>
+                  Ferma registrazione
+                </Button>
+              ) : null}
+
+              {recorderModal.status === 'idle' || recorderModal.status === 'ready' ? (
+                <Button type="button" variant="secondary" onClick={() => void startRecording()}>
+                  {recorderModal.status === 'ready' ? 'Registra di nuovo' : 'Avvia registrazione'}
+                </Button>
+              ) : null}
+
+              {recorderModal.status === 'starting' ? (
+                <Button type="button" variant="secondary" disabled>
+                  Apertura camera…
+                </Button>
+              ) : null}
+
+              <Button
+                type="button"
+                variant="primary"
+                disabled={!recorderModal.file || recorderModal.file.size > MAX_CUSTOMER_MEDIA_BYTES}
+                onClick={useRecordedVideo}
+              >
+                Usa questo video
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </ModalFrame>
     </div>
   );
 }
