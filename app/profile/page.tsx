@@ -176,6 +176,37 @@ export default function ProfileOverviewPage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [mediaItems, setMediaItems] = useState<CustomerMediaViewItem[]>([]);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
+  const downloadMedia = async (mediaId: string) => {
+    setDownloadingId(mediaId);
+    setMediaError(null);
+    try {
+      const response = await fetch(`/api/media/${mediaId}/download`, { credentials: 'include' });
+      const json = (await response.json().catch(() => null)) as
+        | { ok: true; url: string }
+        | { ok: false; status?: string; error?: string }
+        | null;
+
+      if (json && json.ok && json.url) {
+        const anchor = document.createElement('a');
+        anchor.href = json.url;
+        anchor.rel = 'noopener';
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        return;
+      }
+
+      setMediaError(
+        (json && !json.ok && json.error) || 'Non siamo riusciti a preparare il download.'
+      );
+    } catch {
+      setMediaError('Non siamo riusciti a preparare il download.');
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   useEffect(() => {
     if (authLoading) return;
@@ -411,8 +442,17 @@ export default function ProfileOverviewPage() {
 
                     {item.caption ? <div className="ui-body">{item.caption}</div> : null}
 
-                    <div className="ui-fine text-[rgba(255,255,255,0.52)]">
-                      Visibile fino al {formatMediaDateTime(item.visibleUntil)}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="ui-fine text-[rgba(255,255,255,0.52)]">
+                        Visibile fino al {formatMediaDateTime(item.visibleUntil)}
+                      </div>
+                      <Button
+                        variant="secondary"
+                        onClick={() => void downloadMedia(item.id)}
+                        disabled={downloadingId === item.id || item.status !== 'ready'}
+                      >
+                        {downloadingId === item.id ? 'Preparazione…' : 'Scarica'}
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

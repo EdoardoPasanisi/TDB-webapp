@@ -144,12 +144,18 @@ function loadSigningKey(): KeyObject {
   return cachedSigningKey;
 }
 
-/** Firma un token di playback a scadenza per un singolo video. */
-export async function signStreamPlaybackToken(uid: string): Promise<string> {
+/** Firma un token a scadenza per un singolo video. Con `downloadable` abilita il download MP4. */
+export async function signStreamPlaybackToken(
+  uid: string,
+  options?: { downloadable?: boolean }
+): Promise<string> {
   const keyId = readEnv('CLOUDFLARE_STREAM_SIGNING_KEY_ID');
   const key = loadSigningKey();
 
-  return new SignJWT({ kid: keyId })
+  const payload: Record<string, unknown> = { kid: keyId };
+  if (options?.downloadable) payload.downloadable = true;
+
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: 'RS256', kid: keyId })
     .setSubject(uid)
     .setExpirationTime(`${STREAM_PLAYBACK_TTL_SECONDS}s`)
@@ -158,6 +164,56 @@ export async function signStreamPlaybackToken(uid: string): Promise<string> {
 
 export function buildSignedIframeUrl(token: string): string {
   return `https://iframe.cloudflarestream.com/${token}`;
+}
+
+export async function deleteStreamVideo(uid: string): Promise<void> {
+  const response = await fetch(`${CF_API_BASE}/accounts/${getAccountId()}/stream/${uid}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${getApiToken()}` },
+  });
+
+  if (!response.ok && response.status !== 404) {
+    const detail = await response.text().catch(() => '');
+    throw new Error(`Cloudflare delete fallito (${response.status}). ${detail}`.trim());
+  }
+}
+
+type StreamDownload = { ready: boolean; url: string | null };
+
+async function fetchStreamDownload(uid: string, method: 'GET' | 'POST'): Promise<StreamDownload | null> {
+  const response = await fetch(`${CF_API_BASE}/accounts/${getAccountId()}/stream/${uid}/downloads`, {
+    method,
+    headers: { Authorization: `Bearer ${getApiToken()}` },
+    cache: 'no-store',
+  });
+
+  if (!response.ok) return null;
+
+  const payload = (await response.json()) as {
+    result?: { default?: { status?: string; url?: string } };
+  };
+  const dl = payload.result?.default;
+  if (!dl) return null;
+
+  return { ready: dl.status === 'ready', url: dl.url ?? null };
+}
+
+/** Avvia (idempotente) la generazione dell'MP4 scaricabile per un video. */
+export async function enableStreamDownload(uid: string): Promise<void> {
+  await fetchStreamDownload(uid, 'POST').catch(() => undefined);
+}
+
+/**
+ * Restituisce l'URL MP4 firmato se pronto; se la generazione non è ancora partita
+ * la avvia e segnala che non è pronto (il client riproverà).
+ */
+export async function getSignedStreamDownloadUrl(uid: string): Promise<StreamDownload> {
+  const existing = await fetchStreamDownload(uid, 'GET');
+  const dl = existing ?? (await fetchStreamDownload(uid, 'POST'));
+  if (!dl || !dl.ready || !dl.url) return { ready: false, url: null };
+
+  const token = await signStreamPlaybackToken(uid, { downloadable: true });
+  return { ready: true, url: dl.url.replace(`/${uid}/`, `/${token}/`) };
 }
 
 /** Verifica la firma del webhook Cloudflare Stream (header Webhook-Signature). */

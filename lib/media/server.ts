@@ -3,6 +3,9 @@ import { CUSTOMER_MEDIA_BUCKET } from '@/lib/media/config';
 import {
   buildSignedIframeUrl,
   createStreamDirectUpload,
+  deleteStreamVideo,
+  enableStreamDownload,
+  getSignedStreamDownloadUrl,
   getStreamVideo,
   signStreamPlaybackToken,
 } from '@/lib/media/cloudflare';
@@ -111,12 +114,12 @@ function getMediaTypeFromFile(file: File): CustomerMediaType {
   return getMediaTypeFromMimeType(file.type);
 }
 
-function computeVisibleUntil(endDate: string | null, departureTime: string | null): string {
-  const dateKey = endDate || new Date().toISOString().slice(0, 10);
-  const timeValue = String(departureTime ?? '').trim() || '18:00:00';
-  const base = new Date(`${dateKey}T${timeValue}`);
-  const timestamp = Number.isFinite(base.getTime()) ? base.getTime() : Date.now();
-  return new Date(timestamp + 24 * 60 * 60 * 1000).toISOString();
+// I media restano visibili e scaricabili per 48h dall'upload, poi spariscono
+// dal profilo e vengono cancellati (anche da Cloudflare) dal cron di cleanup.
+const MEDIA_RETENTION_MS = 48 * 60 * 60 * 1000;
+
+function computeVisibleUntil(): string {
+  return new Date(Date.now() + MEDIA_RETENTION_MS).toISOString();
 }
 
 function buildMediaPath(args: {
@@ -461,7 +464,7 @@ async function registerUploadedMediaForBooking(args: {
       duration_seconds: args.durationSeconds ?? null,
       thumbnail_url: args.thumbnailUrl ?? null,
       caption: String(args.caption ?? '').trim() || null,
-      visible_until: computeVisibleUntil(args.booking.end_date ?? args.booking.start_date, args.booking.departure_time),
+      visible_until: computeVisibleUntil(),
       created_by_staff_user_id: args.staffUserId,
     })
     .select('*')
@@ -679,11 +682,105 @@ export async function markStreamVideoReady(args: {
   if (error) throw new Error(error.message);
   if (!data) return; // gia pronto o non trovato: nessuna doppia notifica
 
+  // Avvia la generazione dell'MP4 scaricabile cosi e pronto quando il cliente lo richiede.
+  await enableStreamDownload(args.streamUid).catch(() => undefined);
+
   await notifyCustomerMediaAvailable({
     userId: (data as { user_id: string }).user_id,
     bookingId: (data as { booking_id: string }).booking_id,
     mediaType: (data as { media_type: CustomerMediaType }).media_type,
   });
+}
+
+export type MediaDownloadResult =
+  | { status: 'ready'; url: string }
+  | { status: 'preparing' }
+  | { status: 'not_found' };
+
+/** Prepara un URL di download per un media di proprieta dell'utente (foto Supabase o video Cloudflare). */
+export async function getMediaDownloadForUser(args: {
+  userId: string;
+  mediaId: string;
+}): Promise<MediaDownloadResult> {
+  const { data, error } = await supabaseAdmin
+    .from('customer_media')
+    .select('id, provider, storage_path, stream_uid, status')
+    .eq('id', args.mediaId)
+    .eq('user_id', args.userId)
+    .gte('visible_until', new Date().toISOString())
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  const row = (data ?? null) as Pick<
+    CustomerMediaRow,
+    'id' | 'provider' | 'storage_path' | 'stream_uid' | 'status'
+  > | null;
+  if (!row) return { status: 'not_found' };
+
+  if (row.provider === 'cloudflare_stream') {
+    if (!row.stream_uid || row.status !== 'ready') return { status: 'preparing' };
+    const download = await getSignedStreamDownloadUrl(row.stream_uid);
+    return download.ready && download.url ? { status: 'ready', url: download.url } : { status: 'preparing' };
+  }
+
+  if (!row.storage_path) return { status: 'not_found' };
+  const extension = row.storage_path.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? 'jpg';
+  const { data: signed, error: signedError } = await supabaseAdmin.storage
+    .from(CUSTOMER_MEDIA_BUCKET)
+    .createSignedUrl(row.storage_path, 120, { download: `media-${row.id}.${extension}` });
+
+  if (signedError || !signed?.signedUrl) {
+    throw new Error(humanizeErrorMessage(signedError, 'Non siamo riusciti a preparare il download.'));
+  }
+
+  return { status: 'ready', url: signed.signedUrl };
+}
+
+/** Cancella i media scaduti (oltre la finestra di 48h) da Cloudflare/Supabase e dal DB. */
+export async function deleteExpiredMedia(): Promise<{ deleted: number; failed: number }> {
+  const { data, error } = await supabaseAdmin
+    .from('customer_media')
+    .select('id, provider, storage_path, stream_uid')
+    .lt('visible_until', new Date().toISOString())
+    .limit(500);
+
+  if (error) throw new Error(error.message);
+
+  const rows = (data ?? []) as Array<
+    Pick<CustomerMediaRow, 'id' | 'provider' | 'storage_path' | 'stream_uid'>
+  >;
+  if (rows.length === 0) return { deleted: 0, failed: 0 };
+
+  const deletableIds: string[] = [];
+  let failed = 0;
+
+  for (const row of rows) {
+    try {
+      if (row.provider === 'cloudflare_stream' && row.stream_uid) {
+        await deleteStreamVideo(row.stream_uid);
+      } else if (row.storage_path) {
+        const { error: removeError } = await supabaseAdmin.storage
+          .from(CUSTOMER_MEDIA_BUCKET)
+          .remove([row.storage_path]);
+        if (removeError) throw new Error(removeError.message);
+      }
+      deletableIds.push(row.id);
+    } catch (deleteError) {
+      // Lasciamo la riga: verra ritentata al prossimo giro del cron.
+      failed += 1;
+      console.error(`Cleanup media ${row.id} fallito:`, deleteError);
+    }
+  }
+
+  if (deletableIds.length > 0) {
+    const { error: deleteRowsError } = await supabaseAdmin
+      .from('customer_media')
+      .delete()
+      .in('id', deletableIds);
+    if (deleteRowsError) throw new Error(deleteRowsError.message);
+  }
+
+  return { deleted: deletableIds.length, failed };
 }
 
 export async function uploadMediaForBooking(args: {
