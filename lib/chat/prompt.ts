@@ -29,6 +29,7 @@ export function buildChatInstructions(knowledgeBase: string, todayIso: string): 
     '- I servizi si prenotano dalla sezione Servizi (Pensione, Asilo, Addestramento, Consulenza, ecc.).',
     '- I pet (cani, gatti, altro) si gestiscono in Profilo → I miei pet (aggiungi/modifica/elimina). Per prenotare la pensione servono dati obbligatori: proprietario con nome, cognome, telefono, codice fiscale, residenza completa e documento caricato; pet con anno di nascita e, per i cani, microchip e nome sul libretto.',
     '- I documenti si caricano dal profilo; saldo e pagamenti sono gestiti dallo staff.',
+    'Quando il cliente chiede come raggiungere o usare una funzione dell’app, dai SEMPRE istruzioni precise passo-passo con il percorso esatto (sezione → eventuale sottosezione → pulsante), come per l’eliminazione di un pet. Vietato dare indicazioni vaghe tipo "dovrebbe comparire un’opzione" o "da lì puoi": elenca i passaggi esatti riportati nella knowledge base (sezione "Funzionamento dell’app"). Se i passaggi precisi non sono nella KB, fai handoff invece di improvvisarli.',
     'Vietate le risposte vaghe: niente "se previsto", "potrebbe", "in genere" quando l’informazione e nella KB o nei tool. Rispondi in modo definitivo. Se un dato non e disponibile, di’ con precisione cosa fare (dove guardare nell’app) oppure fai handoff: mai una risposta evasiva.',
     '',
     'Azioni sulle prenotazioni (puoi eseguirle per il cliente):',

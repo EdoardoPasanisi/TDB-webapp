@@ -493,11 +493,23 @@ Nel rilascio iniziale:
 
 ## 17. Funzionamento dell’app (conoscenza operativa — il chatbot deve padroneggiarla)
 
+> Regola per il chatbot: per qualsiasi domanda su “come si fa / dove si trova” una funzione, rispondi con il **percorso esatto passo-passo** (sezione → sottosezione → pulsante). Usa i percorsi qui sotto; se un percorso non c’è, fai handoff invece di inventarlo.
+
 ### Navigazione principale
 - **Servizi**: da qui si prenotano i servizi (Pensione, Asilo, Addestramento, Consulenza, ecc.).
 - **Calendario**: qui il cliente vede **tutte le sue prenotazioni** con il relativo **stato**, ne apre il **dettaglio**, le **modifica** e le **elimina**.
 - **Chat**: assistenza (questo chatbot, con possibilità di passare a un operatore).
-- **Profilo**: dati personali (anagrafica, contatti, residenza, indirizzo servizi, documenti) e **I miei pet**.
+- **Profilo**: in alto c’è l’**intestazione con i propri dati** (nome, email) con la scritta “Apri qui per gestire dati, documenti e liberatoria”: toccandola si apre **Dati personali**. Sotto ci sono **I miei pet** e **I miei media**.
+- **Impostazioni** (icona ingranaggio dal Profilo): contiene “Account” (→ **Dati e documenti**, **Modifica password**), “Notifiche” (→ **Preferenze notifiche**) e “Guida” (→ **Rivedi il tutorial**).
+
+### Dati personali, documenti e liberatoria (percorsi esatti)
+- **Aprire i dati personali**: **Profilo → tocca l’intestazione in alto** (oppure **Impostazioni → Dati e documenti**). Si apre la pagina **Dati personali**.
+- **Modificare i dati anagrafici** (nome, telefono, codice fiscale, residenza, indirizzo servizi, ecc.): in **Dati personali**, riquadro “Dati personali”, premi **Modifica** (o **Completa** se vuoti), aggiorna i campi e premi **Salva**.
+- **Foto profilo**: in **Dati personali**, riquadro “Foto profilo”, premi **Carica** (o **Sostituisci**); per toglierla, **Rimuovi**.
+- **Caricare il documento d’identità (fronte + retro)**: in **Dati personali**, riquadro “Documento di identità”, premi **Mostra**; per **Fronte** e per **Retro** premi **Carica** (o **Sostituisci**) e scegli il file; quando vedi entrambe le anteprime premi **Conferma**. Servono **entrambi i lati** per confermare.
+- **Liberatoria**: in **Dati personali**, riquadro “Liberatoria”, premi **Mostra** → **Genera** per aprire la liberatoria precompilata → **Stampa** e firmala → poi torna e premi **Carica** per caricare il documento firmato.
+- **Modificare la password**: **Impostazioni → Modifica password**.
+- **Preferenze notifiche**: **Impostazioni → Preferenze notifiche**.
 
 ### Stati di una prenotazione
 - **In attesa**: richiesta inviata, non ancora confermata dallo staff.
@@ -506,16 +518,26 @@ Nel rilascio iniziale:
 - **Annullata**: annullata (resta nello storico) — oppure eliminata definitivamente dal cliente.
 - Domanda tipica: *“Non so se la prenotazione è confermata / non la vedo”* → **si controlla nel Calendario**: lì si vede lo stato e si può aprire, modificare o eliminare la prenotazione.
 
+### Prenotare un servizio (passo-passo)
+- **Servizi → tocca il servizio** desiderato (Pensione, Asilo, Addestramento, Consulenza, ecc.) → segui i **passaggi guidati** (date, pet, eventuali extra) → premi **Conferma**.
+- Per la **pensione** servono i dati obbligatori (vedi sotto): senza, l’app mostra l’avviso dei dati mancanti e blocca la conferma (il preventivo resta comunque visibile).
+
 ### Gestire le prenotazioni (cliente)
-- **Vedere/controllare lo stato**: sezione Calendario → la prenotazione → dettaglio.
-- **Modificare**: dal dettaglio, pulsante **Modifica**.
-- **Annullare**: pulsante **Annulla** (resta nello storico come annullata).
-- **Eliminare definitivamente**: pulsante **Elimina** (la rimuove dallo storico).
+- **Vedere/controllare lo stato**: sezione **Calendario → tocca la prenotazione** per aprirne il **dettaglio**.
+- **Modificare**: nel dettaglio, pulsante **Modifica**.
+- **Annullare**: nel dettaglio, pulsante **Annulla** (resta nello storico come annullata).
+- **Eliminare definitivamente**: nel dettaglio, pulsante **Elimina** (la rimuove dallo storico).
 
 ### Pet (cani, gatti, altro)
-- Si gestiscono in **Profilo → I miei pet** (aggiungi/modifica/elimina). Per aggiungere si sceglie prima il tipo: **Cane**, **Gatto** o **Altro**.
-- **Eliminare un pet inserito (anche se per errore)**: vai in **Profilo → I miei pet**, tocca il pet per aprirne la scheda, premi **Modifica** e scorri **fino in fondo alla pagina**: lì trovi il pulsante **Elimina pet**. Questo è il percorso esatto da indicare al cliente (non basta selezionare il pet: serve entrare in Modifica).
+- Si gestiscono in **Profilo → I miei pet**.
+- **Aggiungere un pet**: **Profilo → I miei pet → + Aggiungi** → scegli il tipo (**Cane**, **Gatto** o **Altro**) → compila i campi → **Salva**.
+- **Modificare un pet**: **Profilo → I miei pet → tocca il pet** per aprirne la scheda → **Modifica** → aggiorna i campi → **Salva**.
+- **Eliminare un pet inserito (anche se per errore)**: **Profilo → I miei pet → tocca il pet** per aprirne la scheda → **Modifica** → scorri **fino in fondo alla pagina** → pulsante **Elimina pet**. (Non basta selezionare il pet: serve entrare in **Modifica**.)
 - Il microchip e il “nome sul libretto” riguardano **solo i cani**; i gatti non hanno microchip.
+
+### Media (foto e video del soggiorno)
+- Si trovano in **Profilo → I miei media**. Ogni media si può **scaricare** con l’apposito pulsante.
+- Restano **disponibili 48 ore dall’invio**, poi vengono eliminati automaticamente.
 
 ### Requisiti per prenotare la pensione (obbligatori)
 - **Proprietario**: nome, cognome, telefono, codice fiscale, residenza completa, documento d’identità caricato (anche se non ancora accettato).
