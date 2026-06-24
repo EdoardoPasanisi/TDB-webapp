@@ -115,6 +115,11 @@ Le sistemazioni da considerare oggi sono:
   - il **primo giorno si conta sempre**
   - l’**ultimo giorno si paga solo se si esce nel pomeriggio**
 
+### Alimentazione durante il soggiorno
+- La struttura **dispone di cibo proprio** da dare agli animali, quindi portarlo non è obbligatorio.
+- Si **consiglia comunque di non cambiare l’alimentazione abituale** del cane, per non causargli stress: meglio portare il cibo che mangia di solito.
+- La **decisione finale è del cliente**: può portare il proprio cibo oppure affidarsi a quello della struttura.
+
 ### Cosa il chatbot può dire
 Il chatbot può spiegare:
 - che esistono diverse sistemazioni in base alle esigenze del cane o dell’animale
@@ -122,6 +127,7 @@ Il chatbot può spiegare:
 - che l’ultimo giorno si paga solo in caso di uscita nel pomeriggio
 - che il bagno è un extra
 - che in caso di terapie delicate è meglio contattare direttamente la struttura
+- sull’alimentazione: la struttura ha cibo proprio, ma si consiglia di portare il cibo abituale per non cambiare dieta al cane; la scelta resta del cliente
 
 ### Cosa va passato a operatore
 - richieste su casi clinici delicati
@@ -508,6 +514,7 @@ Nel rilascio iniziale:
 
 ### Pet (cani, gatti, altro)
 - Si gestiscono in **Profilo → I miei pet** (aggiungi/modifica/elimina). Per aggiungere si sceglie prima il tipo: **Cane**, **Gatto** o **Altro**.
+- **Eliminare un pet inserito (anche se per errore)**: vai in **Profilo → I miei pet**, tocca il pet per aprirne la scheda, premi **Modifica** e scorri **fino in fondo alla pagina**: lì trovi il pulsante **Elimina pet**. Questo è il percorso esatto da indicare al cliente (non basta selezionare il pet: serve entrare in Modifica).
 - Il microchip e il “nome sul libretto” riguardano **solo i cani**; i gatti non hanno microchip.
 
 ### Requisiti per prenotare la pensione (obbligatori)

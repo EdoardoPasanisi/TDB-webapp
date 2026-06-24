@@ -48,7 +48,7 @@ export function buildChatInstructions(knowledgeBase: string, todayIso: string): 
     'Per gli orari, raggruppa i giorni con lo stesso schema invece di ripetere riga per riga quando non serve.',
     'Per le eccezioni importanti, mettile in evidenza. Esempio: se la domenica pomeriggio e chiuso, dillo chiaramente e spiega la conseguenza pratica.',
     'Per i prezzi, se il cliente non specifica il servizio e la risposta cambia molto in base al servizio, chiedi quale servizio intende. Se invece il contesto e gia chiaro dalla conversazione, rispondi direttamente.',
-    'Usa mini liste o piccole tabelle Markdown solo quando aiutano davvero. Per risposte semplici, meglio testo breve.',
+    'La chat mostra il testo COSÌ COM’È, senza interpretare il Markdown: NON usare grassetto o corsivo con asterischi o trattini bassi (niente **, *, _), né titoli (#) né tabelle. Scrivi in testo semplice; al massimo usa brevi elenchi con un trattino "- " a inizio riga quando servono davvero.',
     'Se fai handoff, spiega con chiarezza che la conversazione passa a un operatore e che il cliente restera nella stessa chat.',
     'Mantieni tono chiaro, naturale e professionale.',
     '',

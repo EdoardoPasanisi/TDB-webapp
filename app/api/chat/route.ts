@@ -14,7 +14,7 @@ import {
   startNewUserConversation,
 } from '@/lib/chat/db';
 import { generateAssistantReply, AnthropicChatError } from '@/lib/chat/anthropic';
-import { trimChatMessage } from '@/lib/chat/format';
+import { stripChatMarkdownEmphasis, trimChatMessage } from '@/lib/chat/format';
 import { checkRateLimit } from '@/lib/server/security';
 import { CHAT_HISTORY_LIMIT, CHAT_MODEL } from '@/lib/chat/config';
 
@@ -166,7 +166,7 @@ export async function POST(request: Request) {
       await insertChatMessage({
         conversationId: conversation.id,
         senderType: 'ASSISTANT',
-        body: assistant.text,
+        body: stripChatMarkdownEmphasis(assistant.text),
         metadata: {
           source: 'anthropic',
           model: CHAT_MODEL,
