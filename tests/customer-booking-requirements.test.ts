@@ -18,7 +18,7 @@ test('getMissingRequiredCustomerBookingFields returns missing owner booking fiel
       'Numero di telefono',
       'Codice fiscale',
       'Residenza completa',
-      'Documento di identità caricato',
+      'Documento di identità (fronte e retro)',
     ]
   );
 });
@@ -34,7 +34,8 @@ test('getMissingRequiredCustomerBookingFields accepts a complete owner profile',
       city: 'Roma',
       zip_code: '00100',
       province: 'RM',
-      id_document_path: 'user/id-documents/file.pdf',
+      id_document_path: 'user/id-documents/front.pdf',
+      id_document_back_path: 'user/id-documents/back.pdf',
     }),
     []
   );

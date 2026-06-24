@@ -21,7 +21,7 @@ import {
   type LoadState,
 } from '@/components/admin/shared';
 import { BookingDetailModal, UserDetailModal } from '@/components/admin/modals';
-import { DocumentCard } from '@/components/admin/shared';
+import { DocumentCard, IdentityDocumentCard, groupAdminDocuments } from '@/components/admin/shared';
 
 export function OverviewTab({ canManage }: { canManage: boolean }) {
   const [state, setState] = useState<LoadState>('loading');
@@ -174,15 +174,25 @@ export function OverviewTab({ canManage }: { canManage: boolean }) {
               <EmptyCard label="Documenti disponibili solo per account con poteri completi." />
             ) : overview.pendingDocuments.length ? (
               <div className="space-y-3">
-                {overview.pendingDocuments.map((document) => (
-                  <DocumentCard
-                    key={document.id}
-                    document={document}
-                    canManage={canManage}
-                    onDecision={(status) => handleDocumentDecision(document.id, status)}
-                    onOpenOwner={(userId) => setSelectedUserId(userId)}
-                  />
-                ))}
+                {groupAdminDocuments(overview.pendingDocuments).map((entry) =>
+                  entry.type === 'identity' ? (
+                    <IdentityDocumentCard
+                      key={entry.key}
+                      entry={entry}
+                      canManage={canManage}
+                      onDecision={handleDocumentDecision}
+                      onOpenOwner={(userId) => setSelectedUserId(userId)}
+                    />
+                  ) : (
+                    <DocumentCard
+                      key={entry.key}
+                      document={entry.record}
+                      canManage={canManage}
+                      onDecision={(status) => handleDocumentDecision(entry.record.id, status)}
+                      onOpenOwner={(userId) => setSelectedUserId(userId)}
+                    />
+                  )
+                )}
               </div>
             ) : (
               <EmptyCard label="Nessun documento in attesa." />

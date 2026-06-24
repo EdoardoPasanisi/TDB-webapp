@@ -737,10 +737,18 @@ export function BookingDetailModal({
                         title="Documenti"
                         items={[
                           {
-                            label: 'Documento di identità',
+                            label: 'Documento di identità (fronte)',
                             value: detail.user.profile.id_document_path
                               ? detail.user.profile.id_document_uploaded_at
                                 ? `Caricato il ${formatDateTime(detail.user.profile.id_document_uploaded_at)}`
+                                : 'Caricato'
+                              : null,
+                          },
+                          {
+                            label: 'Documento di identità (retro)',
+                            value: detail.user.profile.id_document_back_path
+                              ? detail.user.profile.id_document_back_uploaded_at
+                                ? `Caricato il ${formatDateTime(detail.user.profile.id_document_back_uploaded_at)}`
                                 : 'Caricato'
                               : null,
                           },

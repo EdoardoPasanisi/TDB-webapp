@@ -75,6 +75,7 @@ type TaxiDistanceApiResponse = {
 
 type RequiredBookingProfileRow = import('@/lib/bookings/customerBookingRequirements').CustomerBookingRequirementProfile;
 type IdentityDocumentPresenceRow = {
+  side: 'FRONT' | 'BACK' | null;
   path: string | null;
 };
 
@@ -142,21 +143,27 @@ function hasTaxiServiceAddressMinimum(address: ProfileAddressRow | null): boolea
 async function loadHasUploadedIdentityDocument(userId: string): Promise<boolean | null> {
   const { data, error } = await supabase
     .from('user_documents')
-    .select('path')
+    .select('side, path')
     .eq('user_id', userId)
     .eq('kind', 'ID_DOCUMENT')
     .in('status', ['PENDING', 'ACCEPTED'])
-    .order('created_at', { ascending: false })
-    .limit(1);
+    .order('created_at', { ascending: false });
 
   if (error) {
     console.error('Identity document presence check failed:', error);
     return null;
   }
 
-  return ((data ?? []) as IdentityDocumentPresenceRow[]).some((row) =>
-    String(row.path ?? '').trim().length > 0
+  // Servono entrambi i lati (fronte + retro). Le righe legacy (side NULL) sono
+  // trattate come fronte (vedi migration di backfill).
+  const rows = (data ?? []) as IdentityDocumentPresenceRow[];
+  const hasFront = rows.some(
+    (row) => (row.side ?? 'FRONT') === 'FRONT' && String(row.path ?? '').trim().length > 0
   );
+  const hasBack = rows.some(
+    (row) => row.side === 'BACK' && String(row.path ?? '').trim().length > 0
+  );
+  return hasFront && hasBack;
 }
 
 function buildRequiredBookingProfileRow(

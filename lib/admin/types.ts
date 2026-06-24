@@ -68,6 +68,7 @@ export type AdminDocumentRecord = {
   userId: string;
   ownerName: string | null;
   kind: AdminDocumentKind;
+  side: 'FRONT' | 'BACK' | null;
   path: string;
   fileName: string;
   status: AdminDocumentStatus;

@@ -11,7 +11,7 @@ export function buildRequiredOwnerMissing(profile: Profile | null | undefined): 
       'Codice fiscale',
       'Data di nascita',
       'Indirizzo completo',
-      'Documento di identità',
+      'Documento di identità (fronte e retro)',
     ];
   }
 
@@ -30,7 +30,10 @@ export function buildRequiredOwnerMissing(profile: Profile | null | undefined): 
     !!String(profile.province ?? '').trim();
 
   if (!hasCompleteAddress) missing.push('Indirizzo completo');
-  if (!String(profile.id_document_path ?? '').trim()) missing.push('Documento di identità');
+
+  const hasIdFront = !!String(profile.id_document_path ?? '').trim();
+  const hasIdBack = !!String(profile.id_document_back_path ?? '').trim();
+  if (!hasIdFront || !hasIdBack) missing.push('Documento di identità (fronte e retro)');
 
   return missing;
 }

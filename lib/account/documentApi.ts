@@ -81,3 +81,60 @@ export async function uploadUserDocument(args: {
     profile: json.profile ?? null,
   };
 }
+
+type UploadIdentitySidesResult = {
+  frontPath: string | null;
+  backPath: string | null;
+  profile: Profile | null;
+};
+
+export async function uploadIdentityDocumentSides(args: {
+  front?: File | null;
+  back?: File | null;
+}): Promise<UploadIdentitySidesResult> {
+  const { front, back } = args;
+
+  if (!front && !back) {
+    throw new Error('Nessun file selezionato.');
+  }
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw new Error('Sessione non valida: fai logout/login e riprova.');
+
+  const token = sessionData.session?.access_token;
+  if (!token) throw new Error('Token mancante: fai logout/login e riprova.');
+
+  const formData = new FormData();
+  formData.append('kind', 'ID_DOCUMENT');
+  if (front) formData.append('front', front);
+  if (back) formData.append('back', back);
+
+  const response = await fetch('/api/user-documents', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const rawError = await readApiErrorMessage(response);
+    throw new Error(humanizeDocumentUploadError(rawError, response.status));
+  }
+
+  const json = (await response.json()) as {
+    ok?: boolean;
+    frontPath?: string | null;
+    backPath?: string | null;
+    profile?: Profile | null;
+    error?: string;
+  };
+
+  if (!json.ok) {
+    throw new Error(humanizeDocumentUploadError(String(json.error ?? ''), 400));
+  }
+
+  return {
+    frontPath: json.frontPath ?? null,
+    backPath: json.backPath ?? null,
+    profile: json.profile ?? null,
+  };
+}

@@ -11,6 +11,7 @@ export type CustomerBookingRequirementProfile = {
   zip_code?: string | null;
   province?: string | null;
   id_document_path?: string | null;
+  id_document_back_path?: string | null;
   has_id_document?: boolean | null;
 };
 
@@ -39,9 +40,11 @@ export function getMissingRequiredOwnerBookingFields(
     !isBlank(profile?.province);
   if (!hasCompleteResidence) missing.push('Residenza completa');
 
+  // Servono entrambi i lati del documento (fronte + retro).
   const hasUploadedIdDocument =
-    profile?.has_id_document === true || !isBlank(profile?.id_document_path);
-  if (!hasUploadedIdDocument) missing.push('Documento di identità caricato');
+    profile?.has_id_document === true ||
+    (!isBlank(profile?.id_document_path) && !isBlank(profile?.id_document_back_path));
+  if (!hasUploadedIdDocument) missing.push('Documento di identità (fronte e retro)');
 
   return missing;
 }

@@ -45,7 +45,7 @@ import type {
 } from '@/types/services';
 
 const PROFILE_SELECT =
-  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, wallet_due_eur, deleted_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
+  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, id_document_back_path, id_document_back_uploaded_at, wallet_due_eur, deleted_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOG_SELECT =
   'id, owner_id, created_at, updated_at, species, species_other, libretto_name, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds';
 const IDENTITY_BUCKET = 'identity-documents';
@@ -65,6 +65,7 @@ type UserDocumentRow = {
   id: string;
   user_id: string;
   kind: 'ID_DOCUMENT' | 'WAIVER_SIGNED';
+  side: 'FRONT' | 'BACK' | null;
   path: string;
   created_at: string;
   status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
@@ -310,6 +311,8 @@ function sanitizeProfileForViewer(profile: Profile | null): Profile | null {
     dog_province: null,
     id_document_path: null,
     id_document_uploaded_at: null,
+    id_document_back_path: null,
+    id_document_back_uploaded_at: null,
   };
 }
 
@@ -602,6 +605,7 @@ function mapDocumentRow(
     userId: row.user_id,
     ownerName,
     kind: row.kind,
+    side: row.side ?? null,
     path: row.path,
     fileName: fileNameFromPath(row.path),
     status: row.status,
@@ -706,7 +710,7 @@ async function loadUserDocumentsByUserIds(userIds: string[]): Promise<UserDocume
 
   const { data } = await supabaseAdmin
     .from('user_documents')
-    .select('id, user_id, kind, path, created_at, status, accepted_at, rejected_at, staff_note')
+    .select('id, user_id, kind, side, path, created_at, status, accepted_at, rejected_at, staff_note')
     .in('user_id', ids)
     .order('created_at', { ascending: false });
 
@@ -1342,7 +1346,7 @@ export async function getAdminUserDetail(
       .order('purchased_at', { ascending: false }),
     supabaseAdmin
       .from('user_documents')
-      .select('id, user_id, kind, path, created_at, status, accepted_at, rejected_at, staff_note')
+      .select('id, user_id, kind, side, path, created_at, status, accepted_at, rejected_at, staff_note')
       .eq('user_id', userId)
       .order('created_at', { ascending: false }),
     getStaffRoleForUserInternal(userId),
@@ -1922,7 +1926,7 @@ export async function getAdminOverview(
 
   const pendingDocumentsRaw = await supabaseAdmin
     .from('user_documents')
-    .select('id, user_id, kind, path, created_at, status, accepted_at, rejected_at, staff_note')
+    .select('id, user_id, kind, side, path, created_at, status, accepted_at, rejected_at, staff_note')
     .eq('status', 'PENDING')
     .order('created_at', { ascending: false })
     .limit(8);
@@ -2378,7 +2382,7 @@ export async function requestAdminDocumentReupload(documentId: string): Promise<
   const now = new Date().toISOString();
   const { data: current, error: currentError } = await supabaseAdmin
     .from('user_documents')
-    .select('user_id, kind, status, path')
+    .select('user_id, kind, side, status, path')
     .eq('id', documentId)
     .maybeSingle();
 
@@ -2396,15 +2400,28 @@ export async function requestAdminDocumentReupload(documentId: string): Promise<
   if (error) throw new Error(error.message);
 
   if (kind === 'ID_DOCUMENT') {
+    // Azzera la colonna profilo (fronte o retro) il cui path corrisponde a
+    // quello del documento rifiutato, così la prenotazione torna bloccata.
     const { data: profile } = await supabaseAdmin
       .from('profiles')
-      .select('id_document_path')
+      .select('id_document_path, id_document_back_path')
       .eq('user_id', userId)
       .maybeSingle();
-    if (profile && String((profile as { id_document_path?: string | null }).id_document_path ?? '') === path) {
+
+    const row = (profile ?? null) as {
+      id_document_path?: string | null;
+      id_document_back_path?: string | null;
+    } | null;
+
+    if (row && String(row.id_document_path ?? '') === path) {
       await supabaseAdmin
         .from('profiles')
         .update({ id_document_path: null, id_document_uploaded_at: null })
+        .eq('user_id', userId);
+    } else if (row && String(row.id_document_back_path ?? '') === path) {
+      await supabaseAdmin
+        .from('profiles')
+        .update({ id_document_back_path: null, id_document_back_uploaded_at: null })
         .eq('user_id', userId);
     }
   }
@@ -2426,7 +2443,7 @@ export async function replaceAdminDocumentFile(args: {
 
   const { data: current, error: currentError } = await supabaseAdmin
     .from('user_documents')
-    .select('user_id, kind, path')
+    .select('user_id, kind, side, path')
     .eq('id', documentId)
     .maybeSingle();
 
@@ -2435,6 +2452,7 @@ export async function replaceAdminDocumentFile(args: {
 
   const userId = String(current.user_id);
   const kind = current.kind as 'ID_DOCUMENT' | 'WAIVER_SIGNED';
+  const side = (current as { side?: 'FRONT' | 'BACK' | null }).side ?? 'FRONT';
   const oldPath = String((current as { path?: string | null }).path ?? '').trim();
 
   const { error } = await supabaseAdmin
@@ -2444,10 +2462,11 @@ export async function replaceAdminDocumentFile(args: {
   if (error) throw new Error(error.message);
 
   if (kind === 'ID_DOCUMENT') {
-    await supabaseAdmin
-      .from('profiles')
-      .update({ id_document_path: newPath, id_document_uploaded_at: now })
-      .eq('user_id', userId);
+    const profilePatch =
+      side === 'BACK'
+        ? { id_document_back_path: newPath, id_document_back_uploaded_at: now }
+        : { id_document_path: newPath, id_document_uploaded_at: now };
+    await supabaseAdmin.from('profiles').update(profilePatch).eq('user_id', userId);
   }
 
   if (oldPath && oldPath !== newPath) {

@@ -146,7 +146,20 @@ export default function AccountWaiverPage() {
           .no-print { display: none !important; }
           .print-only { display: block !important; }
 
+          /* Su mobile (iOS Safari) la stampa è "WYSIWYG": senza questi reset il
+             contenuto resta largo come il viewport del telefono e in PDF finisce
+             in una colonna stretta. Forziamo larghezza piena e disattiviamo
+             l'auto-ridimensionamento del testo. */
+          html {
+            -webkit-text-size-adjust: 100% !important;
+            text-size-adjust: 100% !important;
+          }
+
           html, body {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background: white !important;
             color: #000 !important;
             print-color-adjust: exact !important;
@@ -154,6 +167,8 @@ export default function AccountWaiverPage() {
           }
 
           main {
+            width: 100% !important;
+            max-width: 100% !important;
             padding: 0 !important;
             margin: 0 !important;
             background: white !important;
@@ -161,10 +176,20 @@ export default function AccountWaiverPage() {
           }
 
           .waiver-wrap {
-            max-width: none !important;
+            max-width: 100% !important;
             width: 100% !important;
             padding: 0 !important;
             margin: 0 !important;
+          }
+
+          .waiver-paper {
+            width: 100% !important;
+            max-width: 100% !important;
+          }
+
+          .waiver-page {
+            width: 100% !important;
+            max-width: 100% !important;
           }
 
           .waiver-wrap > * {

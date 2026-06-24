@@ -106,12 +106,11 @@ export async function POST(request: Request) {
         .maybeSingle(),
       supabase
         .from('user_documents')
-        .select('path')
+        .select('side, path')
         .eq('user_id', userId)
         .eq('kind', 'ID_DOCUMENT')
         .in('status', ['PENDING', 'ACCEPTED'])
-        .order('created_at', { ascending: false })
-        .limit(1),
+        .order('created_at', { ascending: false }),
     ]);
 
     if (profileError || identityDocumentsError) {
@@ -121,9 +120,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const hasUploadedIdentityDocument = ((identityDocuments ?? []) as Array<{ path?: string | null }>).some(
-      (row) => String(row.path ?? '').trim().length > 0
+    // Servono entrambi i lati (fronte + retro). Le righe legacy (side NULL)
+    // sono trattate come fronte (vedi migration di backfill).
+    const idDocRows = (identityDocuments ?? []) as Array<{ side?: string | null; path?: string | null }>;
+    const hasIdFront = idDocRows.some(
+      (row) => (row.side ?? 'FRONT') === 'FRONT' && String(row.path ?? '').trim().length > 0
     );
+    const hasIdBack = idDocRows.some(
+      (row) => row.side === 'BACK' && String(row.path ?? '').trim().length > 0
+    );
+    const hasUploadedIdentityDocument = hasIdFront && hasIdBack;
 
     const missingRequiredFields = getMissingRequiredCustomerBookingFields(
       {

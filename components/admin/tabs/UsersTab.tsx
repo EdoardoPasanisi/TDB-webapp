@@ -33,7 +33,7 @@ import {
   buildRequiredDogMissing,
 } from '@/components/admin/shared';
 import { BookingDetailModal, DogDetailModal } from '@/components/admin/modals';
-import { DocumentCard } from '@/components/admin/shared';
+import { DocumentCard, IdentityDocumentCard, groupAdminDocuments } from '@/components/admin/shared';
 import { CreateUserModal } from '@/components/admin/CreateUserModal';
 import { DogEditModal } from '@/components/admin/DogEditModal';
 import { AssignPassModal } from '@/components/admin/AssignPassModal';
@@ -643,16 +643,27 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                     <SectionHeader title="Documenti" subtitle="Stato verifiche documento e liberatoria." />
                     {detail.documents.length ? (
                       <div className="space-y-3">
-                        {detail.documents.map((document) => (
-                          <DocumentCard
-                            key={document.id}
-                            document={document}
-                            canManage={canManage}
-                            onDecision={(status) => handleDocumentDecision(document.id, status)}
-                            onReRequest={() => handleDocumentReRequest(document.id)}
-                            onUpload={(file) => handleDocumentUpload(document.id, file)}
-                          />
-                        ))}
+                        {groupAdminDocuments(detail.documents).map((entry) =>
+                          entry.type === 'identity' ? (
+                            <IdentityDocumentCard
+                              key={entry.key}
+                              entry={entry}
+                              canManage={canManage}
+                              onDecision={handleDocumentDecision}
+                              onReRequest={handleDocumentReRequest}
+                              onUpload={handleDocumentUpload}
+                            />
+                          ) : (
+                            <DocumentCard
+                              key={entry.key}
+                              document={entry.record}
+                              canManage={canManage}
+                              onDecision={(status) => handleDocumentDecision(entry.record.id, status)}
+                              onReRequest={() => handleDocumentReRequest(entry.record.id)}
+                              onUpload={(file) => handleDocumentUpload(entry.record.id, file)}
+                            />
+                          )
+                        )}
                       </div>
                     ) : (
                       <EmptyCard label="Nessun documento caricato." />

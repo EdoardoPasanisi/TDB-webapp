@@ -27,9 +27,11 @@ export interface Profile {
   dog_zip_code: string | null;
   dog_province: string | null;
 
-  // Documento identità (NON pubblico)
-  id_document_path: string | null;
+  // Documento identità (NON pubblico) — fronte + retro
+  id_document_path: string | null; // fronte
   id_document_uploaded_at: string | null;
+  id_document_back_path: string | null; // retro
+  id_document_back_uploaded_at: string | null;
 
   // Soft-delete dal gestionale (null = utente attivo)
   deleted_at?: string | null;

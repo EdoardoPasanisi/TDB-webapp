@@ -877,3 +877,245 @@ export function DocumentCard({
     </Card>
   );
 }
+
+// Raggruppa i documenti per la visualizzazione admin: i documenti d'identità
+// vengono accorpati per utente in un'unica voce con fronte + retro; le
+// liberatorie restano voci singole. L'ordine di apparizione è preservato.
+export type AdminDocumentEntry =
+  | {
+      type: 'identity';
+      key: string;
+      userId: string;
+      ownerName: string | null;
+      front: AdminDocumentRecord | null;
+      back: AdminDocumentRecord | null;
+    }
+  | { type: 'single'; key: string; record: AdminDocumentRecord };
+
+export function groupAdminDocuments(records: AdminDocumentRecord[]): AdminDocumentEntry[] {
+  const entries: AdminDocumentEntry[] = [];
+  const identityIndexByUser = new Map<string, number>();
+
+  for (const record of records) {
+    if (record.kind !== 'ID_DOCUMENT') {
+      entries.push({ type: 'single', key: record.id, record });
+      continue;
+    }
+
+    let index = identityIndexByUser.get(record.userId);
+    if (index === undefined) {
+      index = entries.length;
+      identityIndexByUser.set(record.userId, index);
+      entries.push({
+        type: 'identity',
+        key: `id-${record.userId}`,
+        userId: record.userId,
+        ownerName: record.ownerName,
+        front: null,
+        back: null,
+      });
+    }
+
+    const entry = entries[index];
+    if (entry.type !== 'identity') continue;
+
+    const sideKey = record.side === 'BACK' ? 'back' : 'front';
+    const current = entry[sideKey];
+    if (!current || record.createdAt > current.createdAt) entry[sideKey] = record;
+    if (!entry.ownerName) entry.ownerName = record.ownerName;
+  }
+
+  return entries;
+}
+
+function IdentitySideBlock({
+  label,
+  record,
+  canManage,
+  onReRequest,
+  onUpload,
+}: {
+  label: string;
+  record: AdminDocumentRecord | null;
+  canManage: boolean;
+  onReRequest?: (documentId: string) => Promise<void> | void;
+  onUpload?: (documentId: string, file: File) => Promise<void> | void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  if (!record) {
+    return (
+      <div className="ui-panelInset p-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="ui-accentPill">{label}</span>
+          <span className="ui-muted">Mancante</span>
+        </div>
+      </div>
+    );
+  }
+
+  const handleFileSelected = async (file: File | null) => {
+    if (!file || !onUpload) return;
+    setUploading(true);
+    try {
+      await onUpload(record.id, file);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="ui-panelInset p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="ui-accentPill">{label}</span>
+        <span className={statusTone(record.status)}>{getDocumentStatusLabel(record.status)}</span>
+      </div>
+      <div className="ui-fine text-[rgba(255,255,255,0.38)] break-all">{record.fileName}</div>
+      <div className="flex flex-wrap gap-2">
+        {record.signedUrl ? (
+          <a
+            href={record.signedUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="ui-btn ui-btnSecondary ui-btnCompact"
+          >
+            Apri file
+          </a>
+        ) : null}
+        {canManage && onUpload ? (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                event.target.value = '';
+                void handleFileSelected(file);
+              }}
+            />
+            <Button
+              variant="secondary"
+              className="ui-btnCompact"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? 'Caricamento…' : 'Modifica'}
+            </Button>
+          </>
+        ) : null}
+        {canManage && onReRequest ? (
+          <Button
+            variant="danger"
+            className="ui-btnCompact"
+            onClick={() => void onReRequest(record.id)}
+          >
+            Richiedi di nuovo
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+export function IdentityDocumentCard({
+  entry,
+  canManage,
+  onDecision,
+  onReRequest,
+  onUpload,
+  onOpenOwner,
+}: {
+  entry: {
+    userId: string;
+    ownerName: string | null;
+    front: AdminDocumentRecord | null;
+    back: AdminDocumentRecord | null;
+  };
+  canManage: boolean;
+  onDecision?: (documentId: string, status: 'ACCEPTED' | 'REJECTED') => Promise<void> | void;
+  onReRequest?: (documentId: string) => Promise<void> | void;
+  onUpload?: (documentId: string, file: File) => Promise<void> | void;
+  onOpenOwner?: (userId: string) => void;
+}) {
+  const sides = [
+    { key: 'front', label: 'Fronte', record: entry.front },
+    { key: 'back', label: 'Retro', record: entry.back },
+  ] as const;
+
+  const pendingRecords = sides
+    .map((s) => s.record)
+    .filter((r): r is AdminDocumentRecord => !!r && r.status === 'PENDING');
+
+  const createdAt = entry.front?.createdAt ?? entry.back?.createdAt ?? null;
+
+  const decideAll = async (status: 'ACCEPTED' | 'REJECTED') => {
+    for (const record of pendingRecords) {
+      await onDecision?.(record.id, status);
+    }
+  };
+
+  return (
+    <Card className="admin-listCard">
+      <CardContent className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="ui-accentPill">Documento di identità</span>
+              {createdAt ? (
+                <span className="ui-fine text-[rgba(255,255,255,0.42)]">
+                  Caricato il {formatDateTime(createdAt)}
+                </span>
+              ) : null}
+            </div>
+            {entry.ownerName ? (
+              onOpenOwner ? (
+                <button
+                  type="button"
+                  className="ui-body font-[var(--font-weight-semibold)] underline underline-offset-2 text-left"
+                  onClick={() => onOpenOwner(entry.userId)}
+                >
+                  {entry.ownerName}
+                </button>
+              ) : (
+                <div className="ui-body font-[var(--font-weight-semibold)]">{entry.ownerName}</div>
+              )
+            ) : null}
+          </div>
+        </div>
+
+        {/* Fronte sopra, retro sotto */}
+        <div className="space-y-3">
+          {sides.map((s) => (
+            <IdentitySideBlock
+              key={s.key}
+              label={s.label}
+              record={s.record}
+              canManage={canManage}
+              onReRequest={onReRequest}
+              onUpload={onUpload}
+            />
+          ))}
+        </div>
+
+        {/* Conferma unica: accetta/rifiuta entrambi i lati in attesa */}
+        {canManage && onDecision && pendingRecords.length ? (
+          <div className="flex flex-wrap gap-2">
+            <Button className="ui-btnCompact" onClick={() => void decideAll('ACCEPTED')}>
+              Accetta
+            </Button>
+            <Button
+              variant="danger"
+              className="ui-btnCompact"
+              onClick={() => void decideAll('REJECTED')}
+            >
+              Rifiuta
+            </Button>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}

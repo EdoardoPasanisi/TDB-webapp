@@ -16,7 +16,7 @@ export const runtime = 'nodejs';
 
 const ID_DOC_BUCKET = 'identity-documents';
 const PROFILE_SELECT =
-  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
+  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, id_document_back_path, id_document_back_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 
 type UserDocumentKind = 'ID_DOCUMENT' | 'WAIVER_SIGNED';
 
@@ -38,10 +38,67 @@ function getFileExt(file: File): string {
   return 'jpg';
 }
 
+type DocumentSide = 'FRONT' | 'BACK';
+
 function buildDocumentPath(userId: string, kind: UserDocumentKind, file: File): string {
   const folder = kind === 'ID_DOCUMENT' ? 'id-documents' : 'waivers';
   const token = crypto.randomUUID();
   return `${userId}/${folder}/${token}.${getFileExt(file)}`;
+}
+
+function validateUserDocumentFile(file: File): string | null {
+  return validateUploadFile({
+    file,
+    allowedMimeTypes: USER_DOCUMENT_MIME_TYPES,
+    maxBytes: MAX_USER_DOCUMENT_BYTES,
+    invalidTypeMessage: 'Formato non valido. Usa PDF, JPG, PNG o WebP.',
+    tooLargeMessage: 'Il file è troppo grande. Limite massimo: 10MB.',
+  });
+}
+
+// Carica un singolo file nel bucket e registra la riga user_documents.
+// Ritorna path + id della riga, oppure un messaggio d'errore.
+async function storeUserDocument(args: {
+  userId: string;
+  kind: UserDocumentKind;
+  side: DocumentSide | null;
+  file: File;
+}): Promise<{ path: string; documentId: string } | { error: string }> {
+  const { userId, kind, side, file } = args;
+
+  const validationError = validateUserDocumentFile(file);
+  if (validationError) return { error: validationError };
+
+  const headerBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+  const signatureError = validateUploadBytes(file, headerBytes);
+  if (signatureError) return { error: signatureError };
+
+  const path = buildDocumentPath(userId, kind, file);
+  const fileBytes = new Uint8Array(await file.arrayBuffer());
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from(ID_DOC_BUCKET)
+    .upload(path, fileBytes, {
+      upsert: false,
+      contentType: file.type || 'application/octet-stream',
+      cacheControl: '3600',
+    });
+
+  if (uploadError) {
+    return { error: humanizeErrorMessage(uploadError, 'Non siamo riusciti a caricare il documento.') };
+  }
+
+  const { data: documentRow, error: documentError } = await supabaseAdmin
+    .from('user_documents')
+    .insert({ user_id: userId, kind, side, path, status: 'PENDING' })
+    .select('id')
+    .single();
+
+  if (documentError || !documentRow) {
+    await supabaseAdmin.storage.from(ID_DOC_BUCKET).remove([path]).catch(() => undefined);
+    return { error: humanizeErrorMessage(documentError, 'Impossibile registrare il documento.') };
+  }
+
+  return { path, documentId: String(documentRow.id) };
 }
 
 export async function POST(request: Request) {
@@ -50,148 +107,134 @@ export async function POST(request: Request) {
     const formData = await request.formData();
 
     const kind = String(formData.get('kind') ?? '').trim().toUpperCase();
-    const file = formData.get('file');
 
     if (!isUserDocumentKind(kind)) {
       return NextResponse.json({ error: 'Tipo documento non valido.' }, { status: 400 });
     }
 
-    if (!file || !(file instanceof File)) {
-      return NextResponse.json({ error: 'File mancante.' }, { status: 400 });
-    }
+    if (kind === 'ID_DOCUMENT') {
+      const frontFile = formData.get('front');
+      const backFile = formData.get('back');
 
-    const validationError = validateUploadFile({
-      file,
-      allowedMimeTypes: USER_DOCUMENT_MIME_TYPES,
-      maxBytes: MAX_USER_DOCUMENT_BYTES,
-      invalidTypeMessage: 'Formato non valido. Usa PDF, JPG, PNG o WebP.',
-      tooLargeMessage: 'Il file è troppo grande. Limite massimo: 10MB.',
-    });
-    if (validationError) {
-      return NextResponse.json({ error: validationError }, { status: 400 });
-    }
+      if (!(frontFile instanceof File) && !(backFile instanceof File)) {
+        return NextResponse.json({ error: 'File mancante.' }, { status: 400 });
+      }
 
-    const path = buildDocumentPath(userId, kind, file);
-    const headerBytes = new Uint8Array(await file.slice(0, 16).arrayBuffer());
-    const signatureError = validateUploadBytes(file, headerBytes);
-    if (signatureError) {
-      return NextResponse.json({ error: signatureError }, { status: 400 });
-    }
+      const nowIso = new Date().toISOString();
+      const profilePatch: Record<string, string> = { user_id: userId };
+      const uploadedPaths: string[] = [];
+      const insertedDocIds: string[] = [];
+      let frontPath: string | null = null;
+      let backPath: string | null = null;
 
-    const fileBytes = new Uint8Array(await file.arrayBuffer());
-    const { error: uploadError } = await supabaseAdmin.storage
-      .from(ID_DOC_BUCKET)
-      .upload(path, fileBytes, {
-        upsert: false,
-        contentType: file.type || 'application/octet-stream',
-        cacheControl: '3600',
-      });
+      const rollback = async () => {
+        try {
+          if (insertedDocIds.length) {
+            await supabaseAdmin.from('user_documents').delete().in('id', insertedDocIds);
+          }
+        } catch (rollbackError) {
+          console.error('Document record rollback failed:', rollbackError);
+        }
+        if (uploadedPaths.length) {
+          await supabaseAdmin.storage.from(ID_DOC_BUCKET).remove(uploadedPaths).catch(() => undefined);
+        }
+      };
 
-    if (uploadError) {
-      return NextResponse.json({ error: humanizeErrorMessage(uploadError, 'Non siamo riusciti a caricare il documento.') }, { status: 400 });
-    }
+      for (const side of ['FRONT', 'BACK'] as const) {
+        const file = side === 'FRONT' ? frontFile : backFile;
+        if (!(file instanceof File)) continue;
 
-    const { data: documentRow, error: documentError } = await supabaseAdmin
-      .from('user_documents')
-      .insert({
-        user_id: userId,
-        kind,
-        path,
-        status: 'PENDING',
-      })
-      .select('id')
-      .single();
+        const stored = await storeUserDocument({ userId, kind, side, file });
+        if ('error' in stored) {
+          await rollback();
+          return NextResponse.json({ error: stored.error }, { status: 400 });
+        }
 
-    if (documentError || !documentRow) {
-      await supabaseAdmin.storage.from(ID_DOC_BUCKET).remove([path]).catch(() => undefined);
-      return NextResponse.json(
-        { error: humanizeErrorMessage(documentError, 'Impossibile registrare il documento.') },
-        { status: 400 }
-      );
-    }
+        uploadedPaths.push(stored.path);
+        insertedDocIds.push(stored.documentId);
 
-    if (kind === 'WAIVER_SIGNED') {
+        if (side === 'FRONT') {
+          frontPath = stored.path;
+          profilePatch.id_document_path = stored.path;
+          profilePatch.id_document_uploaded_at = nowIso;
+        } else {
+          backPath = stored.path;
+          profilePatch.id_document_back_path = stored.path;
+          profilePatch.id_document_back_uploaded_at = nowIso;
+        }
+      }
+
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .upsert(profilePatch, { onConflict: 'user_id' })
+        .select(PROFILE_SELECT)
+        .single();
+
+      if (profileError || !profile) {
+        await rollback();
+        return NextResponse.json(
+          { error: humanizeErrorMessage(profileError, 'Impossibile aggiornare il profilo.') },
+          { status: 400 }
+        );
+      }
+
       try {
-        const { data: ownerProfile } = await supabaseAdmin
-          .from('profiles')
-          .select('first_name, last_name, email')
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        const owner = (ownerProfile ?? null) as {
-          first_name?: string | null;
-          last_name?: string | null;
-          email?: string | null;
-        } | null;
-
         await createManageStaffNotifications({
           type: 'DOCUMENT_ACTION_REQUIRED',
-          title: 'Nuova liberatoria da verificare',
-          body: `${formatPersonName(owner?.first_name ?? null, owner?.last_name ?? null, owner?.email ?? null)} ha caricato una liberatoria firmata.`,
+          title: 'Nuovo documento da verificare',
+          body: `${formatPersonName(profile.first_name ?? null, profile.last_name ?? null, profile.email ?? null)} ha caricato un documento di identità.`,
           data: {
             href: '/admin?tab=overview',
             adminTab: 'overview',
-            documentId: String(documentRow.id),
+            documentId: insertedDocIds[0] ?? '',
           },
         });
       } catch (notificationError) {
         console.error('Admin document notification failed:', notificationError);
       }
 
-      return NextResponse.json({ ok: true, kind, path }, { status: 200 });
+      return NextResponse.json({ ok: true, kind, frontPath, backPath, profile }, { status: 200 });
     }
 
-    const nowIso = new Date().toISOString();
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .upsert(
-        {
-          user_id: userId,
-          id_document_path: path,
-          id_document_uploaded_at: nowIso,
-        },
-        { onConflict: 'user_id' }
-      )
-      .select(PROFILE_SELECT)
-      .single();
+    // WAIVER_SIGNED
+    const file = formData.get('file');
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: 'File mancante.' }, { status: 400 });
+    }
 
-    if (profileError || !profile) {
-      try {
-        await supabaseAdmin.from('user_documents').delete().eq('id', documentRow.id);
-      } catch (rollbackError) {
-        console.error('Document record rollback failed:', rollbackError);
-      }
-      await supabaseAdmin.storage.from(ID_DOC_BUCKET).remove([path]).catch(() => undefined);
-      return NextResponse.json(
-        { error: humanizeErrorMessage(profileError, 'Impossibile aggiornare il profilo.') },
-        { status: 400 }
-      );
+    const stored = await storeUserDocument({ userId, kind, side: null, file });
+    if ('error' in stored) {
+      return NextResponse.json({ error: stored.error }, { status: 400 });
     }
 
     try {
+      const { data: ownerProfile } = await supabaseAdmin
+        .from('profiles')
+        .select('first_name, last_name, email')
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      const owner = (ownerProfile ?? null) as {
+        first_name?: string | null;
+        last_name?: string | null;
+        email?: string | null;
+      } | null;
+
       await createManageStaffNotifications({
         type: 'DOCUMENT_ACTION_REQUIRED',
-        title: 'Nuovo documento da verificare',
-        body: `${formatPersonName(profile.first_name ?? null, profile.last_name ?? null, profile.email ?? null)} ha caricato un documento di identità.`,
+        title: 'Nuova liberatoria da verificare',
+        body: `${formatPersonName(owner?.first_name ?? null, owner?.last_name ?? null, owner?.email ?? null)} ha caricato una liberatoria firmata.`,
         data: {
           href: '/admin?tab=overview',
           adminTab: 'overview',
-          documentId: String(documentRow.id),
+          documentId: stored.documentId,
         },
       });
     } catch (notificationError) {
       console.error('Admin document notification failed:', notificationError);
     }
 
-    return NextResponse.json(
-      {
-        ok: true,
-        kind,
-        path,
-        profile,
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({ ok: true, kind, path: stored.path }, { status: 200 });
   } catch (error) {
     if (error instanceof RouteAuthError) {
       return NextResponse.json(

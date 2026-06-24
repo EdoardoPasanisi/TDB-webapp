@@ -15,7 +15,7 @@ import type { ProfileFormState } from '@/types/forms';
 import { updateProfileForCurrentUser } from '@/lib/account/profileApi';
 import { deleteProfilePhoto, uploadProfilePhoto } from '@/lib/account/profilePhotoApi';
 import { isValidItalianFiscalCode, sanitizeFiscalCode } from '@/lib/validation/italy';
-import { uploadUserDocument } from '@/lib/account/documentApi';
+import { uploadIdentityDocumentSides, uploadUserDocument } from '@/lib/account/documentApi';
 import {
   MAX_PROFILE_PHOTO_BYTES,
   MAX_USER_DOCUMENT_BYTES,
@@ -29,7 +29,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 
 const ID_DOC_BUCKET = 'identity-documents';
 const PROFILE_SELECT =
-  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
+  'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, id_document_back_path, id_document_back_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOC_ACTION_WIDTH_CLASS = 'w-[132px]';
 const DOC_DOWNLOAD_LINK_CLASS =
   'ui-btn ui-btnTone-secondary w-[132px]';
@@ -278,11 +278,18 @@ export default function AccountPage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Documento identità (preview dell’ultimo caricato)
-  const [idDocUploading, setIdDocUploading] = useState(false);
+  // Documento identità — fronte + retro
+  const [idDocConfirming, setIdDocConfirming] = useState(false);
   const [idDocError, setIdDocError] = useState<string | null>(null);
-  const [idDocSignedUrl, setIdDocSignedUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [idDocFrontSignedUrl, setIdDocFrontSignedUrl] = useState<string | null>(null);
+  const [idDocBackSignedUrl, setIdDocBackSignedUrl] = useState<string | null>(null);
+  // File scelti localmente (non ancora caricati) + anteprima object URL
+  const [idDocFrontFile, setIdDocFrontFile] = useState<File | null>(null);
+  const [idDocBackFile, setIdDocBackFile] = useState<File | null>(null);
+  const [idDocFrontPreview, setIdDocFrontPreview] = useState<string | null>(null);
+  const [idDocBackPreview, setIdDocBackPreview] = useState<string | null>(null);
+  const idDocFrontInputRef = useRef<HTMLInputElement | null>(null);
+  const idDocBackInputRef = useRef<HTMLInputElement | null>(null);
 
   // Foto profilo
   const [profilePhotoUploading, setProfilePhotoUploading] = useState(false);
@@ -309,10 +316,23 @@ export default function AccountPage() {
     editing && !form.dog_address_same_as_home
   );
 
-  const idDocIsPdf = useMemo(() => {
-    const path = profile?.id_document_path ?? '';
-    return path.toLowerCase().endsWith('.pdf');
-  }, [profile?.id_document_path]);
+  const idDocFrontIsPdf = useMemo(
+    () => (profile?.id_document_path ?? '').toLowerCase().endsWith('.pdf'),
+    [profile?.id_document_path]
+  );
+  const idDocBackIsPdf = useMemo(
+    () => (profile?.id_document_back_path ?? '').toLowerCase().endsWith('.pdf'),
+    [profile?.id_document_back_path]
+  );
+
+  // Revoca gli object URL delle anteprime locali allo smontaggio.
+  useEffect(() => {
+    return () => {
+      if (idDocFrontPreview) URL.revokeObjectURL(idDocFrontPreview);
+      if (idDocBackPreview) URL.revokeObjectURL(idDocBackPreview);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const waiverMissingFields = useMemo(() => {
     const missing: string[] = [];
@@ -383,7 +403,8 @@ export default function AccountPage() {
       setError(null);
       setProfilePhotoError(null);
       setIdDocError(null);
-      setIdDocSignedUrl(null);
+      setIdDocFrontSignedUrl(null);
+      setIdDocBackSignedUrl(null);
       setWaiverError(null);
       setWaiverSignedUrl(null);
 
@@ -401,7 +422,10 @@ export default function AccountPage() {
         setForm(initFormFromProfile(row, user.email ?? null));
 
         if (row?.id_document_path) {
-          await refreshSignedUrl(row.id_document_path, setIdDocSignedUrl);
+          await refreshSignedUrl(row.id_document_path, setIdDocFrontSignedUrl);
+        }
+        if (row?.id_document_back_path) {
+          await refreshSignedUrl(row.id_document_back_path, setIdDocBackSignedUrl);
         }
 
         const [idDocRow, waiverRow] = await Promise.all([
@@ -580,37 +604,78 @@ export default function AccountPage() {
     }
   };
 
-  const uploadIdentityDocument = async (file: File) => {
-    if (!user) return;
+  // Seleziona un file per un lato (fronte/retro) SENZA caricarlo: mostra solo
+  // l'anteprima locale. Il caricamento avviene con "Conferma".
+  const selectIdDocSide = (side: 'front' | 'back', file: File) => {
+    const validationError = validateUserDocument(file);
+    if (validationError) {
+      setIdDocError(validationError);
+      return;
+    }
+    setIdDocError(null);
 
-    setIdDocUploading(true);
+    const preview = file.type.startsWith('image/') ? URL.createObjectURL(file) : null;
+
+    if (side === 'front') {
+      setIdDocFrontPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return preview;
+      });
+      setIdDocFrontFile(file);
+    } else {
+      setIdDocBackPreview((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return preview;
+      });
+      setIdDocBackFile(file);
+    }
+  };
+
+  const clearIdDocLocalSelection = () => {
+    setIdDocFrontPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setIdDocBackPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setIdDocFrontFile(null);
+    setIdDocBackFile(null);
+  };
+
+  const confirmIdentityDocument = async () => {
+    if (!user) return;
+    if (!idDocFrontFile && !idDocBackFile) return;
+
+    setIdDocConfirming(true);
     setIdDocError(null);
 
     try {
-      const validationError = validateUserDocument(file);
-      if (validationError) {
-        setIdDocError(validationError);
-        return;
-      }
-
-      const { path, profile: updatedProfile } = await uploadUserDocument({
-        kind: 'ID_DOCUMENT',
-        file,
+      const { profile: updatedProfile } = await uploadIdentityDocumentSides({
+        front: idDocFrontFile,
+        back: idDocBackFile,
       });
 
       if (updatedProfile) {
         setProfile(updatedProfile);
+        await Promise.all([
+          refreshSignedUrl(updatedProfile.id_document_path, setIdDocFrontSignedUrl),
+          refreshSignedUrl(updatedProfile.id_document_back_path, setIdDocBackSignedUrl),
+        ]);
       }
 
-      await refreshSignedUrl(path, setIdDocSignedUrl);
+      clearIdDocLocalSelection();
 
       const latest = await loadLatestUserDocument(user.id, 'ID_DOCUMENT');
       setLatestIdDoc(latest);
     } catch (err) {
       console.error(err);
-      setIdDocError('Errore durante il caricamento del documento.');
+      setIdDocError(
+        err instanceof Error ? err.message : 'Errore durante il caricamento del documento.'
+      );
     } finally {
-      setIdDocUploading(false);
+      setIdDocConfirming(false);
     }
   };
 
@@ -698,16 +763,23 @@ export default function AccountPage() {
 
   if (!user) return null;
 
-  const idDocStatusLabel =
-    latestIdDoc?.status === 'ACCEPTED'
-      ? 'Confermato'
-      : latestIdDoc?.status === 'REJECTED'
-      ? 'Da ricaricare'
-      : latestIdDoc
-      ? 'In attesa di conferma'
-      : profile?.id_document_path
-      ? 'In attesa di conferma'
-      : 'Non caricato';
+  const hasFrontStored = !!profile?.id_document_path;
+  const hasBackStored = !!profile?.id_document_back_path;
+  const idDocFrontAvailable = hasFrontStored || !!idDocFrontFile;
+  const idDocBackAvailable = hasBackStored || !!idDocBackFile;
+  const idDocHasNewFiles = !!idDocFrontFile || !!idDocBackFile;
+  const canConfirmIdDoc =
+    idDocFrontAvailable && idDocBackAvailable && idDocHasNewFiles && !idDocConfirming;
+
+  const idDocStatusLabel = !hasFrontStored && !hasBackStored
+    ? 'Non caricato'
+    : !hasFrontStored || !hasBackStored
+    ? 'Incompleto (manca un lato)'
+    : latestIdDoc?.status === 'ACCEPTED'
+    ? 'Confermato'
+    : latestIdDoc?.status === 'REJECTED'
+    ? 'Da ricaricare'
+    : 'In attesa di conferma';
 
   const waiverStatusLabel =
     latestWaiverSigned?.status === 'ACCEPTED'
@@ -855,7 +927,7 @@ export default function AccountPage() {
           }}
         />
 
-        {/* Documento identità */}
+        {/* Documento identità — fronte + retro */}
         <Card>
           <CardContent className="space-y-3">
             <SectionHeader
@@ -867,12 +939,14 @@ export default function AccountPage() {
                   onClick={() => {
                     setShowIdDocumentSection((v) => {
                       const next = !v;
-
-                      const path = profile?.id_document_path ?? null;
-                      if (next && path && !idDocSignedUrl) {
-                        void refreshSignedUrl(path, setIdDocSignedUrl);
+                      if (next) {
+                        if (profile?.id_document_path && !idDocFrontSignedUrl) {
+                          void refreshSignedUrl(profile.id_document_path, setIdDocFrontSignedUrl);
+                        }
+                        if (profile?.id_document_back_path && !idDocBackSignedUrl) {
+                          void refreshSignedUrl(profile.id_document_back_path, setIdDocBackSignedUrl);
+                        }
                       }
-
                       return next;
                     });
                   }}
@@ -884,85 +958,132 @@ export default function AccountPage() {
 
             {showIdDocumentSection ? (
               <div className="space-y-3">
-                {idDocError ? (
-                  <div className="ui-error">
-                    {idDocError}
-                  </div>
-                ) : null}
+                {idDocError ? <div className="ui-error">{idDocError}</div> : null}
 
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp,application/pdf"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    void uploadIdentityDocument(file);
-                    e.currentTarget.value = '';
-                  }}
-                />
+                <p className="ui-muted">
+                  Carica entrambi i lati del documento (fronte e retro), poi premi
+                  “Conferma” per inviarli.
+                </p>
 
-                <div className="ui-panelInset p-3 space-y-2">
-                  <p className="ui-body">
-                    <span className="font-medium">Stato:</span> {idDocStatusLabel}
-                  </p>
+                {([
+                  {
+                    key: 'front' as const,
+                    title: 'Fronte',
+                    storedPath: profile?.id_document_path ?? null,
+                    signedUrl: idDocFrontSignedUrl,
+                    storedIsPdf: idDocFrontIsPdf,
+                    localFile: idDocFrontFile,
+                    localPreview: idDocFrontPreview,
+                    inputRef: idDocFrontInputRef,
+                  },
+                  {
+                    key: 'back' as const,
+                    title: 'Retro',
+                    storedPath: profile?.id_document_back_path ?? null,
+                    signedUrl: idDocBackSignedUrl,
+                    storedIsPdf: idDocBackIsPdf,
+                    localFile: idDocBackFile,
+                    localPreview: idDocBackPreview,
+                    inputRef: idDocBackInputRef,
+                  },
+                ]).map((s) => {
+                  const localIsPdf = !!s.localFile && !s.localPreview;
+                  const imageSrc =
+                    s.localPreview ?? (s.storedPath && !s.storedIsPdf ? s.signedUrl : null);
+                  const isPdf = localIsPdf || (!s.localFile && !!s.storedPath && s.storedIsPdf);
+                  const openUrl = s.localPreview ?? s.signedUrl ?? null;
 
-                  {profile?.id_document_path ? (
-                    <p className="ui-muted">
-                      File: <span className="font-mono">{profile.id_document_path.split('/').pop()}</span>
-                    </p>
-                  ) : (
-                    <p className="ui-muted">Nessun file caricato.</p>
-                  )}
+                  return (
+                    <div key={s.key} className="ui-panelInset p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="ui-body font-[var(--font-weight-semibold)]">{s.title}</p>
+                        <span className="ui-muted">
+                          {s.localFile
+                            ? 'Nuovo file da confermare'
+                            : s.storedPath
+                            ? 'Caricato'
+                            : 'Mancante'}
+                        </span>
+                      </div>
 
-                  {profile?.id_document_uploaded_at ? (
-                    <p className="ui-muted">
-                      Ultimo upload: {new Date(profile.id_document_uploaded_at).toLocaleString()}
-                    </p>
-                  ) : null}
+                      {/* Anteprima */}
+                      <div className="ui-mediaFrame flex min-h-[140px] items-center justify-center overflow-hidden rounded-[var(--radius)] bg-[rgba(255,255,255,0.04)]">
+                        {imageSrc ? (
+                          openUrl ? (
+                            <a href={openUrl} target="_blank" rel="noreferrer" className="block">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={imageSrc}
+                                alt={`Documento — ${s.title.toLowerCase()}`}
+                                className="max-h-48 w-full object-contain"
+                              />
+                            </a>
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={imageSrc}
+                              alt={`Documento — ${s.title.toLowerCase()}`}
+                              className="max-h-48 w-full object-contain"
+                            />
+                          )
+                        ) : isPdf ? (
+                          openUrl ? (
+                            <a
+                              href={openUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="ui-btn ui-btnTone-secondary"
+                            >
+                              Apri PDF
+                            </a>
+                          ) : (
+                            <span className="ui-muted">PDF: {s.localFile?.name}</span>
+                          )
+                        ) : (
+                          <span className="ui-muted">Nessun file</span>
+                        )}
+                      </div>
 
-                  {profile?.id_document_path ? (
-                    <p className="ui-muted">
-                      {idDocIsPdf ? 'Formato: PDF' : 'Formato: immagine'}
-                    </p>
-                  ) : null}
-                </div>
+                      <input
+                        ref={s.inputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,application/pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) selectIdDocSide(s.key, file);
+                          e.currentTarget.value = '';
+                        }}
+                      />
+
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className={DOC_ACTION_WIDTH_CLASS}
+                        disabled={idDocConfirming}
+                        onClick={() => s.inputRef.current?.click()}
+                      >
+                        {s.storedPath || s.localFile ? 'Sostituisci' : 'Carica'}
+                      </Button>
+                    </div>
+                  );
+                })}
 
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="button"
                     variant="primary"
                     className={DOC_ACTION_WIDTH_CLASS}
-                    disabled={idDocUploading}
-                    onClick={() => fileInputRef.current?.click()}
+                    disabled={!canConfirmIdDoc}
+                    onClick={() => void confirmIdentityDocument()}
                   >
-                    {profile?.id_document_path ? 'Sostituisci' : 'Carica'}
+                    {idDocConfirming ? 'Invio…' : 'Conferma'}
                   </Button>
 
-                  {profile?.id_document_path ? (
-                    idDocSignedUrl ? (
-                      <a
-                        href={idDocSignedUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={DOC_DOWNLOAD_LINK_CLASS}
-                      >
-                        Scarica
-                      </a>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => void refreshSignedUrl(profile.id_document_path ?? null, setIdDocSignedUrl)}
-                      >
-                        Genera link
-                      </Button>
-                    )
-                  ) : null}
-
-                  {idDocUploading ? (
-                    <p className="ui-muted">Caricamento…</p>
+                  {!idDocFrontAvailable || !idDocBackAvailable ? (
+                    <p className="ui-muted">Carica sia fronte che retro per confermare.</p>
+                  ) : !idDocHasNewFiles ? (
+                    <p className="ui-muted">Nessuna modifica da confermare.</p>
                   ) : null}
                 </div>
               </div>
@@ -977,7 +1098,18 @@ export default function AccountPage() {
               title="Liberatoria"
               subtitle={waiverStatusLabel}
               action={
-                <Button variant="secondary" onClick={() => setShowWaiverSection((v) => !v)}>
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setShowWaiverSection((v) => {
+                      const next = !v;
+                      if (next && latestWaiverSigned?.path && !waiverSignedUrl) {
+                        void refreshSignedUrl(latestWaiverSigned.path, setWaiverSignedUrl);
+                      }
+                      return next;
+                    });
+                  }}
+                >
                   {showWaiverSection ? 'Nascondi' : 'Mostra'}
                 </Button>
               }
@@ -1078,25 +1210,15 @@ export default function AccountPage() {
                       {latestWaiverSigned?.path ? 'Sostituisci' : 'Carica'}
                     </Button>
 
-                    {latestWaiverSigned?.path ? (
-                      waiverSignedUrl ? (
-                        <a
-                          href={waiverSignedUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className={DOC_DOWNLOAD_LINK_CLASS}
-                        >
-                          Scarica
-                        </a>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={() => void refreshSignedUrl(latestWaiverSigned.path, setWaiverSignedUrl)}
-                        >
-                          Genera link
-                        </Button>
-                      )
+                    {latestWaiverSigned?.path && waiverSignedUrl ? (
+                      <a
+                        href={waiverSignedUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={DOC_DOWNLOAD_LINK_CLASS}
+                      >
+                        Scarica
+                      </a>
                     ) : null}
 
                     {waiverUploading ? (

@@ -169,7 +169,7 @@ async function computeMissingDataWarning(args: {
 
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
-    .select('first_name, last_name, phone, email, fiscal_code, birth_date, address_line, city, zip_code, province, id_document_path')
+    .select('first_name, last_name, phone, email, fiscal_code, birth_date, address_line, city, zip_code, province, id_document_path, id_document_back_path')
     .eq('user_id', args.userId)
     .maybeSingle();
   const profileRow = (profile ?? null) as
@@ -190,7 +190,9 @@ async function computeMissingDataWarning(args: {
   const addrZip = (profileRow?.zip_code ?? '').trim();
   const addrProv = (profileRow?.province ?? '').trim();
 
-  const idDoc = (profileRow?.id_document_path ?? '').trim();
+  const idDocFront = (profileRow?.id_document_path ?? '').trim();
+  const idDocBack = (profileRow?.id_document_back_path ?? '').trim();
+  const idDoc = idDocFront && idDocBack;
 
   const requiredMissing = getMissingRequiredCustomerBookingFields(profileRow);
 
@@ -198,7 +200,7 @@ async function computeMissingDataWarning(args: {
   if (!cf) optionalMissing.push('Codice fiscale');
   if (!bd) optionalMissing.push('Data di nascita');
   if (!addrLine || !addrCity || !addrZip || !addrProv) optionalMissing.push('Indirizzo (completo)');
-  if (!idDoc) optionalMissing.push('Documento di identità');
+  if (!idDoc) optionalMissing.push('Documento di identità (fronte e retro)');
 
   if (args.needsDogs && args.selectedDogIds.length > 0) {
     const { data: dogs, error: dogsError } = await supabase.from('dogs').select('id, name, microchip').in('id', args.selectedDogIds);
