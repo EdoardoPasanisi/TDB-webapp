@@ -394,7 +394,7 @@ export default function ProfileOverviewPage() {
             <div className="space-y-1">
               <h2 className="ui-title text-[26px] leading-[1]">I miei media</h2>
               <p className="ui-muted">
-                Foto e video recenti inviati durante la pensione. Restano visibili fino a 24 ore dopo la fine del servizio.
+                Foto e video recenti inviati durante la pensione. Restano disponibili per 48 ore dall’invio, poi vengono eliminati.
               </p>
             </div>
 

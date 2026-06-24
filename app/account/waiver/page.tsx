@@ -131,7 +131,7 @@ export default function AccountWaiverPage() {
   return (
     <main className="ui-page min-h-screen">
       <style>{`
-        @page { size: A4; margin: 3mm; }
+        @page { size: A4 portrait; margin: 0; }
 
         .print-only { display: none; }
         .waiver-page {
@@ -146,18 +146,18 @@ export default function AccountWaiverPage() {
           .no-print { display: none !important; }
           .print-only { display: block !important; }
 
-          /* Su mobile (iOS Safari) la stampa è "WYSIWYG": senza questi reset il
-             contenuto resta largo come il viewport del telefono e in PDF finisce
-             in una colonna stretta. Forziamo larghezza piena e disattiviamo
-             l'auto-ridimensionamento del testo. */
+          /* iOS Safari stampa "WYSIWYG" e scala il layout alla larghezza del
+             viewport del telefono: usare percentuali produce una colonna
+             stretta. Diamo quindi al foglio una larghezza FISICA (mm) così
+             la resa è un A4 corretto su qualsiasi dispositivo. Il margine di
+             stampa è gestito dal padding interno del foglio (non da @page),
+             così è uguale su mobile e desktop. */
           html {
             -webkit-text-size-adjust: 100% !important;
             text-size-adjust: 100% !important;
           }
 
           html, body {
-            width: 100% !important;
-            max-width: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             background: white !important;
@@ -167,29 +167,17 @@ export default function AccountWaiverPage() {
           }
 
           main {
-            width: 100% !important;
-            max-width: 100% !important;
-            padding: 0 !important;
             margin: 0 !important;
+            padding: 0 !important;
             background: white !important;
             min-height: 0 !important;
           }
 
           .waiver-wrap {
-            max-width: 100% !important;
-            width: 100% !important;
+            max-width: none !important;
+            width: auto !important;
             padding: 0 !important;
             margin: 0 !important;
-          }
-
-          .waiver-paper {
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-
-          .waiver-page {
-            width: 100% !important;
-            max-width: 100% !important;
           }
 
           .waiver-wrap > * {
@@ -201,16 +189,22 @@ export default function AccountWaiverPage() {
             border-radius: 0 !important;
             border: none !important;
             background: white !important;
+            width: 210mm !important;
+            max-width: 210mm !important;
+            margin: 0 auto !important;
           }
 
           .waiver-paper > * {
             padding: 0 !important;
           }
 
+          /* Foglio A4 deterministico con margine interno. */
           .waiver-page {
+            box-sizing: border-box !important;
+            width: 210mm !important;
+            padding: 15mm 16mm !important;
+            margin: 0 auto !important;
             display: block !important;
-            min-height: 0 !important;
-            padding-bottom: 8mm !important;
             color: #000 !important;
           }
 
@@ -245,18 +239,18 @@ export default function AccountWaiverPage() {
           }
 
           .waiver-title {
-            width: 88% !important;
-            margin: 0 auto 5mm !important;
+            width: 100% !important;
+            margin: 0 0 5mm !important;
             font-size: 30px !important;
             line-height: 1.2 !important;
             text-align: center !important;
           }
 
           .waiver-body {
-            width: 88% !important;
+            width: 100% !important;
             font-size: 14px !important;
             line-height: 1.5 !important;
-            margin: 0 auto !important;
+            margin: 0 !important;
             text-align: justify !important;
             text-justify: inter-word !important;
           }
@@ -276,8 +270,8 @@ export default function AccountWaiverPage() {
           }
 
           .waiver-signature {
-            width: 88% !important;
-            margin: 28mm auto 0 !important;
+            width: 100% !important;
+            margin: 28mm 0 0 !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
           }
