@@ -219,7 +219,7 @@ function ProfileScene() {
               <div className="min-w-0 flex-1">
                 <div className="text-lg font-extrabold truncate">Marco Rossi</div>
                 <div className="ui-note ui-profileHeroMuted truncate">marco.rossi@email.it</div>
-                <div className="mt-1 ui-fine ui-profileHeroMuted">Dati, documenti e liberatoria</div>
+                <div className="mt-1 ui-fine ui-profileHeroMuted">Dati e documenti</div>
               </div>
               <Chevron />
             </div>
@@ -548,7 +548,7 @@ function SettingsScene() {
           </div>
           <Card>
             <CardContent className="space-y-2">
-              <SettingsRow title="Dati e documenti" subtitle="Documento, liberatoria e dati personali." />
+              <SettingsRow title="Dati e documenti" subtitle="Documento e dati personali." />
               <SettingsRow title="Modifica password" subtitle="Aggiorna la password dell’account." />
             </CardContent>
           </Card>

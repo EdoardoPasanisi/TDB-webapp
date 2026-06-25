@@ -109,7 +109,7 @@ function AccountBanner({
               </div>
               <div className="ui-note ui-profileHeroMuted truncate">{ownerEmail || '—'}</div>
               <div className="mt-1 ui-fine ui-profileHeroMuted">
-                Apri qui per gestire dati, documenti e liberatoria
+                Apri qui per gestire dati e documenti
               </div>
             </div>
             <div className="shrink-0 pl-1" aria-hidden="true">

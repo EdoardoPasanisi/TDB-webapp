@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { Fragment, useEffect, useRef, useState, type FormEvent } from 'react';
 import { fetchAdminJson, isAbortError } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import type {
@@ -81,6 +81,13 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
   const [settleAmount, setSettleAmount] = useState('');
   const [settleSubmitting, setSettleSubmitting] = useState(false);
   const [settleError, setSettleError] = useState<string | null>(null);
+  const [waiverUploadBusy, setWaiverUploadBusy] = useState(false);
+  const waiverFileInputRef = useRef<HTMLInputElement | null>(null);
+  // Su mobile la scheda cliente si apre subito sotto l'utente selezionato;
+  // su desktop (≥ lg) resta nella colonna di destra.
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1024px)').matches
+  );
   const confirm = useConfirm();
 
   const isDeletedMode = mode === 'deleted';
@@ -127,6 +134,15 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
       setDetailState('error');
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -230,6 +246,33 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
       throw new Error(json?.error?.trim() || 'Non siamo riusciti a caricare il documento.');
     }
     if (selectedUserId) await loadDetail(selectedUserId);
+  };
+
+  // Carica la liberatoria firmata dal gestionale: crea un nuovo documento
+  // WAIVER_SIGNED per il cliente selezionato.
+  const handleWaiverUpload = async (file: File) => {
+    if (!selectedUserId) return;
+    setWaiverUploadBusy(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch(`/api/admin/users/${selectedUserId}/documents`, {
+        method: 'POST',
+        credentials: 'include',
+        cache: 'no-store',
+        body: formData,
+      });
+      if (!response.ok) {
+        const json = (await response.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(json?.error?.trim() || 'Non siamo riusciti a caricare la liberatoria.');
+      }
+      await loadDetail(selectedUserId);
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare la liberatoria.'));
+    } finally {
+      setWaiverUploadBusy(false);
+    }
   };
 
   const handleBookingStatus = async (item: AdminAgendaItem, status: BookingStatus | ServiceStatus) => {
@@ -352,534 +395,578 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     }
   };
 
-  return (
-    <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
-      <div className="min-w-0 space-y-3">
-        <Card>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <SectionHeader title="Clienti" subtitle="Elenco in ordine alfabetico. Cerca per nome, email, telefono, città, CF o dati cane." />
-              {canManage ? (
-                <Button variant="primary" className="ui-btnCompact shrink-0" onClick={() => setCreateOpen(true)}>
-                  Nuovo
-                </Button>
-              ) : null}
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {MODE_TABS.map((tab) => {
-                if (tab.key === 'deleted' && !canManage) return null;
-                return (
-                  <button
-                    key={tab.key}
-                    type="button"
-                    onClick={() => setMode(tab.key)}
-                    className={cx('rounded-full px-3 py-1.5 ui-body ui-clickable', mode === tab.key && 'ui-clickable--selected')}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {!isDeletedMode ? (
-              <input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                className="ui-control ui-input"
-                placeholder="Cerca utenti e cani..."
-              />
-            ) : null}
-          </CardContent>
-        </Card>
-
-        {listState === 'loading' ? <LoadingCard label="Caricamento clienti..." /> : null}
-        {listState === 'error' ? <ErrorCard error={error ?? 'Errore clienti.'} onRetry={loadUsers} /> : null}
-        {listState === 'ready' && items.length === 0 ? (
-          <EmptyCard
-            label={
-              isDeletedMode
-                ? 'Nessun cliente eliminato.'
-                : mode === 'active'
-                  ? 'Nessun cliente con prenotazioni attive.'
-                  : 'Nessun cliente trovato.'
-            }
-          />
-        ) : null}
-
-        {items.map((item) => (
-          <button
-            key={item.userId}
-            type="button"
-            onClick={() => setSelectedUserId(item.userId)}
-            className={cx('min-w-0 w-full text-left', selectedUserId === item.userId && 'admin-selectedCard')}
-          >
-            <Card className="admin-listCard overflow-hidden">
-              <CardContent className="space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="ui-body font-[var(--font-weight-semibold)] truncate">{item.fullName}</div>
-                    <div className="ui-muted truncate">
-                      {canManage
-                        ? item.email ?? (item.dogNames.length ? item.dogNames.join(', ') : 'Nessun dato aggiuntivo')
-                        : item.dogNames.length
-                          ? item.dogNames.join(', ')
-                          : 'Nessun cane registrato'}
-                    </div>
+  // Scheda dettaglio del cliente selezionato. Renderizzata in un solo punto
+  // (inline sotto l'utente su mobile, oppure nella colonna destra su desktop),
+  // così i modali restano un'unica istanza.
+  const detailNode = (
+    <div className="min-w-0 space-y-4">
+      {error ? <div className="ui-error">{error}</div> : null}
+      {detailState === 'loading' ? (
+        <LoadingCard label="Caricamento dettaglio utente..." />
+      ) : detailState === 'error' || !detail ? (
+        <EmptyCard
+          label={
+            canManage
+              ? 'Seleziona un cliente per vedere saldo, dati, cani, prenotazioni e documenti.'
+              : 'Seleziona un cliente per vedere nome, cognome e cani collegati.'
+          }
+        />
+      ) : (
+        <>
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <h2 className="ui-title">
+                    {detail.profile?.first_name || detail.profile?.last_name
+                      ? `${detail.profile?.first_name ?? ''} ${detail.profile?.last_name ?? ''}`.trim()
+                      : 'Cliente'}
+                  </h2>
+                  {canManage && detail.profile?.email ? <div className="ui-muted">{detail.profile.email}</div> : null}
+                  <div className="flex flex-wrap gap-2">
+                    <span className="ui-accentPill">{detail.dogs.length} cani</span>
+                    {canManage ? <span className="ui-accentPill">{detail.activeTimeline.length} prenotazioni attive</span> : null}
+                    {canManage ? <span className="ui-accentPill">{detail.historyTimeline.length} storico</span> : null}
                   </div>
-                  {item.staffRole ? <span className="ui-accentPill">{item.staffRole}</span> : null}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <span className="ui-accentPill">{item.dogsCount} cani</span>
-                  {canManage && !isDeletedMode ? <span className="ui-accentPill">{item.activeBookings} attive</span> : null}
-                  {canManage && item.pendingDocuments > 0 ? (
-                    <span className="ui-accentPill">{item.pendingDocuments} documenti</span>
-                  ) : null}
-                  {item.walletDue > 0 ? (
-                    <span className="ui-accentPill ui-accentPill--saldo">Saldo € {item.walletDue.toFixed(2)}</span>
-                  ) : null}
-                </div>
-              </CardContent>
-            </Card>
-          </button>
-        ))}
-      </div>
 
-      <div className="min-w-0 space-y-4">
-        {error ? <div className="ui-error">{error}</div> : null}
-        {detailState === 'loading' ? (
-          <LoadingCard label="Caricamento dettaglio utente..." />
-        ) : detailState === 'error' || !detail ? (
-          <EmptyCard
-            label={
-              canManage
-                ? 'Seleziona un cliente per vedere saldo, dati, cani, prenotazioni e documenti.'
-                : 'Seleziona un cliente per vedere nome, cognome e cani collegati.'
-            }
-          />
-        ) : (
-          <>
-            <Card>
-              <CardContent className="space-y-3">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-1">
-                    <h2 className="ui-title">
-                      {detail.profile?.first_name || detail.profile?.last_name
-                        ? `${detail.profile?.first_name ?? ''} ${detail.profile?.last_name ?? ''}`.trim()
-                        : 'Cliente'}
-                    </h2>
-                    {canManage && detail.profile?.email ? <div className="ui-muted">{detail.profile.email}</div> : null}
-                    <div className="flex flex-wrap gap-2">
-                      <span className="ui-accentPill">{detail.dogs.length} cani</span>
-                      {canManage ? <span className="ui-accentPill">{detail.activeTimeline.length} prenotazioni attive</span> : null}
-                      {canManage ? <span className="ui-accentPill">{detail.historyTimeline.length} storico</span> : null}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    {detail.staffRole ? <span className="ui-accentPill">{getAdminRoleLabel(detail.staffRole)}</span> : null}
-                    {canManage && isDeletedMode ? (
-                      <>
-                        <Button variant="secondary" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleRestoreUser()}>
-                          Ripristina
-                        </Button>
-                        <Button variant="danger" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleHardDeleteUser()}>
-                          Elimina definitivamente
-                        </Button>
-                      </>
-                    ) : null}
-                    {canManage && !isDeletedMode ? (
-                      <Button variant="danger" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleSoftDeleteUser()}>
-                        Elimina cliente
+                <div className="flex flex-wrap items-center gap-2">
+                  {detail.staffRole ? <span className="ui-accentPill">{getAdminRoleLabel(detail.staffRole)}</span> : null}
+                  {canManage && isDeletedMode ? (
+                    <>
+                      <Button variant="secondary" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleRestoreUser()}>
+                        Ripristina
                       </Button>
-                    ) : null}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="space-y-3">
-                <SectionHeader
-                  title="Saldo e pagamenti"
-                  subtitle={
-                    canManage
-                      ? "Conferma l'incasso per azzerare il saldo e sbloccare i pacchetti."
-                      : 'Saldo dovuto dal cliente (sola lettura).'
-                  }
-                />
-                <div className="flex items-center justify-between gap-3">
-                  <div className="ui-body">
-                    Saldo attuale: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>
-                  </div>
-                  {canManage ? (
-                    <button
-                      type="button"
-                      className="ui-btn ui-btnTone-primary ui-btnCompact"
-                      disabled={walletDue <= 0}
-                      onClick={openSettle}
-                    >
-                      Segna come pagato
-                    </button>
+                      <Button variant="danger" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleHardDeleteUser()}>
+                        Elimina definitivamente
+                      </Button>
+                    </>
                   ) : null}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent className="space-y-3">
-                <SectionHeader title="Dati da completare" subtitle="Informazioni obbligatorie mancanti per le prenotazioni." />
-                {detail.ownerMissing.length ? (
-                  <div className="ui-body">{detail.ownerMissing.join(', ')}</div>
-                ) : (
-                  <div className="ui-muted">Nessun dato obbligatorio mancante per il cliente.</div>
-                )}
-              </CardContent>
-            </Card>
-
-            {canManage ? (
-              <ProfileDetails
-                userEmail={detail.profile?.email ?? ''}
-                profile={detail.profile}
-                profileEditing={profileEditing}
-                profileForm={profileForm}
-                savingProfile={savingProfile}
-                canEdit={canManage}
-                onChangeText={(field, value) =>
-                  setProfileForm((current) => {
-                    const next = { ...current, [field]: value };
-                    if (current.dog_address_same_as_home) {
-                      if (field === 'address_line') next.dog_address_line = value;
-                      if (field === 'city') next.dog_city = value;
-                      if (field === 'zip_code') next.dog_zip_code = value;
-                      if (field === 'province') next.dog_province = value;
-                    }
-                    return next;
-                  })
-                }
-                onToggle={(field, value) =>
-                  setProfileForm((current) => {
-                    const next = { ...current, [field]: value };
-                    if (field === 'dog_address_same_as_home' && value) {
-                      next.dog_address_line = current.address_line;
-                      next.dog_city = current.city;
-                      next.dog_zip_code = current.zip_code;
-                      next.dog_province = current.province;
-                    }
-                    return next;
-                  })
-                }
-                onSubmit={saveProfile}
-                onStartEdit={async () => {
-                  const ok = await confirm({
-                    keyword: 'MODIFICA',
-                    title: 'Modifica informazioni cliente',
-                    message: 'Stai per modificare i dati anagrafici e di contatto del cliente.',
-                  });
-                  if (ok) setProfileEditing(true);
-                }}
-                onCancelEdit={() => {
-                  setProfileEditing(false);
-                  setProfileForm(initProfileForm(detail.profile));
-                }}
-              />
-            ) : null}
-
-            <Card>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between gap-2">
-                  <SectionHeader title="Pet registrati" subtitle="Pet (cani, gatti, altro) collegati a questo cliente." />
-                  {canManage ? (
-                    <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAddingDog(true)}>
-                      Aggiungi pet
+                  {canManage && !isDeletedMode ? (
+                    <Button variant="danger" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleSoftDeleteUser()}>
+                      Elimina cliente
                     </Button>
                   ) : null}
                 </div>
-                {detail.dogs.length ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {detail.dogs.map((dog) => (
-                      <Card key={dog.id} className="admin-listCard">
-                        <CardContent className="space-y-1">
-                          <button type="button" className="w-full text-left" onClick={() => setSelectedDogId(dog.id)}>
-                            <div className="ui-body font-[var(--font-weight-semibold)] underline-offset-2 hover:underline">{dog.name}</div>
-                            <div className="ui-muted">{dog.breed ?? 'Razza non specificata'}</div>
-                            <div className="ui-muted">Microchip: {dog.microchip ?? '—'}</div>
-                          </button>
-                          {buildRequiredDogMissing(dog).length ? (
-                            <div className="ui-muted">Dati mancanti: {buildRequiredDogMissing(dog).join(', ')}</div>
-                          ) : null}
-                          {canManage ? (
-                            <div className="pt-1">
-                              <Button
-                                variant="secondary"
-                                className="ui-btnCompact"
-                                onClick={async () => {
-                                  const ok = await confirm({
-                                    keyword: 'MODIFICA',
-                                    title: `Modifica ${dog.name}`,
-                                    message: 'Stai per modificare i dati di questo cane.',
-                                  });
-                                  if (ok) setEditingDog(dog);
-                                }}
-                              >
-                                Modifica pet
-                              </Button>
-                            </div>
-                          ) : null}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyCard label="Nessun pet registrato." />
-                )}
-              </CardContent>
-            </Card>
+              </div>
+            </CardContent>
+          </Card>
 
-            {canManage ? (
-              <>
-                <Card>
-                  <CardContent className="space-y-3">
-                    <SectionHeader title="Documenti" subtitle="Stato verifiche documento e liberatoria." />
-                    {detail.documents.length ? (
-                      <div className="space-y-3">
-                        {groupAdminDocuments(detail.documents).map((entry) =>
-                          entry.type === 'identity' ? (
-                            <IdentityDocumentCard
-                              key={entry.key}
-                              entry={entry}
-                              canManage={canManage}
-                              onDecision={handleDocumentDecision}
-                              onReRequest={handleDocumentReRequest}
-                              onUpload={handleDocumentUpload}
-                            />
-                          ) : (
-                            <DocumentCard
-                              key={entry.key}
-                              document={entry.record}
-                              canManage={canManage}
-                              onDecision={(status) => handleDocumentDecision(entry.record.id, status)}
-                              onReRequest={() => handleDocumentReRequest(entry.record.id)}
-                              onUpload={(file) => handleDocumentUpload(entry.record.id, file)}
-                            />
-                          )
-                        )}
-                      </div>
-                    ) : (
-                      <EmptyCard label="Nessun documento caricato." />
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            ) : null}
-
-            <Card>
-              <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <SectionHeader title="Pacchetti e crediti" subtitle="Pass attivi, consumati o scaduti collegati al cliente." />
-                      {canManage ? (
-                        <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAssignOpen(true)}>
-                          Assegna pacchetto
-                        </Button>
-                      ) : null}
-                    </div>
-                    {detail.servicePasses.length ? (
-                      <div className="grid gap-3 md:grid-cols-2">
-                        {detail.servicePasses.map((servicePass) => (
-                          <Card key={servicePass.id} className="admin-listCard">
-                            <CardContent className="space-y-2">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <div className="ui-body font-[var(--font-weight-semibold)]">
-                                    {getAdminServiceLabel(
-                                      servicePass.service_type as AdminServiceKey,
-                                      servicePass.service_type,
-                                      servicePass.service_variant
-                                    )}
-                                  </div>
-                                  <div className="ui-muted">Acquistato il {formatDateTime(servicePass.purchased_at)}</div>
-                                </div>
-                                <span className="ui-accentPill">{formatServicePassStatusLabel(servicePass.status)}</span>
-                              </div>
-                              <div className="ui-body">
-                                Crediti: {servicePass.credits_total - servicePass.credits_used}/{servicePass.credits_total}
-                              </div>
-                              {servicePass.expires_at ? (
-                                <div className="ui-muted">Scadenza: {formatDateTime(servicePass.expires_at)}</div>
-                              ) : null}
-                              {servicePass.status === 'LOCKED' ? (
-                                <div className="ui-muted">Pagamento registrato ma pacchetto non ancora sbloccato.</div>
-                              ) : null}
-                              {servicePass.unlocked_at ? (
-                                <div className="ui-muted">Sbloccato il {formatDateTime(servicePass.unlocked_at)}</div>
-                              ) : null}
-                              {canManage ? (
-                                <div className="flex flex-wrap gap-2 pt-1">
-                                  {servicePass.status === 'LOCKED' ? (
-                                    <Button
-                                      variant="secondary"
-                                      className="ui-btnCompact"
-                                      onClick={() => void handleUnlockServicePass(servicePass.id)}
-                                    >
-                                      Sblocca utilizzo
-                                    </Button>
-                                  ) : null}
-                                  {servicePass.status !== 'CANCELLED' ? (
-                                    <Button
-                                      variant="danger"
-                                      className="ui-btnCompact"
-                                      onClick={() => void handleRemoveServicePass(servicePass.id)}
-                                    >
-                                      Annulla
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyCard label="Nessun pacchetto o credito associato." />
-                    )}
-              </CardContent>
-            </Card>
-
-            {canManage ? (
-              <>
-                <Card>
-                  <CardContent className="space-y-3">
-                    <SectionHeader title="Prenotazioni attive" subtitle="Tutte le prenotazioni correnti e future del cliente." />
-                    {detail.activeTimeline.length ? (
-                      <div className="space-y-3">
-                        {detail.activeTimeline.map((item) => (
-                          <TimelineCard
-                            key={item.itemKey}
-                            item={item}
-                            canManage={canManage}
-                            showUser={false}
-                            onOpenDetail={() => setSelectedBooking(item)}
-                            onStatusChange={(status) => handleBookingStatus(item, status)}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyCard label="Nessuna prenotazione attiva." />
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="space-y-3">
-                    <SectionHeader title="Storico" subtitle="Prenotazioni già concluse o passate del cliente." />
-                    {detail.historyTimeline.length ? (
-                      <div className="space-y-3">
-                        {detail.historyTimeline.map((item) => (
-                          <TimelineCard
-                            key={item.itemKey}
-                            item={item}
-                            canManage={false}
-                            showUser={false}
-                            onOpenDetail={() => setSelectedBooking(item)}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <EmptyCard label="Storico vuoto." />
-                    )}
-                  </CardContent>
-                </Card>
-              </>
-            ) : null}
-
-            <DogDetailModal
-              key={selectedDogId ?? 'users-dog-detail-empty'}
-              dogId={selectedDogId}
-              open={Boolean(selectedDogId)}
-              onClose={() => setSelectedDogId(null)}
-              canManage={canManage}
-            />
-            <DogEditModal
-              key={editingDog ? `edit-${editingDog.id}` : 'users-dog-edit-empty'}
-              open={Boolean(editingDog)}
-              mode="edit"
-              dog={editingDog}
-              onClose={() => setEditingDog(null)}
-              onSaved={() => {
-                if (selectedUserId) void loadDetail(selectedUserId);
-              }}
-            />
-            <DogEditModal
-              open={addingDog}
-              mode="create"
-              ownerId={selectedUserId}
-              onClose={() => setAddingDog(false)}
-              onSaved={() => {
-                if (selectedUserId) void loadDetail(selectedUserId);
-              }}
-            />
-            <AssignPassModal
-              open={assignOpen}
-              userId={selectedUserId}
-              onClose={() => setAssignOpen(false)}
-              onAssigned={() => {
-                if (selectedUserId) void loadDetail(selectedUserId);
-              }}
-            />
-            <BookingDetailModal
-              key={selectedBooking ? `${selectedBooking.kind}-${selectedBooking.id}` : 'users-booking-detail-empty'}
-              item={selectedBooking}
-              open={Boolean(selectedBooking)}
-              onClose={() => setSelectedBooking(null)}
-              canManage={canManage}
-              onDeleted={() => {
-                if (selectedUserId) void loadDetail(selectedUserId);
-              }}
-            />
-
-            <Modal open={settleOpen} title="Conferma pagamento" onClose={() => setSettleOpen(false)}>
-              <div className="space-y-4">
-                <div className="ui-muted">
-                  Saldo da pagare: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>. Conferma
-                  l&apos;importo effettivamente incassato (modificabile in caso di sconto). Il saldo verrà azzerato e i pacchetti
-                  in attesa verranno sbloccati.
+          <Card>
+            <CardContent className="space-y-3">
+              <SectionHeader
+                title="Saldo e pagamenti"
+                subtitle={
+                  canManage
+                    ? "Conferma l'incasso per azzerare il saldo e sbloccare i pacchetti."
+                    : 'Saldo dovuto dal cliente (sola lettura).'
+                }
+              />
+              <div className="flex items-center justify-between gap-3">
+                <div className="ui-body">
+                  Saldo attuale: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>
                 </div>
-                <div className="space-y-1">
-                  <label className="ui-muted">Importo incassato (€)</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    min="0"
-                    step="0.01"
-                    value={settleAmount}
-                    onChange={(event) => setSettleAmount(event.target.value)}
-                    className="ui-control ui-input"
-                  />
-                </div>
-                {settleError ? <div className="ui-error">{settleError}</div> : null}
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    className="ui-btn ui-btnTone-secondary ui-btnCompact"
-                    onClick={() => setSettleOpen(false)}
-                    disabled={settleSubmitting}
-                  >
-                    Annulla
-                  </button>
+                {canManage ? (
                   <button
                     type="button"
                     className="ui-btn ui-btnTone-primary ui-btnCompact"
-                    onClick={() => void handleSettleWallet()}
-                    disabled={settleSubmitting}
+                    disabled={walletDue <= 0}
+                    onClick={openSettle}
                   >
-                    {settleSubmitting ? 'Salvataggio…' : 'Conferma pagamento'}
+                    Segna come pagato
                   </button>
-                </div>
+                ) : null}
               </div>
-            </Modal>
-          </>
-        )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="space-y-3">
+              <SectionHeader title="Dati da completare" subtitle="Informazioni obbligatorie mancanti per le prenotazioni." />
+              {detail.ownerMissing.length ? (
+                <div className="ui-body">{detail.ownerMissing.join(', ')}</div>
+              ) : (
+                <div className="ui-muted">Nessun dato obbligatorio mancante per il cliente.</div>
+              )}
+            </CardContent>
+          </Card>
+
+          {canManage ? (
+            <ProfileDetails
+              userEmail={detail.profile?.email ?? ''}
+              profile={detail.profile}
+              profileEditing={profileEditing}
+              profileForm={profileForm}
+              savingProfile={savingProfile}
+              canEdit={canManage}
+              onChangeText={(field, value) =>
+                setProfileForm((current) => {
+                  const next = { ...current, [field]: value };
+                  if (current.dog_address_same_as_home) {
+                    if (field === 'address_line') next.dog_address_line = value;
+                    if (field === 'city') next.dog_city = value;
+                    if (field === 'zip_code') next.dog_zip_code = value;
+                    if (field === 'province') next.dog_province = value;
+                  }
+                  return next;
+                })
+              }
+              onToggle={(field, value) =>
+                setProfileForm((current) => {
+                  const next = { ...current, [field]: value };
+                  if (field === 'dog_address_same_as_home' && value) {
+                    next.dog_address_line = current.address_line;
+                    next.dog_city = current.city;
+                    next.dog_zip_code = current.zip_code;
+                    next.dog_province = current.province;
+                  }
+                  return next;
+                })
+              }
+              onSubmit={saveProfile}
+              onStartEdit={async () => {
+                const ok = await confirm({
+                  keyword: 'MODIFICA',
+                  title: 'Modifica informazioni cliente',
+                  message: 'Stai per modificare i dati anagrafici e di contatto del cliente.',
+                });
+                if (ok) setProfileEditing(true);
+              }}
+              onCancelEdit={() => {
+                setProfileEditing(false);
+                setProfileForm(initProfileForm(detail.profile));
+              }}
+            />
+          ) : null}
+
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <SectionHeader title="Pet registrati" subtitle="Pet (cani, gatti, altro) collegati a questo cliente." />
+                {canManage ? (
+                  <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAddingDog(true)}>
+                    Aggiungi pet
+                  </Button>
+                ) : null}
+              </div>
+              {detail.dogs.length ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {detail.dogs.map((dog) => (
+                    <Card key={dog.id} className="admin-listCard">
+                      <CardContent className="space-y-1">
+                        <button type="button" className="w-full text-left" onClick={() => setSelectedDogId(dog.id)}>
+                          <div className="ui-body font-[var(--font-weight-semibold)] underline-offset-2 hover:underline">{dog.name}</div>
+                          <div className="ui-muted">{dog.breed ?? 'Razza non specificata'}</div>
+                          <div className="ui-muted">Microchip: {dog.microchip ?? '—'}</div>
+                        </button>
+                        {buildRequiredDogMissing(dog).length ? (
+                          <div className="ui-muted">Dati mancanti: {buildRequiredDogMissing(dog).join(', ')}</div>
+                        ) : null}
+                        {canManage ? (
+                          <div className="pt-1">
+                            <Button
+                              variant="secondary"
+                              className="ui-btnCompact"
+                              onClick={async () => {
+                                const ok = await confirm({
+                                  keyword: 'MODIFICA',
+                                  title: `Modifica ${dog.name}`,
+                                  message: 'Stai per modificare i dati di questo cane.',
+                                });
+                                if (ok) setEditingDog(dog);
+                              }}
+                            >
+                              Modifica pet
+                            </Button>
+                          </div>
+                        ) : null}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <EmptyCard label="Nessun pet registrato." />
+              )}
+            </CardContent>
+          </Card>
+
+          {canManage ? (
+            <>
+              <Card>
+                <CardContent className="space-y-3">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <SectionHeader title="Documenti" subtitle="Stato verifiche documento e liberatoria." />
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <input
+                        ref={waiverFileInputRef}
+                        type="file"
+                        accept="application/pdf,image/jpeg,image/png,image/webp"
+                        className="sr-only"
+                        onChange={(event) => {
+                          const file = event.target.files?.[0] ?? null;
+                          event.target.value = '';
+                          if (file) void handleWaiverUpload(file);
+                        }}
+                      />
+                      <Button
+                        variant="secondary"
+                        className="ui-btnCompact"
+                        onClick={() => {
+                          if (selectedUserId) window.open(`/admin/print/waiver/${selectedUserId}`, '_blank');
+                        }}
+                      >
+                        Stampa liberatoria
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        className="ui-btnCompact"
+                        disabled={waiverUploadBusy}
+                        onClick={() => waiverFileInputRef.current?.click()}
+                      >
+                        {waiverUploadBusy ? 'Caricamento…' : 'Carica liberatoria firmata'}
+                      </Button>
+                    </div>
+                  </div>
+                  {detail.documents.length ? (
+                    <div className="space-y-3">
+                      {groupAdminDocuments(detail.documents).map((entry) =>
+                        entry.type === 'identity' ? (
+                          <IdentityDocumentCard
+                            key={entry.key}
+                            entry={entry}
+                            canManage={canManage}
+                            onDecision={handleDocumentDecision}
+                            onReRequest={handleDocumentReRequest}
+                            onUpload={handleDocumentUpload}
+                          />
+                        ) : (
+                          <DocumentCard
+                            key={entry.key}
+                            document={entry.record}
+                            canManage={canManage}
+                            onDecision={(status) => handleDocumentDecision(entry.record.id, status)}
+                            onReRequest={() => handleDocumentReRequest(entry.record.id)}
+                            onUpload={(file) => handleDocumentUpload(entry.record.id, file)}
+                          />
+                        )
+                      )}
+                    </div>
+                  ) : (
+                    <EmptyCard label="Nessun documento caricato." />
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <SectionHeader title="Pacchetti e crediti" subtitle="Pass attivi, consumati o scaduti collegati al cliente." />
+                {canManage ? (
+                  <Button variant="secondary" className="ui-btnCompact shrink-0" onClick={() => setAssignOpen(true)}>
+                    Assegna pacchetto
+                  </Button>
+                ) : null}
+              </div>
+              {detail.servicePasses.length ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {detail.servicePasses.map((servicePass) => (
+                    <Card key={servicePass.id} className="admin-listCard">
+                      <CardContent className="space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="ui-body font-[var(--font-weight-semibold)]">
+                              {getAdminServiceLabel(
+                                servicePass.service_type as AdminServiceKey,
+                                servicePass.service_type,
+                                servicePass.service_variant
+                              )}
+                            </div>
+                            <div className="ui-muted">Acquistato il {formatDateTime(servicePass.purchased_at)}</div>
+                          </div>
+                          <span className="ui-accentPill">{formatServicePassStatusLabel(servicePass.status)}</span>
+                        </div>
+                        <div className="ui-body">
+                          Crediti: {servicePass.credits_total - servicePass.credits_used}/{servicePass.credits_total}
+                        </div>
+                        {servicePass.expires_at ? (
+                          <div className="ui-muted">Scadenza: {formatDateTime(servicePass.expires_at)}</div>
+                        ) : null}
+                        {servicePass.status === 'LOCKED' ? (
+                          <div className="ui-muted">Pagamento registrato ma pacchetto non ancora sbloccato.</div>
+                        ) : null}
+                        {servicePass.unlocked_at ? (
+                          <div className="ui-muted">Sbloccato il {formatDateTime(servicePass.unlocked_at)}</div>
+                        ) : null}
+                        {canManage ? (
+                          <div className="flex flex-wrap gap-2 pt-1">
+                            {servicePass.status === 'LOCKED' ? (
+                              <Button
+                                variant="secondary"
+                                className="ui-btnCompact"
+                                onClick={() => void handleUnlockServicePass(servicePass.id)}
+                              >
+                                Sblocca utilizzo
+                              </Button>
+                            ) : null}
+                            {servicePass.status !== 'CANCELLED' ? (
+                              <Button
+                                variant="danger"
+                                className="ui-btnCompact"
+                                onClick={() => void handleRemoveServicePass(servicePass.id)}
+                              >
+                                Annulla
+                              </Button>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <EmptyCard label="Nessun pacchetto o credito associato." />
+              )}
+            </CardContent>
+          </Card>
+
+          {canManage ? (
+            <>
+              <Card>
+                <CardContent className="space-y-3">
+                  <SectionHeader title="Prenotazioni attive" subtitle="Tutte le prenotazioni correnti e future del cliente." />
+                  {detail.activeTimeline.length ? (
+                    <div className="space-y-3">
+                      {detail.activeTimeline.map((item) => (
+                        <TimelineCard
+                          key={item.itemKey}
+                          item={item}
+                          canManage={canManage}
+                          showUser={false}
+                          onOpenDetail={() => setSelectedBooking(item)}
+                          onStatusChange={(status) => handleBookingStatus(item, status)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyCard label="Nessuna prenotazione attiva." />
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="space-y-3">
+                  <SectionHeader title="Storico" subtitle="Prenotazioni già concluse o passate del cliente." />
+                  {detail.historyTimeline.length ? (
+                    <div className="space-y-3">
+                      {detail.historyTimeline.map((item) => (
+                        <TimelineCard
+                          key={item.itemKey}
+                          item={item}
+                          canManage={false}
+                          showUser={false}
+                          onOpenDetail={() => setSelectedBooking(item)}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyCard label="Storico vuoto." />
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : null}
+        </>
+      )}
+    </div>
+  );
+
+  return (
+    <>
+      <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-3">
+          <Card>
+            <CardContent className="space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <SectionHeader title="Clienti" subtitle="Elenco in ordine alfabetico. Cerca per nome, email, telefono, città, CF o dati cane." />
+                {canManage ? (
+                  <Button variant="primary" className="ui-btnCompact shrink-0" onClick={() => setCreateOpen(true)}>
+                    Nuovo
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {MODE_TABS.map((tab) => {
+                  if (tab.key === 'deleted' && !canManage) return null;
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setMode(tab.key)}
+                      className={cx('rounded-full px-3 py-1.5 ui-body ui-clickable', mode === tab.key && 'ui-clickable--selected')}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {!isDeletedMode ? (
+                <input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  className="ui-control ui-input"
+                  placeholder="Cerca utenti e cani..."
+                />
+              ) : null}
+            </CardContent>
+          </Card>
+
+          {listState === 'loading' ? <LoadingCard label="Caricamento clienti..." /> : null}
+          {listState === 'error' ? <ErrorCard error={error ?? 'Errore clienti.'} onRetry={loadUsers} /> : null}
+          {listState === 'ready' && items.length === 0 ? (
+            <EmptyCard
+              label={
+                isDeletedMode
+                  ? 'Nessun cliente eliminato.'
+                  : mode === 'active'
+                    ? 'Nessun cliente con prenotazioni attive.'
+                    : 'Nessun cliente trovato.'
+              }
+            />
+          ) : null}
+
+          {items.map((item) => (
+            <Fragment key={item.userId}>
+              <button
+                type="button"
+                onClick={() => setSelectedUserId(item.userId)}
+                className={cx('min-w-0 w-full text-left', selectedUserId === item.userId && 'admin-selectedCard')}
+              >
+                <Card className="admin-listCard overflow-hidden">
+                  <CardContent className="space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="ui-body font-[var(--font-weight-semibold)] truncate">{item.fullName}</div>
+                        <div className="ui-muted truncate">
+                          {canManage
+                            ? item.email ?? (item.dogNames.length ? item.dogNames.join(', ') : 'Nessun dato aggiuntivo')
+                            : item.dogNames.length
+                              ? item.dogNames.join(', ')
+                              : 'Nessun cane registrato'}
+                        </div>
+                      </div>
+                      {item.staffRole ? <span className="ui-accentPill">{item.staffRole}</span> : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className="ui-accentPill">{item.dogsCount} cani</span>
+                      {canManage && !isDeletedMode ? <span className="ui-accentPill">{item.activeBookings} attive</span> : null}
+                      {canManage && item.pendingDocuments > 0 ? (
+                        <span className="ui-accentPill">{item.pendingDocuments} documenti</span>
+                      ) : null}
+                      {item.walletDue > 0 ? (
+                        <span className="ui-accentPill ui-accentPill--saldo">Saldo € {item.walletDue.toFixed(2)}</span>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              </button>
+
+              {!isDesktop && selectedUserId === item.userId ? detailNode : null}
+            </Fragment>
+          ))}
+        </div>
+
+        {isDesktop ? detailNode : null}
       </div>
+
+      <DogDetailModal
+        key={selectedDogId ?? 'users-dog-detail-empty'}
+        dogId={selectedDogId}
+        open={Boolean(selectedDogId)}
+        onClose={() => setSelectedDogId(null)}
+        canManage={canManage}
+      />
+      <DogEditModal
+        key={editingDog ? `edit-${editingDog.id}` : 'users-dog-edit-empty'}
+        open={Boolean(editingDog)}
+        mode="edit"
+        dog={editingDog}
+        onClose={() => setEditingDog(null)}
+        onSaved={() => {
+          if (selectedUserId) void loadDetail(selectedUserId);
+        }}
+      />
+      <DogEditModal
+        open={addingDog}
+        mode="create"
+        ownerId={selectedUserId}
+        onClose={() => setAddingDog(false)}
+        onSaved={() => {
+          if (selectedUserId) void loadDetail(selectedUserId);
+        }}
+      />
+      <AssignPassModal
+        open={assignOpen}
+        userId={selectedUserId}
+        onClose={() => setAssignOpen(false)}
+        onAssigned={() => {
+          if (selectedUserId) void loadDetail(selectedUserId);
+        }}
+      />
+      <BookingDetailModal
+        key={selectedBooking ? `${selectedBooking.kind}-${selectedBooking.id}` : 'users-booking-detail-empty'}
+        item={selectedBooking}
+        open={Boolean(selectedBooking)}
+        onClose={() => setSelectedBooking(null)}
+        canManage={canManage}
+        onDeleted={() => {
+          if (selectedUserId) void loadDetail(selectedUserId);
+        }}
+      />
+
+      <Modal open={settleOpen} title="Conferma pagamento" onClose={() => setSettleOpen(false)}>
+        <div className="space-y-4">
+          <div className="ui-muted">
+            Saldo da pagare: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>. Conferma
+            l&apos;importo effettivamente incassato (modificabile in caso di sconto). Il saldo verrà azzerato e i pacchetti
+            in attesa verranno sbloccati.
+          </div>
+          <div className="space-y-1">
+            <label className="ui-muted">Importo incassato (€)</label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="0.01"
+              value={settleAmount}
+              onChange={(event) => setSettleAmount(event.target.value)}
+              className="ui-control ui-input"
+            />
+          </div>
+          {settleError ? <div className="ui-error">{settleError}</div> : null}
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              className="ui-btn ui-btnTone-secondary ui-btnCompact"
+              onClick={() => setSettleOpen(false)}
+              disabled={settleSubmitting}
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              className="ui-btn ui-btnTone-primary ui-btnCompact"
+              onClick={() => void handleSettleWallet()}
+              disabled={settleSubmitting}
+            >
+              {settleSubmitting ? 'Salvataggio…' : 'Conferma pagamento'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       <CreateUserModal
         open={createOpen}
@@ -890,6 +977,6 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
           setSelectedUserId(userId);
         }}
       />
-    </div>
+    </>
   );
 }

@@ -2,7 +2,6 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import type { AddressSearchApiResponse, AddressSuggestion } from '@/lib/address/addressSearch';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
@@ -15,7 +14,7 @@ import type { ProfileFormState } from '@/types/forms';
 import { updateProfileForCurrentUser } from '@/lib/account/profileApi';
 import { deleteProfilePhoto, uploadProfilePhoto } from '@/lib/account/profilePhotoApi';
 import { isValidItalianFiscalCode, sanitizeFiscalCode } from '@/lib/validation/italy';
-import { uploadIdentityDocumentSides, uploadUserDocument } from '@/lib/account/documentApi';
+import { uploadIdentityDocumentSides } from '@/lib/account/documentApi';
 import {
   MAX_PROFILE_PHOTO_BYTES,
   MAX_USER_DOCUMENT_BYTES,
@@ -31,8 +30,6 @@ const ID_DOC_BUCKET = 'identity-documents';
 const PROFILE_SELECT =
   'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, id_document_back_path, id_document_back_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOC_ACTION_WIDTH_CLASS = 'w-[132px]';
-const DOC_DOWNLOAD_LINK_CLASS =
-  'ui-btn ui-btnTone-secondary w-[132px]';
 const ADDRESS_SEARCH_MIN_CHARS = 3;
 const ADDRESS_SEARCH_DEBOUNCE_MS = 350;
 
@@ -264,7 +261,6 @@ function useAddressAutocompleteSearch(query: string, enabled: boolean) {
 }
 
 export default function AccountPage() {
-  const router = useRouter();
   const { user, loading: authLoading, error: authError } = useCurrentUser({
     redirectToIfUnauthenticated: '/login',
     enableRedirects: true,
@@ -298,16 +294,8 @@ export default function AccountPage() {
 
   // ✅ Stato “accettazioni” (MVP)
   const [latestIdDoc, setLatestIdDoc] = useState<UserDocumentRow | null>(null);
-  const [latestWaiverSigned, setLatestWaiverSigned] = useState<UserDocumentRow | null>(null);
-
-  // Liberatoria firmata (upload)
-  const [waiverUploading, setWaiverUploading] = useState(false);
-  const [waiverError, setWaiverError] = useState<string | null>(null);
-  const [waiverSignedUrl, setWaiverSignedUrl] = useState<string | null>(null);
-  const waiverFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [showIdDocumentSection, setShowIdDocumentSection] = useState(false);
-  const [showWaiverSection, setShowWaiverSection] = useState(false);
 
   const [form, setForm] = useState<ProfileFormState>(EMPTY_FORM);
   const homeAddressAutocomplete = useAddressAutocompleteSearch(form.address_line, editing);
@@ -334,21 +322,6 @@ export default function AccountPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const waiverMissingFields = useMemo(() => {
-    const missing: string[] = [];
-
-    const first = (profile?.first_name ?? '').trim();
-    const last = (profile?.last_name ?? '').trim();
-    const cf = sanitizeFiscalCode(profile?.fiscal_code ?? '').trim();
-
-    if (!first) missing.push('Nome');
-    if (!last) missing.push('Cognome');
-    if (!cf) missing.push('Codice fiscale');
-
-    return missing;
-  }, [profile?.first_name, profile?.last_name, profile?.fiscal_code]);
-
-  const canGenerateWaiver = waiverMissingFields.length === 0;
   const ownerDisplayName = useMemo(
     () => `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim(),
     [profile?.first_name, profile?.last_name]
@@ -405,8 +378,6 @@ export default function AccountPage() {
       setIdDocError(null);
       setIdDocFrontSignedUrl(null);
       setIdDocBackSignedUrl(null);
-      setWaiverError(null);
-      setWaiverSignedUrl(null);
 
       try {
         const { data, error: e } = await supabase
@@ -428,17 +399,8 @@ export default function AccountPage() {
           await refreshSignedUrl(row.id_document_back_path, setIdDocBackSignedUrl);
         }
 
-        const [idDocRow, waiverRow] = await Promise.all([
-          loadLatestUserDocument(user.id, 'ID_DOCUMENT'),
-          loadLatestUserDocument(user.id, 'WAIVER_SIGNED'),
-        ]);
-
+        const idDocRow = await loadLatestUserDocument(user.id, 'ID_DOCUMENT');
         setLatestIdDoc(idDocRow);
-        setLatestWaiverSigned(waiverRow);
-
-        if (waiverRow?.path) {
-          await refreshSignedUrl(waiverRow.path, setWaiverSignedUrl);
-        }
     } catch (err) {
       console.error(err);
       setError(humanizeErrorMessage(err, 'Errore nel caricamento del profilo.'));
@@ -723,36 +685,6 @@ export default function AccountPage() {
     }
   };
 
-  const uploadSignedWaiver = async (file: File) => {
-    if (!user) return;
-
-    setWaiverUploading(true);
-    setWaiverError(null);
-
-    try {
-      const validationError = validateUserDocument(file);
-      if (validationError) {
-        setWaiverError(validationError);
-        return;
-      }
-
-      const { path } = await uploadUserDocument({
-        kind: 'WAIVER_SIGNED',
-        file,
-      });
-
-      const latest = await loadLatestUserDocument(user.id, 'WAIVER_SIGNED');
-      setLatestWaiverSigned(latest);
-
-      await refreshSignedUrl(path, setWaiverSignedUrl);
-    } catch (err) {
-      console.error(err);
-      setWaiverError('Errore durante il caricamento della liberatoria firmata.');
-    } finally {
-      setWaiverUploading(false);
-    }
-  };
-
   if (authLoading || loadingData) {
     return (
       <main className="ui-page min-h-screen flex items-center justify-center">
@@ -780,15 +712,6 @@ export default function AccountPage() {
     : latestIdDoc?.status === 'REJECTED'
     ? 'Da ricaricare'
     : 'In attesa di conferma';
-
-  const waiverStatusLabel =
-    latestWaiverSigned?.status === 'ACCEPTED'
-      ? 'Confermato'
-      : latestWaiverSigned?.status === 'REJECTED'
-      ? 'Da ricaricare'
-      : latestWaiverSigned
-      ? 'In attesa di conferma'
-      : 'Non caricato';
 
   const topError = error ?? (authError ? humanizeErrorMessage(authError, 'Accesso non disponibile.') : null);
 
@@ -1085,146 +1008,6 @@ export default function AccountPage() {
                   ) : !idDocHasNewFiles ? (
                     <p className="ui-muted">Nessuna modifica da confermare.</p>
                   ) : null}
-                </div>
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-
-        {/* Liberatoria */}
-        <Card>
-          <CardContent className="space-y-3">
-            <SectionHeader
-              title="Liberatoria"
-              subtitle={waiverStatusLabel}
-              action={
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setShowWaiverSection((v) => {
-                      const next = !v;
-                      if (next && latestWaiverSigned?.path && !waiverSignedUrl) {
-                        void refreshSignedUrl(latestWaiverSigned.path, setWaiverSignedUrl);
-                      }
-                      return next;
-                    });
-                  }}
-                >
-                  {showWaiverSection ? 'Nascondi' : 'Mostra'}
-                </Button>
-              }
-            />
-
-            {showWaiverSection ? (
-              <div className="space-y-4">
-                {/* Parte 1: generazione */}
-                <div className="ui-panelInset p-3 space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="ui-body font-[var(--font-weight-semibold)]">Liberatoria da firmare</p>
-                      <p className="ui-muted mt-1">
-                        Genera la liberatoria precompilata, scaricala e firmala.
-                      </p>
-                    </div>
-
-                    <Button
-                      type="button"
-                      variant="primary"
-                      disabled={!canGenerateWaiver}
-                      onClick={() => router.push('/account/waiver')}
-                      title={canGenerateWaiver ? 'Apri liberatoria' : 'Completa i dati richiesti'}
-                    >
-                      Genera
-                    </Button>
-                  </div>
-
-                  {!canGenerateWaiver ? (
-                    <div className="ui-alertWarn">
-                      <p className="ui-body font-medium">
-                        Per generare la liberatoria mancano:
-                      </p>
-                      <ul className="list-disc pl-5 ui-body mt-1">
-                        {waiverMissingFields.map((f) => (
-                          <li key={f}>{f}</li>
-                        ))}
-                      </ul>
-                      <p className="ui-muted mt-2">
-                        Compila e salva i dati del profilo qui sopra.
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-
-                {/* Parte 2: liberatoria firmata */}
-                <div className="space-y-3">
-                  {waiverError ? (
-                    <div className="ui-error">
-                      {waiverError}
-                    </div>
-                  ) : null}
-
-                  <input
-                    ref={waiverFileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,application/pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file) return;
-                      void uploadSignedWaiver(file);
-                      e.currentTarget.value = '';
-                    }}
-                  />
-
-                  <div className="ui-panelInset p-3 space-y-2">
-                    <p className="ui-body">
-                      <span className="font-medium">Stato:</span> {waiverStatusLabel}
-                    </p>
-
-                    {latestWaiverSigned?.path ? (
-                      <p className="ui-muted">
-                        File:{' '}
-                        <span className="font-mono">
-                          {latestWaiverSigned.path.split('/').pop()}
-                        </span>
-                      </p>
-                    ) : (
-                      <p className="ui-muted">Nessun file caricato.</p>
-                    )}
-
-                    {latestWaiverSigned?.created_at ? (
-                      <p className="ui-muted">
-                        Ultimo upload: {new Date(latestWaiverSigned.created_at).toLocaleString()}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="primary"
-                      className={DOC_ACTION_WIDTH_CLASS}
-                      disabled={waiverUploading}
-                      onClick={() => waiverFileInputRef.current?.click()}
-                    >
-                      {latestWaiverSigned?.path ? 'Sostituisci' : 'Carica'}
-                    </Button>
-
-                    {latestWaiverSigned?.path && waiverSignedUrl ? (
-                      <a
-                        href={waiverSignedUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className={DOC_DOWNLOAD_LINK_CLASS}
-                      >
-                        Scarica
-                      </a>
-                    ) : null}
-
-                    {waiverUploading ? (
-                      <p className="ui-muted">Caricamento…</p>
-                    ) : null}
-                  </div>
                 </div>
               </div>
             ) : null}

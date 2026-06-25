@@ -2476,6 +2476,37 @@ export async function replaceAdminDocumentFile(args: {
   return { userId, kind };
 }
 
+/**
+ * Crea una nuova liberatoria firmata caricata dallo staff dal gestionale.
+ * Il file è già stato salvato nello storage: qui registriamo la riga
+ * `user_documents` come ACCETTATA (l'ha caricata lo staff, non serve revisione).
+ */
+export async function createAdminWaiverDocument(args: {
+  userId: string;
+  path: string;
+}): Promise<{ documentId: string }> {
+  const now = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('user_documents')
+    .insert({
+      user_id: args.userId,
+      kind: 'WAIVER_SIGNED',
+      side: null,
+      path: args.path,
+      status: 'ACCEPTED',
+      accepted_at: now,
+      rejected_at: null,
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? 'Impossibile registrare la liberatoria.');
+  }
+
+  return { documentId: String(data.id) };
+}
+
 export async function updateAdminBookingStatus(args: {
   kind: AdminBookingKind;
   bookingId: string;

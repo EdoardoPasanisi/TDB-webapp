@@ -1,13 +1,10 @@
 'use client';
 
-// app/account/waiver/page.tsx
-
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
+import { fetchAdminJson } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
-import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
-import type { Profile } from '@/types/profile';
+import type { AdminUserDetail } from '@/lib/admin/types';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -23,16 +20,12 @@ function sanitizeFiscalCode(value: string | null | undefined): string {
   return (value ?? '').replace(/\s+/g, '').toUpperCase();
 }
 
-export default function AccountWaiverPage() {
+export function PrintWaiverClient({ userId }: { userId: string }) {
   const router = useRouter();
-  const { user, loading: authLoading } = useCurrentUser({
-    redirectToIfUnauthenticated: '/login',
-    enableRedirects: true,
-  });
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [detail, setDetail] = useState<AdminUserDetail | null>(null);
 
   const prevTitleRef = useRef<string | null>(null);
 
@@ -60,40 +53,23 @@ export default function AccountWaiverPage() {
   }, []);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!user) {
-      setLoading(false);
-      return;
-    }
+    const controller = new AbortController();
 
-    const load = async () => {
-      setLoading(true);
-      setError(null);
-
-      try {
-        const { data, error: e } = await supabase
-          .from('profiles')
-          .select('user_id, first_name, last_name, fiscal_code')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (e) {
-          setError(humanizeErrorMessage(e, 'Non siamo riusciti a caricare la liberatoria.'));
-          setProfile(null);
-          return;
-        }
-
-        setProfile((data as Profile | null) ?? null);
-      } catch (err) {
-        console.error(err);
-        setError('Errore nel caricamento della liberatoria.');
-      } finally {
+    fetchAdminJson<AdminUserDetail>(`/api/admin/users/${userId}`, { signal: controller.signal })
+      .then((data) => {
+        setDetail(data);
         setLoading(false);
-      }
-    };
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return;
+        setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare i dati del cliente.'));
+        setLoading(false);
+      });
 
-    void load();
-  }, [authLoading, user]);
+    return () => controller.abort();
+  }, [userId]);
+
+  const profile = detail?.profile ?? null;
 
   const missing = useMemo(() => {
     const m: string[] = [];
@@ -118,15 +94,13 @@ export default function AccountWaiverPage() {
 
   const fiscalCode = useMemo(() => sanitizeFiscalCode(profile?.fiscal_code), [profile?.fiscal_code]);
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <main className="ui-page min-h-screen flex items-center justify-center">
         <p className="ui-muted">Caricamento...</p>
       </main>
     );
   }
-
-  if (!user) return null;
 
   return (
     <main className="ui-page min-h-screen">
@@ -146,12 +120,6 @@ export default function AccountWaiverPage() {
           .no-print { display: none !important; }
           .print-only { display: block !important; }
 
-          /* iOS Safari stampa "WYSIWYG" e scala il layout alla larghezza del
-             viewport del telefono: usare percentuali produce una colonna
-             stretta. Diamo quindi al foglio una larghezza FISICA (mm) così
-             la resa è un A4 corretto su qualsiasi dispositivo. Il margine di
-             stampa è gestito dal padding interno del foglio (non da @page),
-             così è uguale su mobile e desktop. */
           html {
             -webkit-text-size-adjust: 100% !important;
             text-size-adjust: 100% !important;
@@ -198,7 +166,6 @@ export default function AccountWaiverPage() {
             padding: 0 !important;
           }
 
-          /* Foglio A4 deterministico con margine interno. */
           .waiver-page {
             box-sizing: border-box !important;
             width: 210mm !important;
@@ -299,10 +266,10 @@ export default function AccountWaiverPage() {
           <CardContent className="space-y-3">
             <SectionHeader
               title="Liberatoria"
-              subtitle="Stampa e firma la liberatoria precompilata"
+              subtitle="Stampa la liberatoria precompilata da far firmare al cliente"
               action={
                 <div className="flex items-center gap-2">
-                  <Button variant="secondary" onClick={() => router.push('/account')}>
+                  <Button variant="secondary" onClick={() => router.back()}>
                     Indietro
                   </Button>
                   <Button variant="primary" onClick={() => window.print()} disabled={!canRender}>
@@ -311,11 +278,7 @@ export default function AccountWaiverPage() {
                 </div>
               }
             />
-            {error ? (
-              <div className="ui-error">
-                {error}
-              </div>
-            ) : null}
+            {error ? <div className="ui-error">{error}</div> : null}
           </CardContent>
         </Card>
 
@@ -330,13 +293,8 @@ export default function AccountWaiverPage() {
                 ))}
               </ul>
               <p className="ui-muted">
-                Torna su “Dati proprietario” e inserisci/salva i dati richiesti.
+                Completa nome, cognome e codice fiscale del cliente nella sua scheda, poi riprova.
               </p>
-              <div className="pt-2 no-print">
-                <Button variant="secondary" onClick={() => router.push('/account')}>
-                  Vai ai dati proprietario
-                </Button>
-              </div>
             </CardContent>
           </Card>
         ) : (

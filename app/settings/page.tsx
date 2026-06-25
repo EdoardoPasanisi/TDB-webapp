@@ -96,7 +96,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <SettingActionCard
                 title="Dati e documenti"
-                subtitle="Documento identità, liberatoria e dati personali."
+                subtitle="Documento identità e dati personali."
                 onClick={() => router.push('/account')}
               />
 

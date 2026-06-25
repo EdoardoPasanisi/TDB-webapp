@@ -44,7 +44,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     spot: 'account',
     chip: 'Profilo',
     title: 'I tuoi dati personali',
-    body: 'Qui trovi nome, contatti, documento d’identità e liberatoria. Tienili aggiornati: ci servono per gestire le prenotazioni.',
+    body: 'Qui trovi nome, contatti e documento d’identità. Tienili aggiornati: ci servono per gestire le prenotazioni.',
   },
   {
     id: 'profile-service-address',

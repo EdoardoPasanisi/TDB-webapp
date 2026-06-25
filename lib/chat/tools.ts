@@ -395,7 +395,7 @@ async function getOperationalHours() {
       note:
         'Il primo giorno si conta sempre. Il giorno di uscita non viene calcolato se il box viene liberato entro le 13:00; nel pomeriggio la giornata viene conteggiata per intero.',
     },
-    source: ['lib/services/pensione/utils.ts', 'app/account/waiver/page.tsx', 'knowledge-base'],
+    source: ['lib/services/pensione/utils.ts', 'app/admin/print/waiver/[userId]/PrintWaiverClient.tsx', 'knowledge-base'],
   };
 }
 
