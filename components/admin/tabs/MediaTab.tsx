@@ -328,7 +328,10 @@ export function MediaTab() {
         await uploadVideoToCloudflare({
           uploadUrl: upload.uploadUrl,
           file,
-          onProgress: setUploadProgress,
+          // tus può riportare un avanzamento che torna indietro su retry o a inizio
+          // chunk: teniamo la percentuale monotòna così non "impazzisce" a video.
+          onProgress: (percent) =>
+            setUploadProgress((prev) => (prev == null ? percent : Math.max(prev, percent))),
         });
         completeBody.streamUid = upload.uid;
       } else {
