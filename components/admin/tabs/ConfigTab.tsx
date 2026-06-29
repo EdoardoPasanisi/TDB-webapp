@@ -678,7 +678,7 @@ export function ConfigTab({
   }));
 
   return (
-    <div className="space-y-4">
+    <div className="admin-blocks space-y-4">
       {error ? <div className="ui-error">{error}</div> : null}
 
       {canManage ? (

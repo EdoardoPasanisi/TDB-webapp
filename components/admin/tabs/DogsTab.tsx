@@ -199,7 +199,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
         ))}
       </div>
 
-      <div className="min-w-0 space-y-4">
+      <div className="admin-blocks min-w-0 space-y-4">
         {error ? <div className="ui-error">{error}</div> : null}
         {detailState === 'loading' ? (
           <LoadingCard label="Caricamento dettaglio cane..." />

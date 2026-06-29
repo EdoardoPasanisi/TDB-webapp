@@ -56,7 +56,7 @@ export function AnalyticsTab() {
   if (state === 'error' || !analytics) return <ErrorCard error={error ?? 'Errore analisi.'} onRetry={load} />;
 
   return (
-    <div className="space-y-4">
+    <div className="admin-blocks space-y-4">
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <MetricCard label="Utenti totali" value={analytics.totals.users} />
         <MetricCard label="Utenti attivi" value={analytics.totals.activeUsers} />

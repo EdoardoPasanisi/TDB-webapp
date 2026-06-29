@@ -290,7 +290,7 @@ export function MediaTab() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="admin-blocks space-y-4">
       <Card>
         <CardContent className="space-y-4">
           <SectionHeader

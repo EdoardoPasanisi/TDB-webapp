@@ -83,7 +83,7 @@ export function OverviewTab({ canManage }: { canManage: boolean }) {
   if (state === 'error' || !overview) return <ErrorCard error={error ?? 'Errore overview.'} onRetry={load} />;
 
   return (
-    <div className="space-y-4">
+    <div className="admin-blocks space-y-4">
       {canManage ? (
         <div className="flex justify-end">
           <Button

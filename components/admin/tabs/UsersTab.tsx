@@ -401,7 +401,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
   // (inline sotto l'utente su mobile, oppure nella colonna destra su desktop),
   // così i modali restano un'unica istanza.
   const detailNode = (
-    <div className="min-w-0 space-y-4">
+    <div className="admin-blocks min-w-0 space-y-4">
       {error ? <div className="ui-error">{error}</div> : null}
       {detailState === 'loading' ? (
         <LoadingCard label="Caricamento dettaglio utente..." />

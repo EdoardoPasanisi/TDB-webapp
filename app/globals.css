@@ -137,6 +137,25 @@
   --hint-color: var(--muted);
 
   --error-font-size: 16px;
+
+  /* --------------------------
+     GESTIONALE — colori dei blocchi (Card)
+     Ogni blocco impilato riceve a rotazione una di queste tinte:
+     una barra laterale colorata + un velo di colore di sfondo, così
+     si distingue a colpo d'occhio dove finisce uno e inizia il successivo.
+     -------------------------- */
+  --block-1: #ff8200; /* arancio brand */
+  --block-1-tint: rgba(255, 130, 0, 0.10);
+  --block-2: #22d3ee; /* ciano */
+  --block-2-tint: rgba(34, 211, 238, 0.10);
+  --block-3: #a78bfa; /* viola */
+  --block-3-tint: rgba(167, 139, 250, 0.12);
+  --block-4: #34d399; /* verde */
+  --block-4-tint: rgba(52, 211, 153, 0.10);
+  --block-5: #fb7185; /* rosa */
+  --block-5-tint: rgba(251, 113, 133, 0.10);
+  --block-6: #60a5fa; /* blu */
+  --block-6-tint: rgba(96, 165, 250, 0.11);
 }
 
 /* =========================================
@@ -269,6 +288,41 @@ button {
     border: 1px solid var(--border);
     border-radius: var(--radius);
     background: var(--surface-2);
+  }
+
+  /* --------------------------
+     GESTIONALE — blocchi colorati a rotazione.
+     Si attiva mettendo la classe .admin-blocks sul contenitore che impila
+     le Card (.ui-panel). Solo i blocchi di primo livello (figli diretti)
+     vengono colorati: le Card annidate restano neutre, mantenendo la gerarchia.
+     -------------------------- */
+  .admin-blocks > .ui-panel {
+    border-left-width: 4px;
+    transition: border-color 140ms ease, background 140ms ease;
+  }
+  .admin-blocks > .ui-panel:nth-child(6n + 1) {
+    border-left-color: var(--block-1);
+    background: linear-gradient(90deg, var(--block-1-tint), transparent 58%), var(--surface);
+  }
+  .admin-blocks > .ui-panel:nth-child(6n + 2) {
+    border-left-color: var(--block-2);
+    background: linear-gradient(90deg, var(--block-2-tint), transparent 58%), var(--surface);
+  }
+  .admin-blocks > .ui-panel:nth-child(6n + 3) {
+    border-left-color: var(--block-3);
+    background: linear-gradient(90deg, var(--block-3-tint), transparent 58%), var(--surface);
+  }
+  .admin-blocks > .ui-panel:nth-child(6n + 4) {
+    border-left-color: var(--block-4);
+    background: linear-gradient(90deg, var(--block-4-tint), transparent 58%), var(--surface);
+  }
+  .admin-blocks > .ui-panel:nth-child(6n + 5) {
+    border-left-color: var(--block-5);
+    background: linear-gradient(90deg, var(--block-5-tint), transparent 58%), var(--surface);
+  }
+  .admin-blocks > .ui-panel:nth-child(6n + 6) {
+    border-left-color: var(--block-6);
+    background: linear-gradient(90deg, var(--block-6-tint), transparent 58%), var(--surface);
   }
   .ui-taxiQuote,
   .ui-taxiQuote .ui-body {

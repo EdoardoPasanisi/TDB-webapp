@@ -277,7 +277,7 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="admin-blocks space-y-4">
       {canManage ? (
         <div className="flex justify-end">
           <CreatePensioneBookingLauncher onCreated={load} />
