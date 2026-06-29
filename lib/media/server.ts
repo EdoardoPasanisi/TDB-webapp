@@ -158,19 +158,9 @@ function computePriority(lastMediaAt: string | null, startDate: string): {
   return { priority: 'LOW', priorityScore: diffHours };
 }
 
-export async function listVisibleMediaForUser(userId: string): Promise<CustomerMediaViewItem[]> {
-  const nowIso = new Date().toISOString();
-  const { data, error } = await supabaseAdmin
-    .from('customer_media')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('visible_until', nowIso)
-    .order('created_at', { ascending: false })
-    .limit(40);
-
-  if (error) throw new Error(error.message);
-
-  const rows = (data ?? []).map(castMediaRow);
+async function buildVisibleMediaViewItems(
+  rows: ReturnType<typeof castMediaRow>[]
+): Promise<CustomerMediaViewItem[]> {
   if (rows.length === 0) return [];
 
   // Riconcilia i video ancora in elaborazione (fallback se il webhook non e arrivato).
@@ -247,6 +237,38 @@ export async function listVisibleMediaForUser(userId: string): Promise<CustomerM
   );
 
   return items.filter((item): item is CustomerMediaViewItem => Boolean(item));
+}
+
+export async function listVisibleMediaForUser(userId: string): Promise<CustomerMediaViewItem[]> {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('customer_media')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('visible_until', nowIso)
+    .order('created_at', { ascending: false })
+    .limit(40);
+
+  if (error) throw new Error(error.message);
+
+  return buildVisibleMediaViewItems((data ?? []).map(castMediaRow));
+}
+
+// Stessa logica di firma/elaborazione, ma per una singola prenotazione: usata dal
+// gestionale per rivedere i media ancora attivi inviati a quel cliente.
+export async function listVisibleMediaForBooking(bookingId: string): Promise<CustomerMediaViewItem[]> {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabaseAdmin
+    .from('customer_media')
+    .select('*')
+    .eq('booking_id', bookingId)
+    .gte('visible_until', nowIso)
+    .order('created_at', { ascending: false })
+    .limit(40);
+
+  if (error) throw new Error(error.message);
+
+  return buildVisibleMediaViewItems((data ?? []).map(castMediaRow));
 }
 
 export async function listAdminMediaRecap(): Promise<AdminMediaRecapItem[]> {

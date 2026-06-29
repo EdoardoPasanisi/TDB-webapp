@@ -13,7 +13,7 @@ import {
   validateUploadBytes,
   validateUploadFile,
 } from '@/lib/validation/uploads';
-import type { AdminMediaRecapItem } from '@/types/media';
+import type { AdminMediaRecapItem, CustomerMediaViewItem } from '@/types/media';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -29,6 +29,12 @@ import {
 type MediaDraft = {
   caption: string;
   file: File | null;
+};
+
+type GalleryState = {
+  state: LoadState;
+  items: CustomerMediaViewItem[];
+  error: string | null;
 };
 
 type MediaUploadResponse = {
@@ -150,6 +156,49 @@ function formatDaysWithoutMedia(days: number) {
   return `${days} giorni`;
 }
 
+function MediaPreview({ media }: { media: CustomerMediaViewItem }) {
+  return (
+    <div className="ui-panelInset space-y-2 p-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="ui-pill">{media.mediaType === 'VIDEO' ? 'Video' : 'Foto'}</span>
+        <span className="ui-fine text-[rgba(255,255,255,0.56)]">{formatDateTime(media.createdAt)}</span>
+      </div>
+
+      <div className="overflow-hidden rounded-[calc(var(--radius)+2px)] border border-[rgba(255,255,255,0.08)] bg-black">
+        {media.mediaType === 'VIDEO' ? (
+          media.status === 'ready' && media.mediaUrl ? (
+            <div className="relative aspect-video w-full bg-black">
+              <iframe
+                src={media.mediaUrl}
+                title={media.caption || 'Video inviato'}
+                loading="lazy"
+                allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+                allowFullScreen
+                className="absolute inset-0 h-full w-full border-0"
+              />
+            </div>
+          ) : (
+            <div className="flex aspect-video w-full items-center justify-center bg-black px-4 text-center">
+              <span className="ui-muted">Video in elaborazione: sarà visibile tra pochi minuti.</span>
+            </div>
+          )
+        ) : media.mediaUrl ? (
+          <img
+            src={media.mediaUrl}
+            alt={media.caption || 'Media inviato'}
+            className="block h-auto max-h-[320px] w-full object-cover"
+          />
+        ) : null}
+      </div>
+
+      {media.caption ? <div className="ui-body">{media.caption}</div> : null}
+      <div className="ui-fine text-[rgba(255,255,255,0.52)]">
+        Visibile fino al {formatDateTime(media.visibleUntil)}
+      </div>
+    </div>
+  );
+}
+
 export function MediaTab() {
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +206,41 @@ export function MediaTab() {
   const [drafts, setDrafts] = useState<Record<string, MediaDraft>>({});
   const [uploadingBookingId, setUploadingBookingId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [galleries, setGalleries] = useState<Record<string, GalleryState>>({});
+
+  const loadGallery = useCallback(async (bookingId: string) => {
+    setGalleries((current) => ({
+      ...current,
+      [bookingId]: { state: 'loading', items: current[bookingId]?.items ?? [], error: null },
+    }));
+    try {
+      const payload = await fetchAdminJson<{ items: CustomerMediaViewItem[] }>(
+        `/api/admin/media/${bookingId}`
+      );
+      setGalleries((current) => ({
+        ...current,
+        [bookingId]: { state: 'ready', items: payload.items, error: null },
+      }));
+    } catch (err) {
+      setGalleries((current) => ({
+        ...current,
+        [bookingId]: {
+          state: 'error',
+          items: current[bookingId]?.items ?? [],
+          error: humanizeErrorMessage(err, 'Non siamo riusciti a caricare i media inviati.'),
+        },
+      }));
+    }
+  }, []);
+
+  function toggleGallery(bookingId: string) {
+    const willOpen = !expanded[bookingId];
+    setExpanded((current) => ({ ...current, [bookingId]: willOpen }));
+    if (willOpen && galleries[bookingId]?.state !== 'ready') {
+      void loadGallery(bookingId);
+    }
+  }
 
   const load = useCallback(async (signal?: AbortSignal) => {
     setState('loading');
@@ -272,6 +356,10 @@ export function MediaTab() {
         [item.bookingId]: { caption: '', file: null },
       }));
 
+      if (expanded[item.bookingId]) {
+        void loadGallery(item.bookingId);
+      }
+
       await load();
     } catch (err) {
       setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare il media.'));
@@ -330,6 +418,8 @@ export function MediaTab() {
             const draft = drafts[item.bookingId] ?? { caption: '', file: null };
             const isUploading = uploadingBookingId === item.bookingId;
             const draftIsVideo = draft.file ? isVideoFile(draft.file) : false;
+            const isGalleryOpen = Boolean(expanded[item.bookingId]);
+            const gallery = galleries[item.bookingId];
 
             return (
               <Card key={item.bookingId} className="admin-listCard overflow-hidden">
@@ -442,6 +532,39 @@ export function MediaTab() {
                       </div>
                     ) : null}
                   </div>
+
+                  {item.mediaCount > 0 ? (
+                    <div className="space-y-3">
+                      <Button
+                        variant="secondary"
+                        className="w-full sm:w-auto"
+                        onClick={() => toggleGallery(item.bookingId)}
+                      >
+                        {isGalleryOpen
+                          ? 'Nascondi media inviati'
+                          : `Vedi media inviati (${item.mediaCount})`}
+                      </Button>
+
+                      {isGalleryOpen ? (
+                        gallery?.state === 'loading' ? (
+                          <LoadingCard label="Caricamento media inviati..." />
+                        ) : gallery?.state === 'error' ? (
+                          <ErrorCard
+                            error={gallery.error ?? 'Errore caricamento media.'}
+                            onRetry={() => void loadGallery(item.bookingId)}
+                          />
+                        ) : gallery && gallery.items.length === 0 ? (
+                          <EmptyCard label="Nessun media ancora attivo per questa pensione (i media inviati scadono 48h dopo l'invio)." />
+                        ) : gallery ? (
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            {gallery.items.map((media) => (
+                              <MediaPreview key={media.id} media={media} />
+                            ))}
+                          </div>
+                        ) : null
+                      ) : null}
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
             );
