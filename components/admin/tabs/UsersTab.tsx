@@ -37,6 +37,7 @@ import { DocumentCard, IdentityDocumentCard, groupAdminDocuments } from '@/compo
 import { CreateUserModal } from '@/components/admin/CreateUserModal';
 import { DogEditModal } from '@/components/admin/DogEditModal';
 import { AssignPassModal } from '@/components/admin/AssignPassModal';
+import { CreatePensioneBookingModal } from '@/components/admin/CreatePensioneBookingModal';
 import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { Modal } from '@/components/common/Modal';
 
@@ -75,6 +76,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
   const [addingDog, setAddingDog] = useState(false);
   const [selectedBooking, setSelectedBooking] = useState<AdminAgendaItem | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+  const [bookingModalOpen, setBookingModalOpen] = useState(false);
   const [assignOpen, setAssignOpen] = useState(false);
   const [userActionBusy, setUserActionBusy] = useState(false);
   const [settleOpen, setSettleOpen] = useState(false);
@@ -441,6 +443,11 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                         Elimina definitivamente
                       </Button>
                     </>
+                  ) : null}
+                  {canManage && !isDeletedMode ? (
+                    <Button variant="secondary" className="ui-btnCompact" onClick={() => setBookingModalOpen(true)}>
+                      Crea prenotazione
+                    </Button>
                   ) : null}
                   {canManage && !isDeletedMode ? (
                     <Button variant="danger" className="ui-btnCompact" disabled={userActionBusy} onClick={() => void handleSoftDeleteUser()}>
@@ -913,6 +920,17 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
         userId={selectedUserId}
         onClose={() => setAssignOpen(false)}
         onAssigned={() => {
+          if (selectedUserId) void loadDetail(selectedUserId);
+        }}
+      />
+      <CreatePensioneBookingModal
+        open={bookingModalOpen}
+        userId={selectedUserId}
+        userName={
+          `${detail?.profile?.first_name ?? ''} ${detail?.profile?.last_name ?? ''}`.trim() || 'Cliente'
+        }
+        onClose={() => setBookingModalOpen(false)}
+        onCreated={() => {
           if (selectedUserId) void loadDetail(selectedUserId);
         }}
       />

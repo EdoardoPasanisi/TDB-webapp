@@ -31,9 +31,12 @@ import {
   type LoadState,
 } from '@/components/admin/shared';
 import { useConfirm } from '@/components/admin/ConfirmProvider';
+import { BreedCombobox } from '@/components/dogs/BreedCombobox';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
+import { Field } from '@/components/ui/Field';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import type { PensioneBlockRecord } from '@/lib/admin/pensioneBlocks';
 
 export function ConfigTab({
   canManage,
@@ -77,6 +80,28 @@ export function ConfigTab({
   const [savingSlot, setSavingSlot] = useState(false);
   const [deletingSlot, setDeletingSlot] = useState(false);
   const [savingStaff, setSavingStaff] = useState(false);
+
+  // Blocco prenotazioni pensione (per periodo, per tutti o per razze).
+  const [blocks, setBlocks] = useState<PensioneBlockRecord[]>([]);
+  const [blocksState, setBlocksState] = useState<LoadState>('loading');
+  const [blockForm, setBlockForm] = useState<{
+    blockId: string;
+    startDate: string;
+    endDate: string;
+    scope: 'ALL' | 'BREEDS';
+    breeds: string[];
+    notes: string;
+  }>({
+    blockId: '',
+    startDate: todayIso(),
+    endDate: todayIso(),
+    scope: 'ALL',
+    breeds: [],
+    notes: '',
+  });
+  const [blockBreedInput, setBlockBreedInput] = useState('');
+  const [savingBlock, setSavingBlock] = useState(false);
+  const [deletingBlock, setDeletingBlock] = useState(false);
 
   const monthStartDate = useMemo(() => toDateOnly(startOfMonth(monthDate)), [monthDate]);
   const monthEndDate = useMemo(() => {
@@ -247,6 +272,46 @@ export function ConfigTab({
 
     return () => controller.abort();
   }, [monthEndDate, monthStartDate, slotServiceType]);
+
+  const loadBlocks = async () => {
+    setBlocksState('loading');
+    try {
+      const payload = await fetchAdminJson<{ items: PensioneBlockRecord[] }>(
+        `/api/admin/pensione-blocks?start=${monthStartDate}&end=${monthEndDate}`
+      );
+      setBlocks(payload.items);
+      setBlocksState('ready');
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare i blocchi pensione.'));
+      setBlocksState('error');
+    }
+  };
+
+  useEffect(() => {
+    if (!canManage) {
+      setBlocksState('ready');
+      return;
+    }
+
+    const controller = new AbortController();
+    setBlocksState('loading');
+
+    fetchAdminJson<{ items: PensioneBlockRecord[] }>(
+      `/api/admin/pensione-blocks?start=${monthStartDate}&end=${monthEndDate}`,
+      { signal: controller.signal }
+    )
+      .then((payload) => {
+        setBlocks(payload.items);
+        setBlocksState('ready');
+      })
+      .catch((err) => {
+        if (isAbortError(err)) return;
+        setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare i blocchi pensione.'));
+        setBlocksState('error');
+      });
+
+    return () => controller.abort();
+  }, [canManage, monthEndDate, monthStartDate]);
 
   useEffect(() => {
     if (!canManage) {
@@ -502,6 +567,115 @@ export function ConfigTab({
       setDeletingSlot(false);
     }
   };
+
+  const resetBlockForm = () => {
+    setBlockForm({
+      blockId: '',
+      startDate: selectedDayKey,
+      endDate: selectedDayKey,
+      scope: 'ALL',
+      breeds: [],
+      notes: '',
+    });
+    setBlockBreedInput('');
+  };
+
+  const editBlock = (block: PensioneBlockRecord) => {
+    setError(null);
+    setBlockForm({
+      blockId: block.id,
+      startDate: block.startDate,
+      endDate: block.endDate,
+      scope: block.scope,
+      breeds: block.breeds,
+      notes: block.notes ?? '',
+    });
+    setBlockBreedInput('');
+  };
+
+  const addBlockBreed = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return;
+    setBlockForm((current) =>
+      current.breeds.some((breed) => breed.toLowerCase() === trimmed.toLowerCase())
+        ? current
+        : { ...current, breeds: [...current.breeds, trimmed] }
+    );
+    setBlockBreedInput('');
+  };
+
+  const removeBlockBreed = (value: string) => {
+    setBlockForm((current) => ({
+      ...current,
+      breeds: current.breeds.filter((breed) => breed !== value),
+    }));
+  };
+
+  const saveBlock = async () => {
+    if (blockForm.endDate < blockForm.startDate) {
+      setError('La data di fine deve essere uguale o successiva alla data di inizio.');
+      return;
+    }
+    if (blockForm.scope === 'BREEDS' && blockForm.breeds.length === 0) {
+      setError('Seleziona almeno una razza da bloccare oppure scegli “Tutti”.');
+      return;
+    }
+
+    setSavingBlock(true);
+    setError(null);
+    try {
+      await fetchAdminJson('/api/admin/pensione-blocks', {
+        method: 'POST',
+        body: JSON.stringify({
+          blockId: blockForm.blockId || null,
+          startDate: blockForm.startDate,
+          endDate: blockForm.endDate,
+          scope: blockForm.scope,
+          breeds: blockForm.breeds,
+          notes: blockForm.notes || null,
+        }),
+      });
+      resetBlockForm();
+      await loadBlocks();
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a salvare il blocco pensione.'));
+    } finally {
+      setSavingBlock(false);
+    }
+  };
+
+  const deleteBlock = async () => {
+    if (!blockForm.blockId) return;
+    const confirmed = await confirm({
+      keyword: 'ELIMINA',
+      title: 'Elimina blocco',
+      message: 'Il blocco verrà rimosso e le date torneranno prenotabili.',
+    });
+    if (!confirmed) return;
+
+    setDeletingBlock(true);
+    setError(null);
+    try {
+      await fetchAdminJson('/api/admin/pensione-blocks', {
+        method: 'DELETE',
+        body: JSON.stringify({ blockId: blockForm.blockId }),
+      });
+      resetBlockForm();
+      await loadBlocks();
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a eliminare il blocco pensione.'));
+    } finally {
+      setDeletingBlock(false);
+    }
+  };
+
+  const blockCalendarItems = blocks.map((block) => ({
+    id: block.id,
+    startAtIso: `${block.startDate}T00:00:00`,
+    endAtIso: `${block.endDate}T00:00:00`,
+    label: block.scope === 'ALL' ? 'Pensione chiusa' : `Pensione chiusa (${block.breeds.join(', ')})`,
+    colorClass: '',
+  }));
 
   return (
     <div className="space-y-4">
@@ -925,6 +1099,217 @@ export function ConfigTab({
               </CardContent>
             </Card>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="space-y-3">
+          <SectionHeader
+            title="Blocco prenotazioni pensione"
+            subtitle="Chiudi le prenotazioni pensione per un periodo, per tutti i clienti oppure solo per alcune razze. Se un cliente ha anche un solo cane di razza bloccata, non potrà prenotare per nessuno dei suoi cani in quel periodo."
+          />
+
+          {blocksState === 'loading' ? (
+            <LoadingCard label="Carico i blocchi pensione..." />
+          ) : blocksState === 'error' ? (
+            <ErrorCard error="Non siamo riusciti a caricare i blocchi pensione." onRetry={loadBlocks} />
+          ) : (
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div className="space-y-3">
+                <MonthCalendar
+                  monthDate={monthDate}
+                  items={blockCalendarItems}
+                  selectedDayKey={selectedDayKey}
+                  onSelectDay={setSelectedDayKey}
+                  onPrevMonth={() => setMonthDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                  onNextMonth={() => setMonthDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                />
+
+                <Card>
+                  <CardContent className="space-y-2">
+                    <SectionHeader
+                      title={`Blocchi attivi il ${formatDateTime(selectedDayKey)}`}
+                      subtitle="Tocca un blocco per modificarlo o eliminarlo."
+                    />
+                    {blocks.filter(
+                      (block) => block.startDate <= selectedDayKey && block.endDate >= selectedDayKey
+                    ).length === 0 ? (
+                      <EmptyCard label="Nessun blocco attivo in questo giorno." />
+                    ) : (
+                      <div className="space-y-2">
+                        {blocks
+                          .filter((block) => block.startDate <= selectedDayKey && block.endDate >= selectedDayKey)
+                          .map((block) => (
+                            <button
+                              key={block.id}
+                              type="button"
+                              className={cx('ui-selectCard w-full text-left', blockForm.blockId === block.id && 'ui-selectCard--selected')}
+                              onClick={() => editBlock(block)}
+                            >
+                              <div className="ui-body font-[var(--font-weight-semibold)]">
+                                {formatDateTime(block.startDate)} → {formatDateTime(block.endDate)}
+                              </div>
+                              <div className="ui-muted mt-1">
+                                {block.scope === 'ALL' ? 'Tutti i clienti' : `Razze: ${block.breeds.join(', ')}`}
+                              </div>
+                              {block.notes ? <div className="ui-muted mt-1">{block.notes}</div> : null}
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              <Card>
+                <CardContent className="space-y-3">
+                  <SectionHeader
+                    title={blockForm.blockId ? 'Modifica blocco' : 'Aggiungi blocco'}
+                    subtitle="Seleziona il periodo e scegli se bloccare tutti i clienti o solo alcune razze."
+                  />
+
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <Field label="Dal">
+                      <input
+                        type="date"
+                        value={blockForm.startDate}
+                        onChange={(event) =>
+                          setBlockForm((current) => ({
+                            ...current,
+                            startDate: event.target.value,
+                            endDate: current.endDate < event.target.value ? event.target.value : current.endDate,
+                          }))
+                        }
+                        className="ui-control ui-input"
+                        disabled={savingBlock || deletingBlock}
+                      />
+                    </Field>
+                    <Field label="Al">
+                      <input
+                        type="date"
+                        value={blockForm.endDate}
+                        min={blockForm.startDate}
+                        onChange={(event) =>
+                          setBlockForm((current) => ({ ...current, endDate: event.target.value }))
+                        }
+                        className="ui-control ui-input"
+                        disabled={savingBlock || deletingBlock}
+                      />
+                    </Field>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="ui-label">Cosa bloccare</label>
+                    <div className="admin-choiceGrid">
+                      <button
+                        type="button"
+                        className={cx('admin-tabButton admin-choiceButton', blockForm.scope === 'ALL' && 'admin-tabButton--active')}
+                        onClick={() => setBlockForm((current) => ({ ...current, scope: 'ALL' }))}
+                        disabled={savingBlock || deletingBlock}
+                      >
+                        Tutti
+                      </button>
+                      <button
+                        type="button"
+                        className={cx('admin-tabButton admin-choiceButton', blockForm.scope === 'BREEDS' && 'admin-tabButton--active')}
+                        onClick={() => setBlockForm((current) => ({ ...current, scope: 'BREEDS' }))}
+                        disabled={savingBlock || deletingBlock}
+                      >
+                        Per razze
+                      </button>
+                    </div>
+                  </div>
+
+                  {blockForm.scope === 'BREEDS' ? (
+                    <div className="space-y-2">
+                      <label className="ui-label">Razze da bloccare</label>
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <BreedCombobox
+                            value={blockBreedInput}
+                            onChange={(next, meta) => {
+                              if (meta) {
+                                addBlockBreed(meta.name);
+                              } else {
+                                setBlockBreedInput(next);
+                              }
+                            }}
+                            placeholder="Cerca o scrivi una razza..."
+                            disabled={savingBlock || deletingBlock}
+                          />
+                        </div>
+                        <Button
+                          variant="secondary"
+                          className="ui-btnCompact shrink-0"
+                          onClick={() => addBlockBreed(blockBreedInput)}
+                          disabled={!blockBreedInput.trim() || savingBlock || deletingBlock}
+                        >
+                          Aggiungi
+                        </Button>
+                      </div>
+                      {blockForm.breeds.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {blockForm.breeds.map((breed) => (
+                            <button
+                              key={breed}
+                              type="button"
+                              className="ui-accentPill"
+                              onClick={() => removeBlockBreed(breed)}
+                              disabled={savingBlock || deletingBlock}
+                              title="Rimuovi razza"
+                            >
+                              {breed} ✕
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="ui-muted">Aggiungi almeno una razza.</div>
+                      )}
+                    </div>
+                  ) : null}
+
+                  <Field label="Note (facoltative)">
+                    <input
+                      type="text"
+                      value={blockForm.notes}
+                      onChange={(event) => setBlockForm((current) => ({ ...current, notes: event.target.value }))}
+                      className="ui-control ui-input"
+                      placeholder="Es. struttura al completo, ferie..."
+                      disabled={savingBlock || deletingBlock}
+                    />
+                  </Field>
+
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {blockForm.blockId ? (
+                      <>
+                        <Button
+                          variant="secondary"
+                          onClick={resetBlockForm}
+                          disabled={savingBlock || deletingBlock}
+                        >
+                          Nuovo blocco
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={deleteBlock}
+                          disabled={savingBlock || deletingBlock}
+                        >
+                          {deletingBlock ? 'Eliminazione...' : 'Elimina blocco'}
+                        </Button>
+                      </>
+                    ) : null}
+                    <Button
+                      className="sm:col-span-2"
+                      onClick={saveBlock}
+                      disabled={savingBlock || deletingBlock}
+                    >
+                      {savingBlock ? 'Salvataggio...' : blockForm.blockId ? 'Salva modifica blocco' : 'Crea blocco'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

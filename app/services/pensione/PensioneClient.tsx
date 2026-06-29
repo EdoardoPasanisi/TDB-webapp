@@ -9,6 +9,7 @@ export default function PensioneClient() {
     loading,
     saving,
     error,
+    blockedMessage,
     missingRequiredFields,
     missingPetFields,
     dogs,
@@ -54,6 +55,7 @@ export default function PensioneClient() {
     <PensioneBookingForm
       title={`Prenotazione pensione${editingBookingId ? ' (modifica)' : ''}`}
       error={error}
+      blockedMessage={blockedMessage}
       missingRequiredFields={missingRequiredFields}
       missingPetFields={missingPetFields}
       saving={saving}

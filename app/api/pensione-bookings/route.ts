@@ -12,12 +12,11 @@ import {
 } from '@/lib/bookings/customerBookingRequirements';
 import { accommodationOptionsForSpecies, DEFAULT_TAXI } from '@/lib/services/pensione/constants';
 import { isPlainObject, normalizeUuid, parsePensioneBookingInput } from '@/lib/services/pensione/parseInput';
-import type { SavePensioneBookingInput } from '@/lib/services/pensione/api';
-import type { DogLite, PerDogForm } from '@/lib/services/pensione/types';
+import { buildBookingPayload, buildBookingDogsPayload } from '@/lib/services/pensione/persist';
+import { findPensioneBlockConflict, formatBlockedPeriodsMessage } from '@/lib/admin/pensioneBlocks';
+import type { DogLite } from '@/lib/services/pensione/types';
 import {
-  buildExtrasPayload,
   computeDaysCount,
-  computePerDogTotals,
   computePricing,
   validateTimeWindow,
 } from '@/lib/services/pensione/utils';
@@ -82,74 +81,6 @@ type StoredBookingDogRow = {
   per_dog_total: number;
 };
 
-function buildBookingPayload(args: {
-  firstDogId: string;
-  input: SavePensioneBookingInput;
-  pricing: ReturnType<typeof computePricing>;
-}) {
-  const { firstDogId, input, pricing } = args;
-
-  const taxiPickupTime =
-    input.taxiOption === 'ONE_WAY' || input.taxiOption === 'ROUND_TRIP' ? input.arrivalTime : null;
-  const taxiReturnTime =
-    input.taxiOption === 'RETURN_ONLY' || input.taxiOption === 'ROUND_TRIP' ? input.departureTime : null;
-
-  return {
-    dog_id: firstDogId,
-    service_type: 'PENSIONE',
-    start_date: input.startDate,
-    end_date: input.endDate,
-    arrival_time: input.arrivalTime,
-    departure_time: input.departureTime,
-    notes: input.notes?.trim() ? input.notes.trim() : null,
-    dogs_count: pricing.dogsCount,
-    taxi_option: input.taxiOption,
-    taxi_distance_band: input.taxiDistanceBand,
-    taxi_price: pricing.taxiPrice,
-    taxi_pickup_time: taxiPickupTime,
-    taxi_return_time: taxiReturnTime,
-    alloggio_total_full: pricing.alloggioTotalFull,
-    alloggio_discount_percent: pricing.discountPercent,
-    alloggio_total_discounted: pricing.alloggioTotalDiscounted,
-    extras_total: pricing.extrasTotal,
-    total_price: pricing.totalPrice,
-  };
-}
-
-function buildBookingDogsPayload(args: {
-  bookingId: string;
-  selectedDogIds: string[];
-  dogs: Map<string, DogLite>;
-  perDogForm: Record<string, PerDogForm>;
-  daysCount: number;
-}): StoredBookingDogRow[] {
-  const { bookingId, selectedDogIds, dogs, perDogForm, daysCount } = args;
-
-  return selectedDogIds.map((dogId) => {
-    const dog = dogs.get(dogId);
-    const form = perDogForm[dogId];
-
-    if (!dog || !form) {
-      throw new Error('Dati cane mancanti.');
-    }
-
-    const extras = buildExtrasPayload(form);
-    const totals = computePerDogTotals({ dog, form, daysCount });
-
-    return {
-      booking_id: bookingId,
-      dog_id: dogId,
-      accommodation_type: form.accommodationType,
-      accommodation_price_per_day: totals.accommodation_price_per_day,
-      days_count: daysCount,
-      accommodation_subtotal: totals.accommodation_subtotal,
-      extras,
-      extras_subtotal: totals.extras_subtotal,
-      per_dog_total: totals.per_dog_total,
-    };
-  });
-}
-
 export async function POST(request: Request) {
   try {
     const { userId } = await requireRequestUser(request);
@@ -181,6 +112,20 @@ export async function POST(request: Request) {
     const daysCount = computeDaysCount(input.startDate, input.endDate, input.departureTime);
     if (daysCount <= 0) {
       return NextResponse.json({ error: 'Date prenotazione non valide.' }, { status: 400 });
+    }
+
+    // Blocco periodi pensione: se il periodo selezionato è chiuso per questo utente
+    // (per tutti oppure per la razza di uno dei suoi cani), rifiutiamo indicando il periodo.
+    const blockConflict = await findPensioneBlockConflict({
+      userId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+    });
+    if (blockConflict.blocked) {
+      return NextResponse.json(
+        { error: formatBlockedPeriodsMessage(blockConflict.periods) },
+        { status: 400 }
+      );
     }
 
     const [

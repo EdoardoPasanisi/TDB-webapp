@@ -280,6 +280,62 @@ export function sanitizeSlotDeleteInput(body: unknown): { slotId: string } {
   return { slotId: assertUuid(body.slotId, 'Slot') };
 }
 
+export function sanitizePensioneBlockInput(body: unknown): {
+  blockId: string | null;
+  startDate: string;
+  endDate: string;
+  scope: 'ALL' | 'BREEDS';
+  breeds: string[];
+  notes: string | null;
+} {
+  if (!isPlainObject(body)) throw new Error('Payload blocco pensione non valido.');
+
+  const blockId =
+    body.blockId == null || toTrimmedString(body.blockId) === '' ? null : assertUuid(body.blockId, 'Blocco');
+
+  const { startDate, endDate } = sanitizeDateRangeInput(body.startDate, body.endDate);
+
+  const scopeRaw = toTrimmedString(body.scope).toUpperCase();
+  if (scopeRaw !== 'ALL' && scopeRaw !== 'BREEDS') {
+    throw new Error('Tipo di blocco non valido.');
+  }
+  const scope = scopeRaw as 'ALL' | 'BREEDS';
+
+  let breeds: string[] = [];
+  if (scope === 'BREEDS') {
+    const rawList = Array.isArray(body.breeds) ? body.breeds : [];
+    breeds = Array.from(
+      new Set(
+        rawList
+          .map((entry) => toTrimmedString(entry).replace(/\s+/g, ' ').slice(0, 80))
+          .filter(Boolean)
+      )
+    );
+    if (breeds.length === 0) {
+      throw new Error('Seleziona almeno una razza da bloccare.');
+    }
+  }
+
+  return {
+    blockId,
+    startDate,
+    endDate,
+    scope,
+    breeds,
+    notes: sanitizeOptionalText(body.notes, 1000),
+  };
+}
+
+export function sanitizePensioneBlockDeleteInput(body: unknown): { blockId: string } {
+  if (!isPlainObject(body)) throw new Error('Payload eliminazione blocco non valido.');
+  return { blockId: assertUuid(body.blockId, 'Blocco') };
+}
+
+export function sanitizeAdminPensioneBookingUserId(body: unknown): string {
+  if (!isPlainObject(body)) throw new Error('Payload prenotazione non valido.');
+  return assertUuid(body.userId, 'Utente');
+}
+
 export function sanitizeProfilePatch(body: unknown): Partial<Profile> {
   if (!isPlainObject(body)) throw new Error('Payload profilo non valido.');
 

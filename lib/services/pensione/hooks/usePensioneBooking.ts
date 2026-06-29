@@ -234,6 +234,9 @@ export function usePensioneBooking() {
   const [notes, setNotes] = useState('');
   const [editingBookingId, setEditingBookingId] = useState<string | null>(null);
 
+  // Blocco periodi pensione: messaggio "niente posto" per il periodo selezionato.
+  const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
+
   // Form per-cane
   const [perDogForm, setPerDogForm] = useState<Record<string, PerDogForm>>({});
 
@@ -448,6 +451,40 @@ export function usePensioneBooking() {
 
     run();
   }, [taxiOption, taxiServiceAddress]);
+
+  // Verifica blocco periodi pensione quando cambia il periodo selezionato.
+  useEffect(() => {
+    const isISO = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v);
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      if (!isISO(startDate) || !isISO(endDate) || endDate < startDate) {
+        if (!cancelled) setBlockedMessage(null);
+        return;
+      }
+      try {
+        const res = await fetch(
+          `/api/pensione-availability?start=${encodeURIComponent(startDate)}&end=${encodeURIComponent(endDate)}`,
+          { credentials: 'include', cache: 'no-store' }
+        );
+        const json = (await res.json().catch(() => null)) as
+          | { blocked?: boolean; message?: string | null }
+          | null;
+        if (cancelled) return;
+        if (res.ok && json?.blocked) {
+          setBlockedMessage(json.message ?? 'Non c’è posto in pensione per il periodo selezionato.');
+        } else {
+          setBlockedMessage(null);
+        }
+      } catch {
+        if (!cancelled) setBlockedMessage(null);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [startDate, endDate]);
 
   // Caricamento prenotazione in modifica
   useEffect(() => {
@@ -696,6 +733,8 @@ export function usePensioneBooking() {
     if (endDate < startDate)
       return setError('La data di partenza deve essere uguale o successiva alla data di arrivo.');
 
+    if (blockedMessage) return setError(blockedMessage);
+
     if (!departureTime) {
       return setError(
         'Seleziona l’orario di partenza (mattina o pomeriggio) per calcolare correttamente i giorni.'
@@ -825,6 +864,7 @@ export function usePensioneBooking() {
     notes,
     editingBookingId,
     draftKey,
+    blockedMessage,
     loadMissingRequiredProfileFields,
     router,
   ]);
@@ -859,6 +899,7 @@ export function usePensioneBooking() {
     loading: loading || loadingEdit,
     saving,
     error,
+    blockedMessage,
     missingRequiredFields,
     missingPetFields,
 

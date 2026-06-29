@@ -21,6 +21,7 @@ const ADDRESS_SEARCH_DEBOUNCE_MS = 350;
 type Props = {
   title: string;
   error: string | null;
+  blockedMessage?: string | null;
   missingRequiredFields: string[];
   missingPetFields: string[];
   saving: boolean;
@@ -177,6 +178,7 @@ export function PensioneBookingForm(props: Props) {
   const {
     title,
     error,
+    blockedMessage,
     missingRequiredFields,
     missingPetFields,
     saving,
@@ -456,6 +458,12 @@ export function PensioneBookingForm(props: Props) {
                 className="ui-control ui-input ui-minw0"
               />
             </Field>
+
+            {blockedMessage ? (
+              <div className="ui-alertWarn">
+                <p className="ui-body font-[var(--font-weight-semibold)]">{blockedMessage}</p>
+              </div>
+            ) : null}
 
             <Field
               label="Orario di arrivo (indicativo)"
@@ -846,7 +854,7 @@ export function PensioneBookingForm(props: Props) {
               variant="primary"
               fullWidth
               onClick={onSubmit}
-              disabled={saving}
+              disabled={saving || Boolean(blockedMessage)}
             >
               {saving ? 'Salvataggio…' : showCancelEdit ? 'Salva modifiche' : 'Crea prenotazione'}
             </Button>

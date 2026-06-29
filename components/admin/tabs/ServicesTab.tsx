@@ -23,6 +23,7 @@ import {
   TimelineCard,
 } from '@/components/admin/shared';
 import { BookingDetailModal } from '@/components/admin/modals';
+import { CreatePensioneBookingLauncher } from '@/components/admin/CreatePensioneBookingLauncher';
 import { Button } from '@/components/ui/Button';
 import { getAdminServiceLabel } from '@/lib/admin/utils';
 
@@ -277,6 +278,11 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
 
   return (
     <div className="space-y-4">
+      {canManage ? (
+        <div className="flex justify-end">
+          <CreatePensioneBookingLauncher onCreated={load} />
+        </div>
+      ) : null}
       <Card>
         <CardContent className="space-y-4 md:space-y-6 md:px-7 md:py-7">
           <div className="ui-panelInset space-y-3 p-3 md:space-y-4 md:border md:border-[rgba(255,255,255,0.12)] md:bg-[rgba(255,255,255,0.025)] md:px-5 md:py-5">
