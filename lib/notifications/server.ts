@@ -255,14 +255,20 @@ export async function createUserNotificationIfEnabled(args: {
   return createdNotification;
 }
 
+// Le notifiche lette restano visibili per questo intervallo, poi spariscono.
+// Le notifiche non lette non scadono mai.
+const READ_NOTIFICATION_RETENTION_MS = 24 * 60 * 60 * 1000; // 24 ore lato utente
+
 export async function listNotificationsForUser(args: {
   userId: string;
   limit?: number;
 }): Promise<NotificationRow[]> {
+  const readCutoff = new Date(Date.now() - READ_NOTIFICATION_RETENTION_MS).toISOString();
   const { data, error } = await supabaseAdmin
     .from('notifications')
     .select('*')
     .eq('user_id', args.userId)
+    .or(`read_at.is.null,read_at.gte.${readCutoff}`)
     .order('created_at', { ascending: false })
     .limit(args.limit ?? 20);
 

@@ -57,14 +57,20 @@ export async function createManageStaffNotifications(args: {
   if (error) throw new Error(error.message);
 }
 
+// Le notifiche gestionale lette restano visibili per questo intervallo, poi spariscono.
+// Le notifiche non lette non scadono mai.
+const READ_STAFF_NOTIFICATION_RETENTION_MS = 60 * 60 * 1000; // 1 ora lato gestionale
+
 export async function listStaffNotificationsForUser(args: {
   userId: string;
   limit?: number;
 }): Promise<StaffNotificationRow[]> {
+  const readCutoff = new Date(Date.now() - READ_STAFF_NOTIFICATION_RETENTION_MS).toISOString();
   const { data, error } = await supabaseAdmin
     .from('staff_notifications')
     .select('*')
     .eq('user_id', args.userId)
+    .or(`read_at.is.null,read_at.gte.${readCutoff}`)
     .order('created_at', { ascending: false })
     .limit(args.limit ?? 20);
 
