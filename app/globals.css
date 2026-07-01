@@ -1399,7 +1399,7 @@ button {
   .ui-topbarIconBtn,
   .ui-bottomNavActionBtn,
   .ui-topbarBackBtn,
-  .ui-desktopTopIconBtn {
+  [data-app-chrome='desktop-top'] .ui-desktopTopIconBtn {
     border: 1px solid rgba(0, 0, 0, 0.06);
     color: rgba(0, 0, 0, 0.82);
     box-shadow:
@@ -1412,7 +1412,7 @@ button {
   .ui-topbarIconBtn:active,
   .ui-bottomNavActionBtn:active:not(:disabled),
   .ui-topbarBackBtn:active,
-  .ui-desktopTopIconBtn:active {
+  [data-app-chrome='desktop-top'] .ui-desktopTopIconBtn:active {
     transform: translateY(1px) scale(0.96);
     box-shadow:
       inset 0 1px 0 rgba(255, 255, 255, 0.3),
@@ -1423,18 +1423,21 @@ button {
      Impostazioni → grigio (e anche il tasto "Indietro" mobile). */
   .ui-topbarSide--left > .ui-topbarIconBtn,
   .ui-topbarBackBtn,
-  a.ui-desktopTopIconBtn[href='/settings'] {
+  [data-app-chrome='desktop-top'] a.ui-desktopTopIconBtn[href='/settings'] {
     background: #c9ccd1;
     color: rgba(0, 0, 0, 0.82);
   }
-  /* Campanella → cyan */
-  .ui-topbarSide--left .ui-notificationBell .ui-topbarIconBtn,
-  .ui-notificationBell .ui-desktopTopIconBtn {
+  /* Campanella → cyan. Mobile: sia a sinistra (pagine principali) sia a destra
+     (sottopagine col tasto Indietro) → scoped alla topbar mobile. Desktop: solo la
+     navbar principale. NB: il gestionale usa .ui-notificationBell .ui-desktopTopIconBtn
+     ma FUORI da [data-app-chrome], quindi resta arancione (non lo tocchiamo). */
+  [data-app-chrome='mobile-top'] .ui-notificationBell .ui-topbarIconBtn,
+  [data-app-chrome='desktop-top'] .ui-notificationBell .ui-desktopTopIconBtn {
     background: #1be7ff;
   }
   /* Profilo → verde */
   .ui-topbarSide--right > .ui-topbarIconBtn,
-  a.ui-desktopTopIconBtn[href='/profile'] {
+  [data-app-chrome='desktop-top'] a.ui-desktopTopIconBtn[href='/profile'] {
     background: #31e981;
   }
   /* Chat → cyan */
