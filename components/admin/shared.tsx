@@ -20,6 +20,12 @@ import type { ServiceStatus } from '@/types/services';
 import { isValidItalianFiscalCode, sanitizeFiscalCode } from '@/lib/validation/italy';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
+import { DocumentViewer, type DocumentViewerSource } from '@/components/ui/DocumentViewer';
+
+// Rileva un PDF dal nome/percorso del file per scegliere come mostrarlo nel viewer.
+function isPdfFile(name: string | null | undefined): boolean {
+  return !!name && name.toLowerCase().endsWith('.pdf');
+}
 
 export type AdminTab = 'overview' | 'users' | 'dogs' | 'services' | 'chat' | 'media' | 'analytics' | 'config';
 export type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -775,6 +781,7 @@ export function DocumentCard({
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [viewer, setViewer] = useState<DocumentViewerSource | null>(null);
 
   const handleFileSelected = async (file: File | null) => {
     if (!file || !onUpload) return;
@@ -786,15 +793,21 @@ export function DocumentCard({
     }
   };
 
+  const isPdf = isPdfFile(document.fileName) || isPdfFile(document.path);
+  const kindLabel = document.kind === 'ID_DOCUMENT' ? 'Documento di identità' : 'Liberatoria';
+  const openViewer = () => {
+    if (document.signedUrl) {
+      setViewer({ src: document.signedUrl, title: kindLabel, isPdf });
+    }
+  };
+
   return (
     <Card className="admin-listCard">
       <CardContent className="space-y-3">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-1.5">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="ui-accentPill">
-                {document.kind === 'ID_DOCUMENT' ? 'Documento di identità' : 'Liberatoria'}
-              </span>
+              <span className="ui-accentPill">{kindLabel}</span>
               <span className="ui-fine text-[rgba(255,255,255,0.42)]">
                 Caricato il {formatDateTime(document.createdAt)}
               </span>
@@ -821,11 +834,26 @@ export function DocumentCard({
           </span>
         </div>
 
+        {document.signedUrl && !isPdf ? (
+          <button
+            type="button"
+            onClick={openViewer}
+            className="ui-mediaFrame block w-full overflow-hidden rounded-[var(--radius)] bg-[rgba(255,255,255,0.04)]"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={document.signedUrl}
+              alt={kindLabel}
+              className="max-h-52 w-full object-contain"
+            />
+          </button>
+        ) : null}
+
         <div className="flex flex-wrap gap-2">
           {document.signedUrl ? (
-            <a href={document.signedUrl} target="_blank" rel="noreferrer" className="ui-btn ui-btnSecondary ui-btnCompact">
+            <Button variant="secondary" className="ui-btnCompact" onClick={openViewer}>
               Apri file
-            </a>
+            </Button>
           ) : null}
           {canManage && onDecision && document.status === 'PENDING' ? (
             <>
@@ -874,6 +902,8 @@ export function DocumentCard({
           </div>
         ) : null}
       </CardContent>
+
+      <DocumentViewer source={viewer} onClose={() => setViewer(null)} />
     </Card>
   );
 }
@@ -943,6 +973,7 @@ function IdentitySideBlock({
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [viewer, setViewer] = useState<DocumentViewerSource | null>(null);
 
   if (!record) {
     return (
@@ -965,6 +996,13 @@ function IdentitySideBlock({
     }
   };
 
+  const isPdf = isPdfFile(record.fileName) || isPdfFile(record.path);
+  const openViewer = () => {
+    if (record.signedUrl) {
+      setViewer({ src: record.signedUrl, title: `Documento — ${label}`, isPdf });
+    }
+  };
+
   return (
     <div className="ui-panelInset p-3 space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -972,16 +1010,21 @@ function IdentitySideBlock({
         <span className={statusTone(record.status)}>{getDocumentStatusLabel(record.status)}</span>
       </div>
       <div className="ui-fine text-[rgba(255,255,255,0.38)] break-all">{record.fileName}</div>
+      {record.signedUrl && !isPdf ? (
+        <button
+          type="button"
+          onClick={openViewer}
+          className="ui-mediaFrame block w-full overflow-hidden rounded-[var(--radius)] bg-[rgba(255,255,255,0.04)]"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={record.signedUrl} alt={label} className="max-h-52 w-full object-contain" />
+        </button>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {record.signedUrl ? (
-          <a
-            href={record.signedUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="ui-btn ui-btnSecondary ui-btnCompact"
-          >
+          <Button variant="secondary" className="ui-btnCompact" onClick={openViewer}>
             Apri file
-          </a>
+          </Button>
         ) : null}
         {canManage && onUpload ? (
           <>
@@ -1016,6 +1059,8 @@ function IdentitySideBlock({
           </Button>
         ) : null}
       </div>
+
+      <DocumentViewer source={viewer} onClose={() => setViewer(null)} />
     </div>
   );
 }

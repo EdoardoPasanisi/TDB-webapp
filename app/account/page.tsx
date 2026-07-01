@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { DocumentViewer, type DocumentViewerSource } from '@/components/ui/DocumentViewer';
 
 const ID_DOC_BUCKET = 'identity-documents';
 const PROFILE_SELECT =
@@ -285,6 +286,7 @@ export default function AccountPage() {
   // Documento identità — fronte + retro
   const [idDocConfirming, setIdDocConfirming] = useState(false);
   const [idDocError, setIdDocError] = useState<string | null>(null);
+  const [documentViewer, setDocumentViewer] = useState<DocumentViewerSource | null>(null);
   const [idDocFrontSignedUrl, setIdDocFrontSignedUrl] = useState<string | null>(null);
   const [idDocBackSignedUrl, setIdDocBackSignedUrl] = useState<string | null>(null);
   // File scelti localmente (non ancora caricati) + anteprima object URL
@@ -928,27 +930,48 @@ export default function AccountPage() {
                     <div key={s.key} className="ui-panelInset p-3 space-y-2">
                       <div className="flex items-center justify-between gap-2">
                         <p className="ui-body font-[var(--font-weight-semibold)]">{s.title}</p>
-                        <span className="ui-muted">
-                          {s.localFile
-                            ? 'Nuovo file da confermare'
-                            : s.storedPath
-                            ? 'Caricato'
-                            : 'Mancante'}
-                        </span>
+                        {s.localFile ? (
+                          <span className="ui-muted">Nuovo file da confermare</span>
+                        ) : s.storedPath ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(80,255,160,0.35)] bg-[rgba(80,255,160,0.12)] px-2.5 py-1 text-[13px] font-[var(--font-weight-semibold)] text-[#7dffb4]">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                              <path
+                                d="M20 6L9 17l-5-5"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            Documento caricato
+                          </span>
+                        ) : (
+                          <span className="ui-muted">Mancante</span>
+                        )}
                       </div>
 
                       {/* Anteprima */}
                       <div className="ui-mediaFrame flex min-h-[140px] items-center justify-center overflow-hidden rounded-[var(--radius)] bg-[rgba(255,255,255,0.04)]">
                         {imageSrc ? (
                           openUrl ? (
-                            <a href={openUrl} target="_blank" rel="noreferrer" className="block">
+                            <button
+                              type="button"
+                              className="block w-full"
+                              onClick={() =>
+                                setDocumentViewer({
+                                  src: openUrl,
+                                  title: `Documento — ${s.title}`,
+                                  isPdf: false,
+                                })
+                              }
+                            >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={imageSrc}
                                 alt={`Documento — ${s.title.toLowerCase()}`}
                                 className="max-h-48 w-full object-contain"
                               />
-                            </a>
+                            </button>
                           ) : (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -959,14 +982,19 @@ export default function AccountPage() {
                           )
                         ) : isPdf ? (
                           openUrl ? (
-                            <a
-                              href={openUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="ui-btn ui-btnTone-secondary"
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={() =>
+                                setDocumentViewer({
+                                  src: openUrl,
+                                  title: `Documento — ${s.title}`,
+                                  isPdf: true,
+                                })
+                              }
                             >
                               Apri PDF
-                            </a>
+                            </Button>
                           ) : (
                             <span className="ui-muted">PDF: {s.localFile?.name}</span>
                           )
@@ -1022,6 +1050,8 @@ export default function AccountPage() {
           </CardContent>
         </Card>
       </div>
+
+      <DocumentViewer source={documentViewer} onClose={() => setDocumentViewer(null)} />
     </main>
   );
 }

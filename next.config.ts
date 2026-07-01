@@ -16,7 +16,8 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   scriptSrc,
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.cloudflarestream.com",
-  "frame-src 'self' https://*.cloudflarestream.com",
+  // *.supabase.co serve al viewer in-app dei documenti PDF (iframe sul signed URL).
+  "frame-src 'self' https://*.supabase.co https://*.cloudflarestream.com",
   'upgrade-insecure-requests',
 ].join('; ');
 
