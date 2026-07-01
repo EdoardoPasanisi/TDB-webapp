@@ -101,13 +101,21 @@ function inferDogAddressSameAsHome(row: ProfileRow | null): boolean {
   );
 }
 
+// Le immagini vengono ricompresse lato client prima dell'upload, quindi in fase
+// di selezione accettiamo file "grezzi" più grandi (foto ad alta risoluzione):
+// il limite reale di 10MB resta applicato dopo la compressione, lato server.
+const MAX_RAW_IMAGE_BYTES = 40 * 1024 * 1024;
+
 function validateUserDocument(file: File): string | null {
+  const isImage = file.type.startsWith('image/');
   return validateUploadFile({
     file,
     allowedMimeTypes: USER_DOCUMENT_MIME_TYPES,
-    maxBytes: MAX_USER_DOCUMENT_BYTES,
+    maxBytes: isImage ? MAX_RAW_IMAGE_BYTES : MAX_USER_DOCUMENT_BYTES,
     invalidTypeMessage: 'Formato non valido. Usa PDF, JPG, PNG o WebP.',
-    tooLargeMessage: 'Il file è troppo grande. Limite massimo: 10MB.',
+    tooLargeMessage: isImage
+      ? 'La foto è troppo grande. Limite massimo: 40MB.'
+      : 'Il file è troppo grande. Limite massimo: 10MB.',
   });
 }
 
