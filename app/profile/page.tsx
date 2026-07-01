@@ -2,8 +2,7 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
@@ -70,7 +69,7 @@ function AccountBanner({
   showMobileNav?: boolean;
 }) {
   return (
-    <div className="ui-profileHero md:rounded-[calc(var(--radius-xl)+4px)] md:shadow-[var(--shadow)]">
+    <div className="ui-profileHero rounded-[calc(var(--radius-xl)+4px)] shadow-[var(--shadow)]">
       {showMobileNav ? (
         <div className="ui-profileHeroTopbar md:hidden">
           <button
@@ -119,45 +118,6 @@ function AccountBanner({
         </div>
       </button>
     </div>
-  );
-}
-
-function ProfileMobileBannerPortal({
-  ownerPhotoPath,
-  ownerInitials,
-  ownerFullName,
-  ownerEmail,
-  onOpen,
-  onOpenSettings,
-}: {
-  ownerPhotoPath?: string | null;
-  ownerInitials: string;
-  ownerFullName: string;
-  ownerEmail: string;
-  onOpen: () => void;
-  onOpenSettings: () => void;
-}) {
-  const isClient = useSyncExternalStore(
-    () => () => {},
-    () => true,
-    () => false
-  );
-
-  if (!isClient || typeof document === 'undefined') return null;
-
-  return createPortal(
-    <section data-app-chrome="mobile-top" className="md:hidden fixed top-0 inset-x-0 z-50">
-      <AccountBanner
-        ownerPhotoPath={ownerPhotoPath}
-        ownerInitials={ownerInitials}
-        ownerFullName={ownerFullName}
-        ownerEmail={ownerEmail}
-        onOpen={onOpen}
-        onOpenSettings={onOpenSettings}
-        showMobileNav
-      />
-    </section>,
-    document.body
   );
 }
 
@@ -310,29 +270,16 @@ export default function ProfileOverviewPage() {
 
   return (
     <main className="ui-page min-h-screen">
-      <ProfileMobileBannerPortal
-        ownerPhotoPath={profile?.photo_path ?? null}
-        ownerInitials={ownerInitials}
-        ownerFullName={ownerFullName}
-        ownerEmail={ownerEmail}
-        onOpen={() => router.push('/account')}
-        onOpenSettings={() => router.push('/settings')}
-      />
-
-      <div className="md:hidden h-[164px]" />
-
       {/* contenuto */}
       <div className="mx-auto w-full max-w-xl px-4 pb-8 pt-6 space-y-6">
-        <div className="hidden md:block">
-          <AccountBanner
-            ownerPhotoPath={profile?.photo_path ?? null}
-            ownerInitials={ownerInitials}
-            ownerFullName={ownerFullName}
-            ownerEmail={ownerEmail}
-            onOpen={() => router.push('/account')}
-            onOpenSettings={() => router.push('/settings')}
-          />
-        </div>
+        <AccountBanner
+          ownerPhotoPath={profile?.photo_path ?? null}
+          ownerInitials={ownerInitials}
+          ownerFullName={ownerFullName}
+          ownerEmail={ownerEmail}
+          onOpen={() => router.push('/account')}
+          onOpenSettings={() => router.push('/settings')}
+        />
 
         {error ? (
           <div className="ui-error">{error}</div>

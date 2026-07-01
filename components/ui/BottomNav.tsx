@@ -42,7 +42,7 @@ export function BottomNav({ chatHref, homeHref, calendarHref }: BottomNavProps) 
   return (
     <nav data-app-chrome="mobile-bottom" className="md:hidden fixed bottom-0 inset-x-0 z-40">
       <div className="ui-bottomNavShell">
-        <div className="relative mx-auto flex h-[74px] w-full max-w-xl items-center justify-between px-8">
+        <div className="ui-bottomNavRow relative mx-auto flex h-[74px] w-full max-w-xl items-center justify-between px-8">
           <Link
             href={chatHref}
             className={cx('ui-bottomNavActionBtn', isChatActive && 'ui-bottomNavActionBtn--active')}

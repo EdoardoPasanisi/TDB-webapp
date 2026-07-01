@@ -210,6 +210,25 @@ button {
     max-width: 48rem; /* ~max-w-3xl */
   }
 
+  /* Login: blocco centrato verticalmente e "bloccato" (niente scroll della pagina).
+     Copre l'intera viewport ignorando il padding del main esterno; rispetta le safe
+     area (notch / home indicator) nell'app nativa. Se lo schermo è troppo basso (es.
+     tastiera aperta) è la card a scorrere internamente, così non viene mai tagliata. */
+  .ui-authViewport {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: max(16px, var(--safe-top)) 0 max(16px, var(--safe-bottom));
+    overflow: hidden;
+  }
+  .ui-authViewportInner {
+    max-height: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   /* Text hierarchy */
   .ui-title {
     font-size: var(--font-size-xl);
@@ -246,15 +265,14 @@ button {
   .ui-appMain {
     padding-left: 16px;
     padding-right: 16px;
-    padding-top: 12px;
-    padding-bottom: 12px;
+    /* Safe area inclusa anche sulle pagine senza chrome (login, admin, pagine
+       pubbliche): in app nativa env() vale ~notch/home-indicator, nei browser è 0. */
+    padding-top: calc(var(--safe-top) + 12px);
+    padding-bottom: calc(var(--safe-bottom) + 12px);
   }
   body[data-mobile-chrome='on'] .ui-appMain {
-    padding-top: calc(var(--topbar-h) + 12px);
+    padding-top: calc(var(--safe-top) + var(--topbar-h) + 12px);
     padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 12px);
-  }
-  body[data-profile-layout='overview'] .ui-appMain {
-    padding-top: 0;
   }
   body[data-chat-layout='immersive'] .ui-appMain {
     overflow: hidden;
@@ -835,7 +853,11 @@ button {
   }
   .ui-topbarShell {
     position: relative;
-    height: var(--topbar-h);
+    box-sizing: border-box;
+    /* L'arancione si estende fin sotto le info del telefono (status bar / notch):
+       il padding-top = safe area, i contenuti (icone/titolo) restano sotto. */
+    height: calc(var(--topbar-h) + var(--safe-top));
+    padding-top: var(--safe-top);
     padding-left: 16px;
     padding-right: 16px;
     display: flex;
@@ -858,7 +880,8 @@ button {
   .ui-topbarTitle {
     position: absolute;
     left: 50%;
-    top: 50%;
+    /* centro verticale della sola banda contenuti, sotto la safe area */
+    top: calc(var(--safe-top) + (var(--topbar-h) / 2));
     transform: translate(-50%, -50%);
     width: min(240px, calc(100% - 220px));
     white-space: nowrap;
@@ -887,6 +910,34 @@ button {
     border-top: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(12px);
   }
+
+  /* ──────────────────────────────────────────────────────────────────────
+     Override SOLO app nativa (classe .native-app, vedi app/layout.tsx).
+     Nei browser (desktop e mobile) queste regole non si attivano mai.
+     ⚠️ Valori di partenza: tarare sul device fisico (l'home indicator ≈34px e
+        il notch non sono riproducibili nei DevTools).
+     ────────────────────────────────────────────────────────────────────── */
+
+  /* Dimensioni chrome dedicate all'app: top-bar leggermente più alta della base (56),
+     bottom-nav via di mezzo. Sono variabili: gli offset del contenuto si adeguano da soli. */
+  .native-app {
+    --topbar-h: 60px;
+    --bottom-nav-h: 110px;
+  }
+
+  /* Bottom-nav (via di mezzo): nel browser mobile l'extra +8px la tiene sopra la barra
+     del browser; nell'app riduciamo l'arancione sopra l'home indicator senza azzerarlo,
+     e abbassiamo un po' la riga icone. */
+  .native-app .ui-bottomNavShell {
+    padding-bottom: max(calc(var(--safe-bottom) - 10px), 8px);
+  }
+  .native-app .ui-bottomNavRow {
+    height: 68px;
+  }
+
+  /* NB: lo stile dei pulsanti navbar (colori + look tattile) è definito più sotto,
+     DOPO le classi base, così vale su tutte le versioni (app nativa, browser mobile,
+     desktop). Qui nel blocco .native-app restano solo dimensioni e safe-area dell'app. */
   .ui-bottomNavCenterBtn {
     height: 82px;
     width: 82px;
@@ -1334,6 +1385,74 @@ button {
   .ui-desktopTopIconBtn--active {
     background: #ffb061;
     border-color: rgba(0, 0, 0, 0.24);
+  }
+
+  /* ══════════════════════════════════════════════════════════════════════════
+     STILE PULSANTI NAVBAR — colorati + tattili. Vale su TUTTE le versioni:
+     app nativa, browser mobile e desktop. (Le dimensioni/safe-area dell'app
+     restano nel blocco .native-app più in alto.)
+     Posizionato dopo le classi base apposta, per vincere l'ordine sorgente.
+     ══════════════════════════════════════════════════════════════════════════ */
+
+  /* Base tattile comune: affordance convessa (luce in alto, ombra in basso) +
+     elevazione morbida a due livelli. Icona/testo scuri di default. */
+  .ui-topbarIconBtn,
+  .ui-bottomNavActionBtn,
+  .ui-topbarBackBtn,
+  .ui-desktopTopIconBtn {
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    color: rgba(0, 0, 0, 0.82);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.5),
+      inset 0 -1.5px 0 rgba(0, 0, 0, 0.14),
+      0 2px 4px rgba(0, 0, 0, 0.12),
+      0 8px 16px rgba(0, 0, 0, 0.16);
+  }
+  /* Feedback alla pressione: si "schiaccia" (meno elevazione + scala). */
+  .ui-topbarIconBtn:active,
+  .ui-bottomNavActionBtn:active:not(:disabled),
+  .ui-topbarBackBtn:active,
+  .ui-desktopTopIconBtn:active {
+    transform: translateY(1px) scale(0.96);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.3),
+      0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  /* Colori per pulsante — identici su mobile e desktop.
+     Impostazioni → grigio (e anche il tasto "Indietro" mobile). */
+  .ui-topbarSide--left > .ui-topbarIconBtn,
+  .ui-topbarBackBtn,
+  a.ui-desktopTopIconBtn[href='/settings'] {
+    background: #c9ccd1;
+    color: rgba(0, 0, 0, 0.82);
+  }
+  /* Campanella → cyan */
+  .ui-topbarSide--left .ui-notificationBell .ui-topbarIconBtn,
+  .ui-notificationBell .ui-desktopTopIconBtn {
+    background: #1be7ff;
+  }
+  /* Profilo → verde */
+  .ui-topbarSide--right > .ui-topbarIconBtn,
+  a.ui-desktopTopIconBtn[href='/profile'] {
+    background: #31e981;
+  }
+  /* Chat → cyan */
+  .ui-bottomNavRow > .ui-bottomNavActionBtn:nth-of-type(1) {
+    background: #1be7ff;
+  }
+  /* Calendario → verde */
+  .ui-bottomNavRow > .ui-bottomNavActionBtn:nth-of-type(2) {
+    background: #31e981;
+    color: rgba(0, 0, 0, 0.82);
+  }
+
+  /* Tab selezionata (bottom nav): affordance "premuta"/incassata (stato attivo). */
+  .ui-bottomNavActionBtn--active {
+    filter: brightness(0.96);
+    box-shadow:
+      inset 0 2px 5px rgba(0, 0, 0, 0.24),
+      inset 0 1px 0 rgba(0, 0, 0, 0.1);
   }
   .ui-notificationBell {
     position: relative;

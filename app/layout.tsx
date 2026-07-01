@@ -37,6 +37,17 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="it">
+      <head>
+        {/* Marca il contesto nativo (WebView Capacitor) PRIMA del primo paint, così
+            gli override `.native-app` in globals.css non producono flash. Nei browser
+            lo user-agent non contiene 'TDBApp' → la classe non viene mai aggiunta. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){try{if(navigator.userAgent.indexOf('TDBApp')>-1){document.documentElement.classList.add('native-app');}}catch(e){}})();",
+          }}
+        />
+      </head>
       <body className="antialiased ui-page">
         <AppChromeGate>
           <main className="ui-appMain">{children}</main>

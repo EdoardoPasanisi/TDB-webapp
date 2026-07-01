@@ -78,8 +78,8 @@ export default function LoginClient() {
   };
 
   return (
-    <main className="ui-page min-h-screen">
-      <div className="mx-auto w-full max-w-md px-4 pb-10 pt-8 space-y-4">
+    <main className="ui-page ui-authViewport">
+      <div className="ui-authViewportInner mx-auto w-full max-w-md px-4 space-y-4">
         <Card>
           <CardContent className="space-y-4">
             <div className="space-y-1">

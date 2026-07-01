@@ -10,14 +10,15 @@ export function MobileTopBar() {
   const router = useRouter();
   const pathname = usePathname();
 
-  // profilo (usa banner dedicato)
-  if (pathname === '/profile') {
-    return null;
-  }
+  // /profile usa la stessa topbar delle altre pagine principali (impostazioni +
+  // notifiche a sinistra, titolo al centro) ma SENZA il tasto "Profilo" a destra,
+  // perché siamo già nella pagina profilo.
+  const isProfile = pathname === '/profile';
 
   const isMainMobilePage =
     pathname === '/services' ||
-    pathname === '/services/calendar';
+    pathname === '/services/calendar' ||
+    isProfile;
 
   const handleBack = () => {
     if (typeof window !== 'undefined' && window.history.length > 1) {
@@ -67,14 +68,16 @@ export function MobileTopBar() {
             />
           ) : null}
 
-          <button
-            type="button"
-            onClick={() => router.push('/profile')}
-            className="ui-topbarIconBtn"
-            aria-label="Profilo"
-          >
-            <Image src="/icon-user.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />
-          </button>
+          {!isProfile ? (
+            <button
+              type="button"
+              onClick={() => router.push('/profile')}
+              className="ui-topbarIconBtn"
+              aria-label="Profilo"
+            >
+              <Image src="/icon-user.png" alt="" width={24} height={24} className="h-6 w-6" draggable={false} />
+            </button>
+          ) : null}
         </div>
       </div>
     </header>
