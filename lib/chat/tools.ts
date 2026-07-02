@@ -6,6 +6,7 @@ import { getServiceLabel, type ServiceType, type ServiceVariant } from '@/types/
 import type { Dog } from '@/types/dog';
 import {
   ACCOMMODATION_PRICES,
+  ACCOMMODATION_TIER_PRICES,
   EXTRA_PRICES,
   GROOMING_BASE_BY_SIZE,
   GROOMING_MULTIPLIER_BY_DIFFICULTY,
@@ -405,11 +406,23 @@ async function getServicePricingReference(args: { serviceKey: unknown }) {
   if (serviceKey === 'PENSIONE') {
     return {
       serviceKey,
-      accommodationPricesPerDay: Object.entries(ACCOMMODATION_PRICES).map(([key, value]) => ({
-        code: key,
-        label: value.label,
-        pricePerDay: value.pricePerDay,
-      })),
+      // Tariffe alloggio a scaglioni: prezzo TOTALE €/giorno in base al numero di
+      // cani dello stesso proprietario [1 cane, 2 cani, 3+ cani]. La tariffa per
+      // singolo cane = totale del tier / numero cani (cap a 3, quindi 4+ cani usano
+      // la tariffa/cane del tier "3").
+      accommodationPricesPerDay: Object.entries(ACCOMMODATION_PRICES).map(([key, value]) => {
+        const tiers = ACCOMMODATION_TIER_PRICES[key as keyof typeof ACCOMMODATION_TIER_PRICES];
+        return {
+          code: key,
+          label: value.label,
+          totalPricePerDayByDogs: { oneDog: tiers[0], twoDogs: tiers[1], threeOrMoreDogs: tiers[2] },
+          perDogPricePerDayByDogs: {
+            oneDog: Math.round(tiers[0] * 100) / 100,
+            twoDogs: Math.round((tiers[1] / 2) * 100) / 100,
+            threeOrMoreDogs: Math.round((tiers[2] / 3) * 100) / 100,
+          },
+        };
+      }),
       extras: {
         vaccine: EXTRA_PRICES.VACCINE,
         ricercaOlfattiva: EXTRA_PRICES.TRACKING, // 20€ / 15 min
@@ -417,11 +430,8 @@ async function getServicePricingReference(args: { serviceKey: unknown }) {
         walk: EXTRA_PRICES.WALK,
         trekking: EXTRA_PRICES.TREKKING, // 30€ / 45 min
       },
-      discounts: [
-        { dogsCount: 1, accommodationDiscountPercent: 0 },
-        { dogsCount: 2, accommodationDiscountPercent: 15 },
-        { dogsCount: 3, accommodationDiscountPercent: 20, appliesAlsoToMoreDogs: true },
-      ],
+      discountNote:
+        'Lo sconto multi-cane è già incluso nelle tariffe a scaglioni: chi porta più cani paga meno a testa. Non applicare sconti percentuali aggiuntivi.',
       checkoutRule:
         'Il primo giorno si conta sempre. Il giorno di uscita non viene calcolato se il box viene liberato entro le 13:00; nel pomeriggio la giornata viene conteggiata per intero.',
     };

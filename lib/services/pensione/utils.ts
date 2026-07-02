@@ -3,7 +3,7 @@ import type { TaxiDistanceBand, TaxiOption } from '@/types/booking';
 import type { BookingDogExtras } from '@/types/booking';
 import type { DogLite, PerDogForm, PensionePricing } from './types';
 import {
-  ACCOMMODATION_PRICES,
+  accommodationPricePerDay,
   DEFAULT_TIMES,
   EXTRA_PRICES,
   GROOMING_BASE_BY_SIZE,
@@ -149,9 +149,9 @@ export function computePricing(args: {
 
   const dogsCount = selectedDogIds.length;
 
-  let discountPercent = 0;
-  if (dogsCount === 2) discountPercent = 15;
-  if (dogsCount >= 3) discountPercent = 20;
+  // Lo sconto multi-cane è ora incorporato nelle tariffe a scaglioni (tier) per
+  // numero di cani: niente più sconto percentuale separato.
+  const discountPercent = 0;
 
   let alloggioTotalFull = 0;
   let extrasTotalPerDogs = 0;
@@ -163,8 +163,7 @@ export function computePricing(args: {
     const dog = dogs.find((d) => d.id === dogId);
     if (!dog) continue;
 
-    const acc = ACCOMMODATION_PRICES[form.accommodationType];
-    alloggioTotalFull += acc.pricePerDay * daysCount;
+    alloggioTotalFull += accommodationPricePerDay(form.accommodationType, dogsCount) * daysCount;
 
     const groomingPrice = form.grooming ? computeGroomingPriceForDog(dog) : 0;
 
@@ -213,6 +212,7 @@ export function computePerDogTotals(args: {
   dog: DogLite;
   form: PerDogForm;
   daysCount: number;
+  totalDogs: number;
 }): {
   accommodation_price_per_day: number;
   accommodation_subtotal: number;
@@ -220,10 +220,10 @@ export function computePerDogTotals(args: {
   per_dog_total: number;
   grooming_price: number;
 } {
-  const { dog, form, daysCount } = args;
-  const acc = ACCOMMODATION_PRICES[form.accommodationType];
+  const { dog, form, daysCount, totalDogs } = args;
+  const accommodation_price_per_day = accommodationPricePerDay(form.accommodationType, totalDogs);
 
-  const accommodation_subtotal = acc.pricePerDay * daysCount;
+  const accommodation_subtotal = accommodation_price_per_day * daysCount;
 
   const grooming_price = form.grooming ? computeGroomingPriceForDog(dog) : 0;
 
@@ -236,7 +236,7 @@ export function computePerDogTotals(args: {
     form.trekkingSessions * EXTRA_PRICES.TREKKING;
 
   return {
-    accommodation_price_per_day: acc.pricePerDay,
+    accommodation_price_per_day,
     accommodation_subtotal,
     extras_subtotal,
     per_dog_total: accommodation_subtotal + extras_subtotal,

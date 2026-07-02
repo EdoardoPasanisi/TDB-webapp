@@ -47,7 +47,7 @@ test('computeGroomingPriceForDog uses robust defaults and rounds to clean price 
   );
 });
 
-test('computePricing applies dog discount, extras and taxi correctly', () => {
+test('computePricing applies multi-dog tiered accommodation rates, extras and taxi correctly', () => {
   const pricing = computePricing({
     selectedDogIds: ['dog-1', 'dog-2'],
     daysCount: 2,
@@ -98,13 +98,50 @@ test('computePricing applies dog discount, extras and taxi correctly', () => {
   });
 
   assert.equal(pricing.dogsCount, 2);
-  assert.equal(pricing.discountPercent, 15);
-  assert.equal(pricing.alloggioTotalFull, 126);
-  assert.ok(Math.abs(pricing.alloggioTotalDiscounted - 107.1) < 1e-9);
+  // Lo sconto multi-cane è ora incorporato nelle tariffe a scaglioni: nessuno sconto %.
+  assert.equal(pricing.discountPercent, 0);
+  // 2 cani: BOX 45/2 = 22.5/cane, CHALET 60/2 = 30/cane → (22.5 + 30) × 2 giorni = 105
+  assert.equal(pricing.alloggioTotalFull, 105);
+  assert.equal(pricing.alloggioTotalDiscounted, 105);
   // extras dog-1: toelettatura 35 + vaccino 70 + ricerca olfattiva 1×20 + passeggiate 2×15 = 155
   assert.equal(pricing.extrasTotal, 225);
   assert.equal(pricing.taxiPrice, 70);
-  assert.ok(Math.abs(pricing.totalPrice - 332.1) < 1e-9);
+  assert.equal(pricing.totalPrice, 330);
+});
+
+test('computePricing caps the multi-dog discount tier at 3 dogs', () => {
+  const makeDog = (id: string) => ({
+    id,
+    name: id,
+    photo_path: null,
+    updated_at: null,
+    size_category: 'media' as const,
+    grooming_difficulty: 2 as const,
+  });
+  const boxForm: PerDogForm = {
+    accommodationType: 'BOX',
+    grooming: false,
+    vaccine: false,
+    trackingSessions: 0,
+    fitnessSessions: 0,
+    walkSessions: 0,
+    trekkingSessions: 0,
+    therapy: 'NO',
+    therapyNotes: '',
+  };
+
+  const fourDogs = computePricing({
+    selectedDogIds: ['d1', 'd2', 'd3', 'd4'],
+    daysCount: 1,
+    dogs: [makeDog('d1'), makeDog('d2'), makeDog('d3'), makeDog('d4')],
+    perDogForm: { d1: boxForm, d2: boxForm, d3: boxForm, d4: boxForm },
+    taxiOption: 'NONE',
+    taxiDistanceBand: 'ENTRO_40',
+  });
+
+  // BOX 3+ cani = 60/giorno → 20/cane; oltre il 3° resta 20/cane → 4 × 20 = 80
+  assert.equal(fourDogs.alloggioTotalFull, 80);
+  assert.equal(fourDogs.totalPrice, 80);
 });
 
 test('computePerDogTotals and buildExtrasPayload keep per-dog bookkeeping aligned', () => {
@@ -131,6 +168,7 @@ test('computePerDogTotals and buildExtrasPayload keep per-dog bookkeeping aligne
     },
     form,
     daysCount: 3,
+    totalDogs: 1,
   });
 
   // extras: toelettatura 50 + vaccino 70 + ricerca olfattiva 1×20 + fitness 2×25 + passeggiata 1×15 + trekking 1×30 = 235

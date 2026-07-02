@@ -687,7 +687,7 @@ export function PensioneBookingForm(props: Props) {
 	                        .filter(([key]) => accommodationOptionsForSpecies(dog.species ?? 'DOG').includes(key))
 	                        .map(([key, info]) => (
 	                          <option key={key} value={key}>
-	                            {info.label} — {info.pricePerDay}€/giorno
+	                            {info.label} — {info.pricePerDay}€/giorno (1 cane)
 	                          </option>
 	                        ))}
 	                    </select>

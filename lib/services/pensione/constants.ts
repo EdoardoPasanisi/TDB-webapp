@@ -13,24 +13,60 @@ export const DEFAULT_TAXI = {
   distanceBand: 'ENTRO_40' as const,
 };
 
-// Prezzi alloggi (€/giorno)
+/**
+ * Prezzi alloggi: tariffa TOTALE €/giorno in base al numero di cani dello stesso
+ * proprietario nella prenotazione [1 cane, 2 cani, 3+ cani].
+ *
+ * È lo sconto "multi-cane": chi porta più cani paga meno a testa. La tariffa
+ * per singolo cane si ottiene dividendo il totale del tier per il numero di cani
+ * (con cap a 3): vedi accommodationPricePerDay().
+ *
+ * NB: il tier con indice 2 (3 cani) vale anche per 4+ cani → oltre il terzo cane
+ * la tariffa/cane resta quella del tier "3".
+ */
+export const ACCOMMODATION_TIER_PRICES: Record<AccommodationKey, [number, number, number]> = {
+  BOX: [28, 45, 60],
+  BOX_GARDEN: [35, 60, 90],
+  CHALET: [35, 60, 90],
+  APT_GARDEN: [50, 90, 120],
+  // Non forniti dallo staff: derivati con i rapporti dell'Appartamento (×1.8 / ×2.4).
+  APT_GARDEN_NIGHT_PERSON: [100, 180, 240],
+  HOTEL: [45, 80, 110],
+  CATTERY: [25, 45, 60],
+};
+
+/**
+ * Tariffa alloggio €/giorno PER SINGOLO CANE, dato il numero totale di cani del
+ * proprietario nella prenotazione. Il totale del gruppo si ottiene moltiplicando
+ * per il numero di cani in quell'alloggio.
+ */
+export function accommodationPricePerDay(type: AccommodationKey, totalDogs: number): number {
+  const tier = Math.min(Math.max(Math.floor(totalDogs) || 1, 1), 3); // 1, 2, 3
+  const total = ACCOMMODATION_TIER_PRICES[type][tier - 1];
+  return Math.round((total / tier) * 100) / 100;
+}
+
+// Prezzi alloggi (etichette + prezzo di riferimento a 1 cane, es. liste "a partire da")
 export const ACCOMMODATION_PRICES: Record<
   AccommodationKey,
   { label: string; pricePerDay: number }
 > = {
-  BOX: { label: 'Box', pricePerDay: 28 },
-  BOX_GARDEN: { label: 'Box con giardino', pricePerDay: 35 },
-  CHALET: { label: 'Chalet', pricePerDay: 35 },
-  APT_GARDEN: { label: 'Appartamento con giardino', pricePerDay: 50 },
+  BOX: { label: 'Box', pricePerDay: ACCOMMODATION_TIER_PRICES.BOX[0] },
+  BOX_GARDEN: { label: 'Box con giardino', pricePerDay: ACCOMMODATION_TIER_PRICES.BOX_GARDEN[0] },
+  CHALET: { label: 'Chalet', pricePerDay: ACCOMMODATION_TIER_PRICES.CHALET[0] },
+  APT_GARDEN: {
+    label: 'Appartamento con giardino',
+    pricePerDay: ACCOMMODATION_TIER_PRICES.APT_GARDEN[0],
+  },
   APT_GARDEN_NIGHT_PERSON: {
     label: 'Appartamento con giardino (presenza notturna)',
-    pricePerDay: 100,
+    pricePerDay: ACCOMMODATION_TIER_PRICES.APT_GARDEN_NIGHT_PERSON[0],
   },
   HOTEL: {
     label: 'Hotel - stanza luxury con giardino e aria condizionata',
-    pricePerDay: 45,
+    pricePerDay: ACCOMMODATION_TIER_PRICES.HOTEL[0],
   },
-  CATTERY: { label: 'Gattile', pricePerDay: 25 },
+  CATTERY: { label: 'Gattile', pricePerDay: ACCOMMODATION_TIER_PRICES.CATTERY[0] },
 };
 
 // Alloggi disponibili per specie: i cani non possono usare il gattile, i gatti solo

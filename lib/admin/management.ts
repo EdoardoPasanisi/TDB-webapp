@@ -407,7 +407,7 @@ export async function updateAdminPensioneBookingFull(
   const bookingDogsPayload = input.selectedDogIds.map((dogId) => {
     const dog = dogMap.get(dogId)!;
     const form = input.perDogForm[dogId];
-    const totals = computePerDogTotals({ dog, form, daysCount });
+    const totals = computePerDogTotals({ dog, form, daysCount, totalDogs: input.selectedDogIds.length });
     return {
       booking_id: bookingId,
       dog_id: dogId,

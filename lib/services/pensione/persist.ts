@@ -108,7 +108,7 @@ export function buildBookingDogsPayload(args: {
     }
 
     const extras = buildExtrasPayload(form);
-    const totals = computePerDogTotals({ dog, form, daysCount });
+    const totals = computePerDogTotals({ dog, form, daysCount, totalDogs: selectedDogIds.length });
 
     return {
       booking_id: bookingId,
