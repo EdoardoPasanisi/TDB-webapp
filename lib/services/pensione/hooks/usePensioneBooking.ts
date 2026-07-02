@@ -202,6 +202,7 @@ export function usePensioneBooking() {
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [bookingSuccessOpen, setBookingSuccessOpen] = useState(false);
   const [missingRequiredFields, setMissingRequiredFields] = useState<string[]>([]);
   const [missingPetFields, setMissingPetFields] = useState<string[]>([]);
   const [draftKey, setDraftKey] = useState<string | null>(null);
@@ -832,7 +833,9 @@ export function usePensioneBooking() {
       setEditingBookingId(result.bookingId);
       clearBookingDraft(draftKey);
       setSaving(false);
-      router.push('/services');
+      // Mostra la conferma a schermo intero: l'utente esce solo interagendo
+      // (Vai al calendario / Chiudi), così capisce che è andata a buon fine.
+      setBookingSuccessOpen(true);
     } catch (e) {
       console.error(e);
       setSaving(false);
@@ -943,5 +946,11 @@ export function usePensioneBooking() {
     handleRequiredProfileSaved,
     submit,
     setError,
+
+    bookingSuccessOpen,
+    dismissBookingSuccess: () => {
+      setBookingSuccessOpen(false);
+      router.push('/services');
+    },
   };
 }

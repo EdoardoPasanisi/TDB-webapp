@@ -27,7 +27,6 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { DocumentViewer, type DocumentViewerSource } from '@/components/ui/DocumentViewer';
 
-const ID_DOC_BUCKET = 'identity-documents';
 const PROFILE_SELECT =
   'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, id_document_back_path, id_document_back_uploaded_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOC_ACTION_WIDTH_CLASS = 'w-[132px]';
@@ -347,13 +346,35 @@ export default function AccountPage() {
       return;
     }
 
-    const { data, error: e } = await supabase.storage.from(ID_DOC_BUCKET).createSignedUrl(path, 60 * 10);
-    if (e) {
-      console.error('createSignedUrl errore:', e);
+    // Firma lato server (service role): la preview non può usare
+    // storage.createSignedUrl dal client perché dipende da policy RLS sul
+    // bucket privato che potrebbero non essere attive.
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) {
+        setter(null);
+        return;
+      }
+
+      const response = await fetch('/api/user-documents/signed-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ path }),
+      });
+
+      if (!response.ok) {
+        console.error('signed-url errore:', response.status);
+        setter(null);
+        return;
+      }
+
+      const json = (await response.json()) as { url?: string };
+      setter(json.url ?? null);
+    } catch (e) {
+      console.error('signed-url errore:', e);
       setter(null);
-      return;
     }
-    setter(data.signedUrl);
   }, []);
 
   const loadLatestUserDocument = useCallback(async (userId: string, kind: UserDocumentKind) => {

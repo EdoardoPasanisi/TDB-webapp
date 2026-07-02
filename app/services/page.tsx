@@ -9,6 +9,7 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { ServiceCards } from '@/components/services/ServiceCards';
 import { ServicePassCards } from '@/components/services/ServicePassCards';
 import { FissaDataModal } from '@/components/services/FissaDataModal';
+import { BookingSuccessScreen } from '@/components/services/BookingSuccessScreen';
 
 import {
   getUserServicePasses,
@@ -38,6 +39,7 @@ export default function ServicesPage() {
   >([]);
 
   const [fixDateOpen, setFixDateOpen] = useState(false);
+  const [bookingSuccessOpen, setBookingSuccessOpen] = useState(false);
   const [selectedPassGroupKey, setSelectedPassGroupKey] = useState<string | null>(null);
 
   const selectedPass = useMemo(
@@ -121,6 +123,7 @@ export default function ServicesPage() {
           userId={user.id}
           pass={selectedPass}
           onBooked={async () => {
+            setBookingSuccessOpen(true);
             try {
               const passes = await getUserServicePasses(user.id);
               setPassSummaries(buildPassSummaries(passes));
@@ -128,6 +131,11 @@ export default function ServicesPage() {
             } catch {}
 
           }}
+        />
+
+        <BookingSuccessScreen
+          open={bookingSuccessOpen}
+          onClose={() => setBookingSuccessOpen(false)}
         />
       </div>
     </main>

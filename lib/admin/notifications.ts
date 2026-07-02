@@ -17,11 +17,14 @@ function castStaffNotification(row: unknown): StaffNotificationRow {
 }
 
 async function listActiveManageStaffUserIds(): Promise<string[]> {
+  // Staff con poteri completi = ADMIN o SUPER_ADMIN (coerente con canManage in
+  // auth.ts). Prima filtravamo solo 'ADMIN', così i SUPER_ADMIN non ricevevano
+  // alcuna notifica gestionale.
   const { data, error } = await supabaseAdmin
     .from('staff_accounts')
     .select('user_id')
     .eq('is_active', true)
-    .eq('role', 'ADMIN');
+    .in('role', ['ADMIN', 'SUPER_ADMIN']);
 
   if (error) {
     throw new Error(error.message);

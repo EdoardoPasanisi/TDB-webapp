@@ -2,6 +2,7 @@
 'use client';
 
 import { PensioneBookingForm } from '@/components/services/pensione/PensioneBookingForm';
+import { BookingSuccessScreen } from '@/components/services/BookingSuccessScreen';
 import { usePensioneBooking } from '@/lib/services/pensione/hooks/usePensioneBooking';
 
 export default function PensioneClient() {
@@ -41,6 +42,8 @@ export default function PensioneClient() {
     handleCancelEdit,
     handleRequiredProfileSaved,
     submit,
+    bookingSuccessOpen,
+    dismissBookingSuccess,
   } = usePensioneBooking();
 
   if (loading) {
@@ -52,7 +55,8 @@ export default function PensioneClient() {
   }
 
   return (
-    <PensioneBookingForm
+    <>
+      <PensioneBookingForm
       title={`Prenotazione pensione${editingBookingId ? ' (modifica)' : ''}`}
       error={error}
       blockedMessage={blockedMessage}
@@ -88,6 +92,9 @@ export default function PensioneClient() {
       onCompleteRequiredProfile={handleRequiredProfileSaved}
       onSubmit={submit}
       showCancelEdit={!!editingBookingId}
-    />
+      />
+
+      <BookingSuccessScreen open={bookingSuccessOpen} onClose={dismissBookingSuccess} />
+    </>
   );
 }
