@@ -1,7 +1,14 @@
 // lib/services/pensione/validation.ts
 
-import type { TaxiDistanceBand, TaxiOption } from '@/types/booking';
-import type { DateISO, DogSelection } from '@/lib/services/pensione/pricing';
+import type { AccommodationKey, BookingDogExtras, TaxiDistanceBand, TaxiOption } from '@/types/booking';
+
+export type DateISO = `${number}-${number}-${number}`; // "YYYY-MM-DD"
+
+export type DogSelection = {
+  dogId: string;
+  accommodationType: AccommodationKey;
+  extras: BookingDogExtras;
+};
 
 export type PensioneFormInput = {
   startDate: DateISO | '';

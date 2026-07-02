@@ -29,7 +29,7 @@ export const ACCOMMODATION_TIER_PRICES: Record<AccommodationKey, [number, number
   BOX_GARDEN: [35, 60, 90],
   CHALET: [35, 60, 90],
   APT_GARDEN: [50, 90, 120],
-  // Non forniti dallo staff: derivati con i rapporti dell'Appartamento (×1.8 / ×2.4).
+  // Stessi rapporti multi-cane dell'Appartamento (×1.8 / ×2.4), confermati dallo staff.
   APT_GARDEN_NIGHT_PERSON: [100, 180, 240],
   HOTEL: [45, 80, 110],
   CATTERY: [25, 45, 60],
