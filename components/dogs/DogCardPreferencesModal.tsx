@@ -214,9 +214,9 @@ function DogCardPreferencesDialog({
         <div className="ui-modalPanel w-full sm:max-w-xl overflow-auto">
           <div className="ui-modalHeader items-start">
             <div>
-              <h2 className="ui-h2">Personalizza scheda cane</h2>
+              <h2 className="ui-h2">Personalizza scheda pet</h2>
               <p className="ui-muted mt-1">
-                Scegli cosa mostrare nella scheda pubblica del cane (quella del QR).
+                Scegli cosa mostrare nella scheda pubblica del pet (quella del QR).
               </p>
             </div>
             <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>

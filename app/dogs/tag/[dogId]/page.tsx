@@ -96,7 +96,7 @@ export default function DogTagPage() {
       if (!user) return;
 
       if (!dogId) {
-        setError('ID cane non valido.');
+        setError('ID pet non valido.');
         setLoading(false);
         return;
       }
@@ -131,7 +131,7 @@ export default function DogTagPage() {
 
         if (!res.ok || !data.publicId) {
           setError(
-            humanizeErrorMessage(data.error, 'Non siamo riusciti a generare il QR code del cane.')
+            humanizeErrorMessage(data.error, 'Non siamo riusciti a generare il QR code del pet.')
           );
           setLoading(false);
           return;
@@ -147,7 +147,7 @@ export default function DogTagPage() {
       } catch (err: any) {
         console.error('DogTagPage – errore:', err);
         setError(
-          humanizeErrorMessage(err, 'Non siamo riusciti a caricare il QR code del cane.')
+          humanizeErrorMessage(err, 'Non siamo riusciti a caricare il QR code del pet.')
         );
         setLoading(false);
       }
@@ -213,7 +213,7 @@ export default function DogTagPage() {
 
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'qr-cane.png';
+      a.download = 'qr-pet.png';
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -232,8 +232,8 @@ export default function DogTagPage() {
     try {
       if (navigator.share) {
         await navigator.share({
-          title: 'Scheda cane',
-          text: 'Link scheda pubblica cane',
+          title: 'Scheda pet',
+          text: 'Link scheda pubblica pet',
           url: publicUrl,
         });
         return;
@@ -289,8 +289,8 @@ export default function DogTagPage() {
         <Card className="print:hidden">
           <CardContent className="space-y-3">
             <SectionHeader
-              title="QR code scheda cane"
-              subtitle="Scansiona per aprire la scheda pubblica del cane."
+              title="QR code scheda pet"
+              subtitle="Scansiona per aprire la scheda pubblica del pet."
             />
           </CardContent>
         </Card>

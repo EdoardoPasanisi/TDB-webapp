@@ -12,13 +12,13 @@ interface ShowOnDogCardToggleProps {
 }
 
 /**
- * Componente riusabile per i campi che possono apparire sulla scheda cane pubblica.
+ * Componente riusabile per i campi che possono apparire sulla scheda pet pubblica.
  *
  * Esempio d'uso:
  *
  * <ShowOnDogCardToggle
  *   label="Telefono"
- *   description="Comparirà sulla scheda pubblica del cane."
+ *   description="Comparirà sulla scheda pubblica del pet."
  *   checked={showPhone}
  *   onCheckedChange={setShowPhone}
  * >
@@ -50,7 +50,7 @@ export function ShowOnDogCardToggle({
             checked={checked}
             onChange={(e) => onCheckedChange(e.target.checked)}
           />
-          <span>Mostra su scheda cane</span>
+          <span>Mostra su scheda pet</span>
         </label>
       </div>
 

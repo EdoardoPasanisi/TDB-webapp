@@ -2,6 +2,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AppChromeGate } from '@/components/AppChromeGate';
+import { ScrollResetOnNavigate } from '@/components/ScrollResetOnNavigate';
 
 export const metadata: Metadata = {
   title: 'Tenuta del Barone',
@@ -49,6 +50,7 @@ export default function RootLayout({
         />
       </head>
       <body className="antialiased ui-page">
+        <ScrollResetOnNavigate />
         <AppChromeGate>
           <main className="ui-appMain">{children}</main>
         </AppChromeGate>

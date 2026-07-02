@@ -34,7 +34,7 @@ export async function PATCH(
       .maybeSingle();
 
     if (error) {
-      return NextResponse.json({ error: humanizeErrorMessage(error, 'Non siamo riusciti ad aggiornare la visibilità della scheda cane.') }, { status: 400 });
+      return NextResponse.json({ error: humanizeErrorMessage(error, 'Non siamo riusciti ad aggiornare la visibilità della scheda pet.') }, { status: 400 });
     }
     if (!data) {
       return NextResponse.json({ error: 'Cane non trovato.' }, { status: 404 });

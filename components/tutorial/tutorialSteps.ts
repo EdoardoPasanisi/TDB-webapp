@@ -63,12 +63,12 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     body: 'Aggiungi qui i tuoi cani con il pulsante “+ Aggiungi”. Per ognuno potrai inserire le informazioni e aprire la sua scheda.',
   },
 
-  // --- SCHEDA CANE ---
+  // --- SCHEDA PET ---
   {
     id: 'dog-info',
     scene: 'dog',
     spot: 'dog-info',
-    chip: 'Scheda cane',
+    chip: 'Scheda pet',
     title: 'Le informazioni del cane',
     body: 'Razza, taglia, microchip, data di nascita, carattere e note. Più sono complete, meglio possiamo prenderci cura del tuo cane durante i servizi.',
   },
@@ -76,7 +76,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'dog-card',
     scene: 'dog',
     spot: 'dog-card',
-    chip: 'Scheda cane',
+    chip: 'Scheda pet',
     title: 'La scheda pubblica',
     body: 'Ogni cane ha una scheda pubblica condivisibile. Decidi tu quali informazioni mostrare: bastano pochi tocchi per attivare o nascondere ogni dato.',
   },
@@ -84,9 +84,9 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: 'dog-qr',
     scene: 'dog',
     spot: 'dog-qr',
-    chip: 'Scheda cane',
+    chip: 'Scheda pet',
     title: 'Il QR da condividere',
-    body: 'Ogni scheda ha un QR code: chi lo scansiona (o riceve il link) vede subito la scheda pubblica del cane. Comodo da dare a amici o parenti che lo accudiscono, al veterinario o in caso di smarrimento.',
+    body: 'Ogni scheda ha un QR code: chi lo scansiona (o riceve il link) vede subito la scheda pubblica del pet. Comodo da dare a amici o parenti che lo accudiscono, al veterinario o in caso di smarrimento.',
   },
 
   // --- SERVIZI ---

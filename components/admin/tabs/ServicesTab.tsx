@@ -112,6 +112,27 @@ function itemEndMs(item: AdminAgendaItem): number {
   const t = new Date(raw).getTime();
   return Number.isNaN(t) ? 0 : t;
 }
+function itemStartMs(item: AdminAgendaItem): number {
+  const t = new Date(item.startAt).getTime();
+  return Number.isNaN(t) ? 0 : t;
+}
+
+type PensioneEventBadge = 'INGRESSO' | 'USCITA' | 'INGRESSO_USCITA';
+type PensioneInOutEntry = { item: AdminAgendaItem; badge: PensioneEventBadge };
+
+function pensioneBadgeLabel(badge: PensioneEventBadge): string {
+  if (badge === 'INGRESSO') return 'Ingresso';
+  if (badge === 'USCITA') return 'Uscita';
+  return 'Ingresso e uscita';
+}
+// Colori pill per il tipo di evento pensione (verde = ingresso, ciano = uscita).
+function pensioneBadgeClass(badge: PensioneEventBadge): string {
+  if (badge === 'INGRESSO')
+    return 'border-[rgba(80,255,160,0.4)] bg-[rgba(80,255,160,0.14)] text-[#7dffb4]';
+  if (badge === 'USCITA')
+    return 'border-[rgba(34,211,238,0.45)] bg-[rgba(34,211,238,0.14)] text-[#67e8f9]';
+  return 'border-[rgba(255,130,0,0.5)] bg-[rgba(255,130,0,0.16)] text-[#ffb066]';
+}
 function isCancelledItem(item: AdminAgendaItem): boolean {
   return item.status === 'CANCELLED';
 }
@@ -155,7 +176,14 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
   const specificServiceCount = selectedServiceKeys.filter((key) => key !== 'ALL').length;
   const isGenericServiceView =
     selectedServiceKeys.includes('ALL') || specificServiceCount >= SERVICE_MULTI_OPTIONS.length - 1;
-  const groupedItems = useMemo(() => {
+  // Per la pensione (filtri Tutti/Pensione) mostriamo prima gli eventi del
+  // giorno/periodo selezionato — ingressi e uscite — e poi le pensioni "in
+  // corso" (che proseguono senza arrivare o partire nella finestra). Gli altri
+  // servizi restano raggruppati per giorno come prima.
+  const { pensioneInOut, pensioneOngoing, groupedItems } = useMemo(() => {
+    const inOut: PensioneInOutEntry[] = [];
+    const ongoing: AdminAgendaItem[] = [];
+
     const groups = new Map<
       string,
       {
@@ -175,6 +203,26 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
         if (!showCancelled) continue;
       } else if (isPastItem(item, now)) {
         if (!showPast) continue;
+      }
+
+      if (item.serviceKey === 'PENSIONE') {
+        const arrivalDay = item.startAt.slice(0, 10);
+        const departureDay = item.endAt ? item.endAt.slice(0, 10) : null;
+        const ingresso = arrivalDay >= effectiveStartDate && arrivalDay <= effectiveEndDate;
+        const uscita =
+          departureDay !== null &&
+          departureDay >= effectiveStartDate &&
+          departureDay <= effectiveEndDate;
+
+        if (ingresso || uscita) {
+          inOut.push({
+            item,
+            badge: ingresso && uscita ? 'INGRESSO_USCITA' : ingresso ? 'INGRESSO' : 'USCITA',
+          });
+        } else {
+          ongoing.push(item);
+        }
+        continue;
       }
 
       const dayKey = item.startAt.slice(0, 10);
@@ -208,8 +256,21 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
       });
     }
 
-    return Array.from(groups.values()).sort((a, b) => a.dayKey.localeCompare(b.dayKey));
-  }, [data?.items, showCancelled, showPast, now]);
+    // Ingressi/uscite ordinati per l'orario dell'evento rilevante nella finestra
+    // (l'uscita per chi solo parte, altrimenti l'arrivo). In corso: chi esce prima.
+    inOut.sort((a, b) => {
+      const aTime = a.badge === 'USCITA' ? itemEndMs(a.item) : itemStartMs(a.item);
+      const bTime = b.badge === 'USCITA' ? itemEndMs(b.item) : itemStartMs(b.item);
+      return aTime - bTime;
+    });
+    ongoing.sort((a, b) => itemEndMs(a) - itemEndMs(b));
+
+    return {
+      pensioneInOut: inOut,
+      pensioneOngoing: ongoing,
+      groupedItems: Array.from(groups.values()).sort((a, b) => a.dayKey.localeCompare(b.dayKey)),
+    };
+  }, [data?.items, showCancelled, showPast, now, effectiveStartDate, effectiveEndDate]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 60000);
@@ -275,6 +336,35 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
     });
     await load();
   };
+
+  const renderAgendaItem = (item: AdminAgendaItem, badge?: PensioneEventBadge) => (
+    <div
+      key={item.itemKey}
+      className={isRecentlyEndedItem(item, now) ? 'opacity-50' : ''}
+      title={isRecentlyEndedItem(item, now) ? 'Servizio concluso (entro le ultime 24h)' : undefined}
+    >
+      {badge ? (
+        <div className="mb-1.5">
+          <span
+            className={cx(
+              'inline-flex items-center rounded-full border px-2.5 py-0.5 text-[12px] font-[var(--font-weight-semibold)]',
+              pensioneBadgeClass(badge)
+            )}
+          >
+            {pensioneBadgeLabel(badge)}
+          </span>
+        </div>
+      ) : null}
+      <TimelineCard
+        item={item}
+        canManage={canManage}
+        layout={isGenericServiceView ? 'default' : 'service'}
+        cardStyle={innerServiceCardStyle}
+        onOpenDetail={() => setSelectedBooking(item)}
+        onStatusChange={(nextStatus) => handleBookingStatus(item, nextStatus)}
+      />
+    </div>
+  );
 
   return (
     <div className="admin-blocks space-y-4">
@@ -413,8 +503,40 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
                 {showPast ? 'Nascondi passate' : 'Visualizza passate'}
               </button>
             </div>
-            {data.items.length ? (
+            {pensioneInOut.length || pensioneOngoing.length || groupedItems.length ? (
               <div className="space-y-5">
+                {pensioneInOut.length ? (
+                  <section className="space-y-3">
+                    <div className="px-1">
+                      <div className="ui-body font-[var(--font-weight-semibold)]">Ingressi e uscite</div>
+                      <div className="ui-muted mt-1">
+                        {pensioneInOut.length} {pensioneInOut.length === 1 ? 'evento' : 'eventi'} nel periodo selezionato
+                      </div>
+                    </div>
+                    <Card className="overflow-hidden" style={getServiceSectionStyle('PENSIONE')}>
+                      <CardContent className="space-y-3">
+                        {pensioneInOut.map(({ item, badge }) => renderAgendaItem(item, badge))}
+                      </CardContent>
+                    </Card>
+                  </section>
+                ) : null}
+
+                {pensioneOngoing.length ? (
+                  <section className="space-y-3">
+                    <div className="px-1">
+                      <div className="ui-body font-[var(--font-weight-semibold)]">Pensioni in corso</div>
+                      <div className="ui-muted mt-1">
+                        {pensioneOngoing.length} {pensioneOngoing.length === 1 ? 'pensione' : 'pensioni'} che prosegue nel periodo
+                      </div>
+                    </div>
+                    <Card className="overflow-hidden" style={getServiceSectionStyle('PENSIONE')}>
+                      <CardContent className="space-y-3">
+                        {pensioneOngoing.map((item) => renderAgendaItem(item))}
+                      </CardContent>
+                    </Card>
+                  </section>
+                ) : null}
+
                 {groupedItems.map((group) => (
                   <section key={group.dayKey} className="space-y-3">
                     <div className="px-1">
@@ -448,26 +570,7 @@ export function ServicesTab({ canManage }: { canManage: boolean }) {
                             </div>
 
                             <div className="space-y-3">
-                              {serviceGroup.items.map((item) => (
-                                <div
-                                  key={item.itemKey}
-                                  className={isRecentlyEndedItem(item, now) ? 'opacity-50' : ''}
-                                  title={
-                                    isRecentlyEndedItem(item, now)
-                                      ? 'Servizio concluso (entro le ultime 24h)'
-                                      : undefined
-                                  }
-                                >
-                                  <TimelineCard
-                                    item={item}
-                                    canManage={canManage}
-                                    layout={isGenericServiceView ? 'default' : 'service'}
-                                    cardStyle={innerServiceCardStyle}
-                                    onOpenDetail={() => setSelectedBooking(item)}
-                                    onStatusChange={(nextStatus) => handleBookingStatus(item, nextStatus)}
-                                  />
-                                </div>
-                              ))}
+                              {serviceGroup.items.map((item) => renderAgendaItem(item))}
                             </div>
                           </CardContent>
                         </Card>
