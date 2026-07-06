@@ -7,6 +7,8 @@ import {
   formatEuro,
   formatTaxiOptionLabel,
 } from '@/components/admin/shared';
+import { buildDogCostLines } from '@/lib/services/pensione/breakdown';
+import type { AccommodationKey } from '@/types/booking';
 
 // Riepilogo prenotazione pensione ottimizzato per la stampa.
 // Gerarchia: arrivo/partenza, pet, proprietario e totale GRANDI; sistemazione,
@@ -59,6 +61,44 @@ export function PrintPensioneCard({ detail }: { detail: AdminBookingDetail }) {
       <div className="print-total">
         <span className="print-label">Saldo / Totale</span>
         <span className="print-total-value">{detail.totalPrice !== null ? formatEuro(detail.totalPrice) : '—'}</span>
+      </div>
+
+      <div className="print-section">
+        <div className="print-section-title">Voci di costo</div>
+        {detail.dogs.map((dog) => {
+          const lines = buildDogCostLines({
+            accommodationType: dog.pricing.accommodationType as AccommodationKey | null,
+            accommodationPricePerDay: dog.pricing.accommodationPricePerDay,
+            accommodationSubtotal: dog.pricing.accommodationSubtotal,
+            daysCount: dog.pricing.daysCount,
+            extras: dog.extras,
+            sizeCategory: dog.sizeCategory,
+            groomingDifficulty: dog.groomingDifficulty,
+          });
+          return (
+            <div key={dog.dogId} className="print-row">
+              <strong>{dog.name}</strong>
+              {lines.map((line) => (
+                <div key={line.label} className="print-costLine">
+                  <span>{line.label}</span>
+                  <span>{formatEuro(line.amount)}</span>
+                </div>
+              ))}
+              {dog.pricing.total !== null ? (
+                <div className="print-costLine print-costLine--total">
+                  <span>Totale {dog.name}</span>
+                  <span>{formatEuro(dog.pricing.total)}</span>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+        {detail.taxi.enabled && detail.taxi.priceEur ? (
+          <div className="print-costLine">
+            <span>Taxi dog{formatTaxiOptionLabel(detail.taxi.option) ? ` · ${formatTaxiOptionLabel(detail.taxi.option)}` : ''}</span>
+            <span>{formatEuro(detail.taxi.priceEur)}</span>
+          </div>
+        ) : null}
       </div>
 
       <div className="print-section">

@@ -9,11 +9,13 @@ import {
   type SizeCategory,
 } from '@/data/dogBreeds';
 import { CAT_BREEDS } from '@/data/catBreeds';
-import { findBreedProfileForSpecies } from '@/data/petBreeds';
+import { findBreedProfileForSpecies, isMeticcioBreed, resolveMeticcioProfile } from '@/data/petBreeds';
 import { temperamentOptionsForSpecies, genderedTemperamentLabel } from '@/data/petTemperaments';
 import { BreedSearchInput } from '@/components/dogs/BreedSearchInput';
 import type { Dog, DogInput, DogSex, PetSpecies } from '@/types/dog';
 import { isValidMicrochip, sanitizeMicrochip } from '@/lib/validation/italy';
+import { isIosApp } from '@/lib/native/platform';
+import { pickPhotoNative } from '@/lib/native/camera';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
@@ -30,6 +32,12 @@ const SPECIES_OPTIONS: { value: PetSpecies; label: string }[] = [
   { value: 'DOG', label: 'Cane' },
   { value: 'CAT', label: 'Gatto' },
   { value: 'OTHER', label: 'Altro' },
+];
+
+const GROOMING_DIFFICULTY_OPTIONS: { value: GroomingDifficulty; label: string }[] = [
+  { value: 1, label: 'Facile' },
+  { value: 2, label: 'Media' },
+  { value: 3, label: 'Difficile' },
 ];
 
 function parseBirthDate(value: string | null): { y: number | null; m: number | null; d: number | null } {
@@ -76,6 +84,10 @@ interface DogFormProps {
   // Specie pre-selezionata (es. dal selettore tipo pet) e blocco del selettore in form.
   initialSpecies?: PetSpecies;
   lockSpecies?: boolean;
+
+  // Informazioni verificate e bloccate dallo staff: l'utente non può più modificare
+  // nome sul libretto, razza, microchip e data di nascita (solo lo staff dal gestionale).
+  infoLocked?: boolean;
 }
 
 export function DogForm({
@@ -95,6 +107,7 @@ export function DogForm({
   allowManualSize = false,
   initialSpecies = 'DOG',
   lockSpecies = false,
+  infoLocked = false,
 }: DogFormProps) {
   const isEdit = mode === 'edit';
   const editableDog = isEdit ? initialDog ?? null : null;
@@ -166,14 +179,30 @@ export function DogForm({
 
   const isDog = species === 'DOG';
   const isOther = species === 'OTHER';
+  const isMeticcio = isDog && isMeticcioBreed(breed);
   const breedList = (species === 'CAT' ? CAT_BREEDS : DOG_BREEDS) as DogBreed[];
   const temperamentOptions = useMemo(() => temperamentOptionsForSpecies(species), [species]);
-  const sizeFromBreedOnly = !allowManualSize && !isOther;
+  // Il meticcio non mostra la taglia: è nascosta e derivata (prezzi massimi o dalle razze
+  // di provenienza), quindi anche in gestionale non serve il selettore taglia.
+  const sizeFromBreedOnly = (!allowManualSize && !isOther) || isMeticcio;
+  // Difficoltà lavaggio: normalmente derivata dalla razza; modificabile solo dal gestionale.
+  const showGroomingDifficulty = allowManualSize && !isOther;
 
   // Mantieni il nome libretto allineato al nome finché l'utente non lo modifica (solo cani).
   function handleNameChange(value: string) {
     setName(value);
     if (isDog && !librettoTouched) setLibrettoName(value);
+  }
+
+  // Aggiornando le razze di provenienza di un meticcio, taglia e difficoltà di lavaggio
+  // diventano le più alte tra quelle selezionate (o i valori massimi se nessuna razza).
+  function applyOriginBreeds(next: string[]) {
+    setOriginBreeds(next);
+    if (isMeticcioBreed(breed)) {
+      const profile = resolveMeticcioProfile(next);
+      setSizeCategory(profile.size);
+      setGroomingDifficulty(profile.washDifficulty);
+    }
   }
 
   function clampBirthDay(y: number | null, m: number | null, d: number | null): number | null {
@@ -321,8 +350,36 @@ export function DogForm({
     onPhotoSelected?.(file);
   };
 
+  // Nell'app iOS apre la fotocamera/galleria native; se l'utente annulla non
+  // succede nulla. Nei browser e su Android usa il selettore file classico
+  // (stesso comportamento di prima). In caso di errore nativo, ripiega sul file input.
+  const triggerPhotoPicker = () => {
+    void (async () => {
+      if (await isIosApp()) {
+        try {
+          const file = await pickPhotoNative();
+          if (file) handlePhotoChange(file);
+          return;
+        } catch {
+          // fallback al selettore file classico
+        }
+      }
+      photoInputRef.current?.click();
+    })();
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {infoLocked ? (
+        <div className="ui-alertWarn">
+          <p className="ui-body">
+            Alcune informazioni (nome sul libretto, razza, microchip e data di nascita) sono state
+            verificate e bloccate dallo staff e non sono più modificabili qui. Per correggerle
+            contatta la struttura.
+          </p>
+        </div>
+      ) : null}
+
       {formError ? <div className="ui-error">{formError}</div> : null}
 
       {submitNotice ? (
@@ -349,7 +406,7 @@ export function DogForm({
                 style={{ width: 72, height: 72 }}
                 title="Carica o cambia foto"
                 disabled={photoUploading}
-                onClick={() => photoInputRef.current?.click()}
+                onClick={triggerPhotoPicker}
               >
                 {effectivePhotoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -378,7 +435,7 @@ export function DogForm({
                     variant="primary"
                     fullWidth
                     disabled={photoUploading}
-                    onClick={() => photoInputRef.current?.click()}
+                    onClick={triggerPhotoPicker}
                   >
                     {hasSavedPhoto ? 'Cambia foto' : 'Carica foto'}
                   </Button>
@@ -454,6 +511,7 @@ export function DogForm({
                 }}
                 className="ui-control ui-input"
                 placeholder="Nome riportato sul libretto"
+                disabled={infoLocked}
               />
             </Field>
           </CardContent>
@@ -482,55 +540,76 @@ export function DogForm({
         <Card>
           <CardContent className="space-y-2">
             <Field label="Razza" required hint="Cerca anche per nomi alternativi." id="dog-breed">
-              <BreedSearchInput
-                breeds={breedList}
-                value={breed}
-                onSelect={(b) => {
-                  setBreed(b.name);
-                  setSizeCategory(b.size);
-                  setGroomingDifficulty(b.washDifficulty);
-                }}
-                onClear={() => {
-                  setBreed('');
-                  setSizeCategory(null);
-                  setGroomingDifficulty(null);
-                }}
-              />
+              {infoLocked ? (
+                <input type="text" value={breed} className="ui-control ui-input" disabled readOnly />
+              ) : (
+                <BreedSearchInput
+                  breeds={breedList}
+                  value={breed}
+                  onSelect={(b) => {
+                    setBreed(b.name);
+                    if (isMeticcioBreed(b.name)) {
+                      // Meticcio: nessuna razza di provenienza ancora → taglia/difficoltà massime.
+                      setOriginBreeds([]);
+                      const profile = resolveMeticcioProfile([]);
+                      setSizeCategory(profile.size);
+                      setGroomingDifficulty(profile.washDifficulty);
+                    } else {
+                      setOriginBreeds([]);
+                      setSizeCategory(b.size);
+                      setGroomingDifficulty(b.washDifficulty);
+                    }
+                  }}
+                  onClear={() => {
+                    setBreed('');
+                    setOriginBreeds([]);
+                    setSizeCategory(null);
+                    setGroomingDifficulty(null);
+                  }}
+                />
+              )}
             </Field>
           </CardContent>
         </Card>
       ) : null}
 
       {/* Razze d'origine (solo meticci, facoltative) */}
-      {!isOther && breed.trim() === 'Meticcio' ? (
+      {isMeticcio ? (
         <Card>
           <CardContent className="space-y-2">
-            <Field label="Razze d'origine" hint="Facoltative. Aggiungi le razze presenti nel meticcio.">
+            <Field
+              label="Razze d'origine"
+              hint="Facoltative. Taglia e difficoltà di lavaggio seguono le razze indicate (le più alte); senza razze si usano i valori massimi."
+            >
               <div className="space-y-2">
                 {originBreeds.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {originBreeds.map((b) => (
                       <span key={b} className="ui-accentPill">
                         {b}
-                        <button
-                          type="button"
-                          onClick={() => setOriginBreeds((prev) => prev.filter((x) => x !== b))}
-                          className="ml-2 font-bold"
-                          aria-label={`Rimuovi ${b}`}
-                        >
-                          ×
-                        </button>
+                        {!infoLocked ? (
+                          <button
+                            type="button"
+                            onClick={() => applyOriginBreeds(originBreeds.filter((x) => x !== b))}
+                            className="ml-2 font-bold"
+                            aria-label={`Rimuovi ${b}`}
+                          >
+                            ×
+                          </button>
+                        ) : null}
                       </span>
                     ))}
                   </div>
                 ) : null}
-                <BreedSearchInput
-                  key={`origin-${originBreeds.length}`}
-                  breeds={breedList.filter((bd) => bd.name !== 'Meticcio')}
-                  value=""
-                  onSelect={(bd) => setOriginBreeds((prev) => (prev.includes(bd.name) ? prev : [...prev, bd.name]))}
-                  placeholder="Aggiungi una razza d'origine…"
-                />
+                {!infoLocked ? (
+                  <BreedSearchInput
+                    key={`origin-${originBreeds.length}`}
+                    breeds={breedList.filter((bd) => bd.name !== 'Meticcio')}
+                    value=""
+                    onSelect={(bd) => applyOriginBreeds(originBreeds.includes(bd.name) ? originBreeds : [...originBreeds, bd.name])}
+                    placeholder="Aggiungi una razza d'origine…"
+                  />
+                ) : null}
               </div>
             </Field>
           </CardContent>
@@ -555,7 +634,7 @@ export function DogForm({
         </CardContent>
       </Card>
 
-      {(allowManualSize || isOther) ? (
+      {(allowManualSize || isOther) && !isMeticcio ? (
         <Card>
           <CardContent className="space-y-2">
             <Field
@@ -579,12 +658,37 @@ export function DogForm({
         </Card>
       ) : null}
 
+      {/* Difficoltà di lavaggio: derivata dalla razza, modificabile solo dal gestionale. */}
+      {showGroomingDifficulty ? (
+        <Card>
+          <CardContent className="space-y-2">
+            <Field
+              label="Difficoltà di lavaggio"
+              hint={isMeticcio ? 'Per i meticci segue le razze di provenienza; modificabile dal gestionale.' : 'Preimpostata dalla razza; modificabile dal gestionale.'}
+            >
+              <select
+                value={groomingDifficulty ?? ''}
+                onChange={(e) => setGroomingDifficulty((e.target.value ? Number(e.target.value) : null) as GroomingDifficulty | null)}
+                className="ui-control ui-select"
+              >
+                <option value="">Seleziona difficoltà...</option>
+                {GROOMING_DIFFICULTY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </CardContent>
+        </Card>
+      ) : null}
+
       {/* Data di nascita (anno obbligatorio) */}
       <Card>
         <CardContent className="space-y-2">
           <Field label={<>Data di nascita <span className="ui-required">*</span></>} hint="Anno obbligatorio. Mese/Giorno facoltativi.">
             <div className="grid grid-cols-3 gap-2">
-              <select value={birthD ?? ''} onChange={(e) => setBirthD(e.target.value ? Number(e.target.value) : null)} className="ui-control ui-select">
+              <select value={birthD ?? ''} onChange={(e) => setBirthD(e.target.value ? Number(e.target.value) : null)} className="ui-control ui-select" disabled={infoLocked}>
                 <option value="">Giorno</option>
                 {Array.from({ length: maxDay }, (_, i) => i + 1).map((d) => (
                   <option key={d} value={d}>{d}</option>
@@ -599,6 +703,7 @@ export function DogForm({
                   setBirthD((prevDay) => clampBirthDay(birthY, nextMonth, prevDay));
                 }}
                 className="ui-control ui-select"
+                disabled={infoLocked}
               >
                 <option value="">Mese</option>
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -614,6 +719,7 @@ export function DogForm({
                   setBirthD((prevDay) => clampBirthDay(nextYear, birthM, prevDay));
                 }}
                 className="ui-control ui-select"
+                disabled={infoLocked}
               >
                 <option value="">Anno *</option>
                 {yearOptions.map((y) => (
@@ -653,6 +759,7 @@ export function DogForm({
                 placeholder="Es. 380260123456789"
                 aria-invalid={!!microchipWarning}
                 aria-describedby={microchipWarning ? 'dog-microchip-error' : undefined}
+                disabled={infoLocked}
               />
             </Field>
           </CardContent>

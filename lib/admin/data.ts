@@ -18,6 +18,10 @@ import type {
   StaffRole,
 } from '@/lib/admin/types';
 import { buildRequiredOwnerMissing } from '@/lib/admin/requirements';
+import { isConfirmedLikeStatus, lockDogsInfo } from '@/lib/services/pensione/persist';
+import { computePerDogTotals } from '@/lib/services/pensione/utils';
+import { resolveDogBreedProfile } from '@/data/petBreeds';
+import type { DogLite, PerDogForm } from '@/lib/services/pensione/types';
 import {
   ADMIN_SERVICE_OPTIONS,
   buildIlikePattern,
@@ -29,6 +33,7 @@ import {
   sanitizeSearchTerm,
 } from '@/lib/admin/utils';
 import type {
+  AccommodationKey,
   BookingDogExtras,
   BookingDogRow,
   BookingRow,
@@ -47,7 +52,7 @@ import type {
 const PROFILE_SELECT =
   'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, id_document_back_path, id_document_back_uploaded_at, wallet_due_eur, deleted_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 const DOG_SELECT =
-  'id, owner_id, created_at, updated_at, species, species_other, libretto_name, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds';
+  'id, owner_id, created_at, updated_at, species, species_other, libretto_name, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds, info_locked, info_locked_at';
 const IDENTITY_BUCKET = 'identity-documents';
 type AdminVisibilityMode = 'full' | 'limited';
 
@@ -1639,6 +1644,7 @@ export async function getAdminBookingDetail(
             notes: dog.notes ?? null,
             coatColor: dog.coat_color ?? null,
             temperament: dog.temperament ?? null,
+            infoLocked: Boolean(dog.info_locked),
             extras: bookingDog?.extras ?? null,
             pricing: {
               accommodationType: bookingDog?.accommodation_type ?? null,
@@ -1752,6 +1758,7 @@ export async function getAdminBookingDetail(
           notes: dog.notes ?? null,
           coatColor: dog.coat_color ?? null,
           temperament: dog.temperament ?? null,
+          infoLocked: Boolean(dog.info_locked),
           extras: null,
           pricing: {
             accommodationType: null,
@@ -2241,7 +2248,146 @@ export async function settleAdminUserWallet(args: {
   };
 }
 
+// Ricostruisce il "form per cane" a partire da una riga booking_dogs salvata, così da poter
+// ricalcolare i totali (in particolare la toelettatura, che dipende da taglia/difficoltà).
+function perDogFormFromBookingDogRow(row: {
+  accommodation_type: string | null;
+  extras: BookingDogExtras | null;
+}): PerDogForm {
+  const extras = row.extras ?? null;
+  return {
+    accommodationType: (row.accommodation_type as AccommodationKey) ?? 'BOX',
+    grooming: Boolean(extras?.grooming),
+    vaccine: Boolean(extras?.vaccine),
+    trackingSessions: extras?.trackingSessions ?? 0,
+    fitnessSessions: extras?.fitnessSessions ?? 0,
+    walkSessions: extras?.walkSessions ?? 0,
+    trekkingSessions: extras?.trekkingSessions ?? 0,
+    therapy: extras?.therapyActive ? 'YES' : 'NO',
+    therapyNotes: extras?.therapyNotes ?? '',
+  };
+}
+
+/**
+ * Ricalcola il preventivo delle prenotazioni pensione "vive" (PENDING/CONFIRMED/PAID) che
+ * contengono un cane, dopo che lo staff ne ha modificato i dati (taglia/difficoltà cambiano
+ * il prezzo della toelettatura). Non è retroattiva: prenotazioni completate/annullate/storiche
+ * restano invariate. Riconcilia il saldo per le prenotazioni già a saldo.
+ */
+async function recalcPensioneBookingsForDog(dogId: string): Promise<void> {
+  const { data: bookingDogRefs } = await supabaseAdmin
+    .from('booking_dogs')
+    .select('booking_id')
+    .eq('dog_id', dogId);
+
+  const candidateIds = unique((bookingDogRefs ?? []).map((row) => String(row.booking_id)));
+  if (candidateIds.length === 0) return;
+
+  const { data: bookings } = await supabaseAdmin
+    .from('bookings')
+    .select('id, status, taxi_price, user_id, total_price')
+    .in('id', candidateIds)
+    .eq('service_type', 'PENSIONE')
+    .in('status', ['PENDING', 'CONFIRMED', 'PAID']);
+
+  for (const booking of (bookings ?? []) as Array<{
+    id: string;
+    status: BookingStatus | null;
+    taxi_price: number | null;
+    user_id: string;
+    total_price: number | null;
+  }>) {
+    const { data: bookingDogs } = await supabaseAdmin
+      .from('booking_dogs')
+      .select('id, dog_id, accommodation_type, days_count, extras')
+      .eq('booking_id', booking.id);
+
+    const rows = (bookingDogs ?? []) as Array<{
+      id: string;
+      dog_id: string;
+      accommodation_type: string | null;
+      days_count: number | null;
+      extras: BookingDogExtras | null;
+    }>;
+    if (rows.length === 0) continue;
+
+    const dogMap = await loadDogsByIds(rows.map((row) => row.dog_id));
+    const totalDogs = rows.length;
+
+    let alloggioTotalFull = 0;
+    let extrasTotalPerDogs = 0;
+
+    for (const row of rows) {
+      const dog = dogMap.get(row.dog_id);
+      if (!dog) continue;
+      const dogLite: DogLite = {
+        id: dog.id,
+        name: dog.name,
+        photo_path: dog.photo_path ?? null,
+        updated_at: dog.updated_at ?? null,
+        size_category: dog.size_category ?? null,
+        grooming_difficulty: dog.grooming_difficulty ?? null,
+      };
+      const totals = computePerDogTotals({
+        dog: dogLite,
+        form: perDogFormFromBookingDogRow(row),
+        daysCount: Number(row.days_count ?? 0),
+        totalDogs,
+      });
+      await supabaseAdmin
+        .from('booking_dogs')
+        .update({
+          accommodation_price_per_day: totals.accommodation_price_per_day,
+          accommodation_subtotal: totals.accommodation_subtotal,
+          extras_subtotal: totals.extras_subtotal,
+          per_dog_total: totals.per_dog_total,
+        })
+        .eq('id', row.id);
+      alloggioTotalFull += totals.accommodation_subtotal;
+      extrasTotalPerDogs += totals.extras_subtotal;
+    }
+
+    const taxiPrice = Number(booking.taxi_price ?? 0);
+    const extrasTotal = extrasTotalPerDogs + taxiPrice;
+    const totalPrice = alloggioTotalFull + extrasTotal;
+    const previousTotal = Number(booking.total_price ?? 0);
+
+    await supabaseAdmin
+      .from('bookings')
+      .update({
+        alloggio_total_full: alloggioTotalFull,
+        alloggio_total_discounted: alloggioTotalFull,
+        extras_total: extrasTotal,
+        total_price: totalPrice,
+      })
+      .eq('id', booking.id);
+
+    // Riconciliazione saldo: solo per le prenotazioni già a saldo.
+    if (isOutstandingBalanceStatus(booking.status) && totalPrice !== previousTotal) {
+      await supabaseAdmin.rpc('add_wallet_due', {
+        p_user_id: String(booking.user_id),
+        p_amount_eur: totalPrice - previousTotal,
+      });
+    }
+  }
+}
+
 export async function updateAdminDog(dogId: string, input: DogInput): Promise<Dog> {
+  // Stato precedente di taglia/difficoltà: se cambiano va aggiornato il preventivo delle
+  // prenotazioni pensione attive del cane.
+  const { data: previous } = await supabaseAdmin
+    .from('dogs')
+    .select('size_category, grooming_difficulty')
+    .eq('id', dogId)
+    .maybeSingle();
+
+  // Il gestionale è autoritativo su taglia/difficoltà (incluso l'override per i meticci);
+  // si deriva dalla razza solo come fallback se mancano.
+  const breedProfile = resolveDogBreedProfile(input.species, input.breed, input.origin_breeds);
+  const nextSize = input.species === 'OTHER' ? input.size_category : input.size_category ?? breedProfile?.size ?? null;
+  const nextGrooming =
+    input.species === 'OTHER' ? input.grooming_difficulty : input.grooming_difficulty ?? breedProfile?.washDifficulty ?? null;
+
   const { data, error } = await supabaseAdmin
     .from('dogs')
     .update({
@@ -2250,8 +2396,8 @@ export async function updateAdminDog(dogId: string, input: DogInput): Promise<Do
       libretto_name: input.libretto_name,
       name: input.name.trim(),
       breed: input.breed,
-      size_category: input.size_category,
-      grooming_difficulty: input.grooming_difficulty,
+      size_category: nextSize,
+      grooming_difficulty: nextGrooming,
       sex: input.sex,
       microchip: input.microchip,
       birth_date: input.birth_date,
@@ -2278,6 +2424,12 @@ export async function updateAdminDog(dogId: string, input: DogInput): Promise<Do
 
   if (error || !data) {
     throw new Error(error?.message ?? 'Impossibile salvare il cane.');
+  }
+
+  const sizeChanged = (previous?.size_category ?? null) !== (nextSize ?? null);
+  const groomingChanged = (previous?.grooming_difficulty ?? null) !== (nextGrooming ?? null);
+  if (sizeChanged || groomingChanged) {
+    await recalcPensioneBookingsForDog(dogId);
   }
 
   return data as Dog;
@@ -2556,6 +2708,18 @@ export async function updateAdminBookingStatus(args: {
       if (walletError) {
         throw new Error(walletError.message);
       }
+    }
+
+    // Conferma prenotazione = verifica e blocco delle info "da libretto" dei cani. Scatta
+    // alla transizione verso uno stato confermato; idempotente sui cani già bloccati.
+    const nowConfirmed = isConfirmedLikeStatus(status as BookingStatus);
+    const wasConfirmed = isConfirmedLikeStatus(current.status as BookingStatus | null);
+    if (nowConfirmed && !wasConfirmed) {
+      const { data: bookingDogRows } = await supabaseAdmin
+        .from('booking_dogs')
+        .select('dog_id')
+        .eq('booking_id', bookingId);
+      await lockDogsInfo((bookingDogRows ?? []).map((row) => String(row.dog_id)));
     }
   }
 

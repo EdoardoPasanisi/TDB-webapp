@@ -22,6 +22,28 @@ import type {
   TaxiOption,
 } from '@/types/booking';
 
+// Stati "confermati" in cui le info del cane vanno considerate verificate/bloccate.
+const CONFIRMED_LIKE_STATUSES = new Set<BookingStatus>(['CONFIRMED', 'PAID', 'COMPLETED']);
+
+export function isConfirmedLikeStatus(status: BookingStatus | null | undefined): boolean {
+  return status != null && CONFIRMED_LIKE_STATUSES.has(status);
+}
+
+/**
+ * Blocca le informazioni "da libretto" dei cani indicati (nome libretto, razza, microchip,
+ * data di nascita + taglia/difficoltà derivate). Idempotente: imposta info_locked solo sui
+ * cani non ancora bloccati. Chiamata alla conferma di una prenotazione pensione.
+ */
+export async function lockDogsInfo(dogIds: string[]): Promise<void> {
+  const ids = Array.from(new Set(dogIds.filter(Boolean)));
+  if (ids.length === 0) return;
+  await supabaseAdmin
+    .from('dogs')
+    .update({ info_locked: true, info_locked_at: new Date().toISOString() })
+    .in('id', ids)
+    .eq('info_locked', false);
+}
+
 export type OwnedDogRow = {
   id: string;
   owner_id: string;
@@ -300,6 +322,11 @@ export async function createPensioneBooking(args: {
       'La prenotazione principale è stata salvata, ma il dettaglio per cane non è andato a buon fine.',
       500
     );
+  }
+
+  // Una prenotazione creata già confermata (es. dal gestionale) verifica e blocca le info dei cani.
+  if (isConfirmedLikeStatus(status)) {
+    await lockDogsInfo(input.selectedDogIds);
   }
 
   return { bookingId, ownerName, dogsLabel };

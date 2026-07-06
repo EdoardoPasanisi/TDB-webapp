@@ -38,6 +38,8 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { BookingEditModal } from '@/components/admin/BookingEditModal';
 import { useConfirm } from '@/components/admin/ConfirmProvider';
+import { buildDogCostLines } from '@/lib/services/pensione/breakdown';
+import type { AccommodationKey } from '@/types/booking';
 
 export function UserDetailModal({
   userId,
@@ -544,6 +546,9 @@ export function BookingDetailModal({
                                   <div>
                                     <div className="ui-body font-[var(--font-weight-semibold)]">{dog.name}</div>
                                     {dog.breed ? <div className="ui-muted">{dog.breed}</div> : null}
+                                    {dog.infoLocked ? (
+                                      <span className="ui-accentPill mt-1 inline-block">✓ Info verificate</span>
+                                    ) : null}
                                   </div>
                                   {dog.pricing.total !== null ? (
                                     <span className="ui-accentPill">{formatEuro(dog.pricing.total)}</span>
@@ -616,6 +621,27 @@ export function BookingDetailModal({
                                     },
                                   ]}
                                 />
+
+                                {detail.kind === 'PENSIONE' ? (
+                                  <DetailSection
+                                    title="Voci di costo"
+                                    items={[
+                                      ...buildDogCostLines({
+                                        accommodationType: dog.pricing.accommodationType as AccommodationKey | null,
+                                        accommodationPricePerDay: dog.pricing.accommodationPricePerDay,
+                                        accommodationSubtotal: dog.pricing.accommodationSubtotal,
+                                        daysCount: dog.pricing.daysCount,
+                                        extras: dog.extras,
+                                        sizeCategory: dog.sizeCategory,
+                                        groomingDifficulty: dog.groomingDifficulty,
+                                      }).map((line) => ({ label: line.label, value: formatEuro(line.amount) })),
+                                      {
+                                        label: 'Totale cane',
+                                        value: dog.pricing.total !== null ? formatEuro(dog.pricing.total) : null,
+                                      },
+                                    ]}
+                                  />
+                                ) : null}
 
                                 {dog.extras?.grooming ? (
                                   <HighlightBox title="Toelettatura">Toelettatura richiesta per questo cane.</HighlightBox>

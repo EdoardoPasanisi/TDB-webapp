@@ -246,6 +246,7 @@ export type AdminBookingDetail = {
     notes: string | null;
     coatColor: string | null;
     temperament: string[] | null;
+    infoLocked: boolean;
     extras: BookingDogExtras | null;
     pricing: {
       accommodationType: string | null;

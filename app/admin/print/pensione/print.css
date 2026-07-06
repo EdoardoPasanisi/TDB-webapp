@@ -56,6 +56,20 @@
 .print-row { font-size: 15px; line-height: 1.5; }
 .print-minor .print-row { font-size: 12.5px; color: #444; }
 .print-muted { color: #777; }
+.print-costLine {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  padding-left: 10px;
+}
+.print-costLine--total {
+  font-weight: 700;
+  border-top: 1px solid #bbb;
+  margin-top: 2px;
+  padding-top: 2px;
+}
 .print-page-break { break-after: page; page-break-after: always; }
 
 @media print {

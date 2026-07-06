@@ -2,8 +2,9 @@
 // gestione cani, edit completo prenotazioni (pensione + slot), crediti/pacchetti.
 // Tutte via supabaseAdmin (service role, bypassa RLS). Le rotte chiamanti devono
 // sempre passare da requireStaffAccess(request, 'manage').
-import { findBreedProfileForSpecies } from '@/data/petBreeds';
+import { resolveDogBreedProfile } from '@/data/petBreeds';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { purgeUserAccount } from '@/lib/account/deleteAccount';
 import {
   buildExtrasPayload,
   computeDaysCount,
@@ -21,7 +22,6 @@ import type { ServicePassRow, ServiceStatus, ServiceType, ServiceVariant } from 
 
 const DOG_SELECT =
   'id, owner_id, created_at, updated_at, species, species_other, libretto_name, name, breed, size_category, grooming_difficulty, sex, microchip, birth_date, notes, coat_color, temperament, photo_path, is_active, public_id, show_breed, show_sex, show_size, show_microchip, show_birth_date, show_notes, show_coat_color, show_temperament, weight_kg, origin_breeds, show_weight, show_origin_breeds';
-const IDENTITY_BUCKET = 'identity-documents';
 const PASS_SELECT =
   'id, user_id, service_type, service_variant, product_id, credits_total, credits_used, status, purchased_at, expires_at, unlocked_at, unlocked_by';
 const PROFILE_RETURN_SELECT =
@@ -117,36 +117,7 @@ export async function hardDeleteAdminUser(userId: string): Promise<void> {
     throw new Error('Prima di eliminare definitivamente, sposta l’utente tra gli eliminati (soft-delete).');
   }
 
-  // Documenti identità: rimuovi i file dallo storage.
-  const { data: documents } = await supabaseAdmin
-    .from('user_documents')
-    .select('path')
-    .eq('user_id', userId);
-  const docPaths = ((documents ?? []) as Array<{ path: string | null }>)
-    .map((row) => String(row.path ?? '').trim())
-    .filter(Boolean);
-  if (docPaths.length > 0) {
-    await supabaseAdmin.storage.from(IDENTITY_BUCKET).remove(docPaths).catch(() => undefined);
-  }
-
-  // Elimina i dati collegati. bookings → cascata su booking_dogs/customer_media.
-  // I builder PostgREST non lanciano: l'eventuale error è nel result e lo ignoriamo
-  // per le tabelle accessorie (potrebbero non esistere su tutti gli ambienti).
-  await supabaseAdmin.from('bookings').delete().eq('user_id', userId);
-  await supabaseAdmin.from('service_slot_bookings').delete().eq('user_id', userId);
-  await supabaseAdmin.from('service_passes').delete().eq('user_id', userId);
-  await supabaseAdmin.from('user_documents').delete().eq('user_id', userId);
-  await supabaseAdmin.from('customer_media').delete().eq('user_id', userId);
-  await supabaseAdmin.from('notifications').delete().eq('user_id', userId);
-  await supabaseAdmin.from('notification_preferences').delete().eq('user_id', userId);
-  await supabaseAdmin.from('chat_conversations').delete().eq('user_id', userId);
-  await supabaseAdmin.from('payments').delete().eq('user_id', userId);
-  await supabaseAdmin.from('staff_accounts').delete().eq('user_id', userId);
-  await supabaseAdmin.from('dogs').delete().eq('owner_id', userId);
-  await supabaseAdmin.from('profiles').delete().eq('user_id', userId);
-
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
-  if (error) throw new Error(error.message);
+  await purgeUserAccount(userId);
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -154,13 +125,15 @@ export async function hardDeleteAdminUser(userId: string): Promise<void> {
 // ──────────────────────────────────────────────────────────────────────────
 
 export async function createAdminDog(ownerId: string, input: DogInput): Promise<Dog> {
-  const breedProfile = findBreedProfileForSpecies(input.species, input.breed);
+  // Il gestionale è autoritativo: si tiene la taglia/difficoltà scelte dallo staff (incluso
+  // l'override per i meticci); si deriva dalla razza solo come fallback se mancano.
+  const breedProfile = resolveDogBreedProfile(input.species, input.breed, input.origin_breeds);
   const payload = {
     ...input,
     owner_id: ownerId,
-    size_category: input.species === 'OTHER' ? input.size_category : breedProfile?.size ?? input.size_category ?? null,
+    size_category: input.species === 'OTHER' ? input.size_category : input.size_category ?? breedProfile?.size ?? null,
     grooming_difficulty:
-      input.species === 'OTHER' ? input.grooming_difficulty : breedProfile?.washDifficulty ?? input.grooming_difficulty ?? null,
+      input.species === 'OTHER' ? input.grooming_difficulty : input.grooming_difficulty ?? breedProfile?.washDifficulty ?? null,
   };
 
   const { data, error } = await supabaseAdmin.from('dogs').insert(payload).select(DOG_SELECT).single();

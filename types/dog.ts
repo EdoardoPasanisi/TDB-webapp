@@ -42,6 +42,11 @@ export type Dog = {
   public_id?: string | null;
   is_active?: boolean | null;
 
+  // ✅ Blocco informazioni verificate dallo staff (nome libretto, razza, microchip,
+  // data di nascita + taglia/difficoltà derivate). Impostato alla conferma prenotazione.
+  info_locked?: boolean | null;
+  info_locked_at?: string | null;
+
   // ✅ NEW (soft start)
   photo_path?: string | null;
 
