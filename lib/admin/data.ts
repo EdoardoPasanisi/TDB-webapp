@@ -2417,6 +2417,11 @@ export async function updateAdminDog(dogId: string, input: DogInput): Promise<Do
       show_weight: input.show_weight,
       show_origin_breeds: input.show_origin_breeds,
       updated_at: new Date().toISOString(),
+      // La modifica dal gestionale verifica e blocca le info "da libretto": da qui in poi
+      // l'utente non può più editare razza/microchip/nome libretto/data di nascita (solo
+      // lo staff). Stesso blocco applicato alla conferma di una prenotazione pensione.
+      info_locked: true,
+      info_locked_at: new Date().toISOString(),
     })
     .eq('id', dogId)
     .select(DOG_SELECT)
