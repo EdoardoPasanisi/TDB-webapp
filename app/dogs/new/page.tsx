@@ -120,10 +120,14 @@ export default function NewDogPage() {
                 className="w-full text-left"
                 aria-label={`Aggiungi ${card.label.toLowerCase()}`}
               >
-                <Card className={`ui-petPickerCard ${card.tone}`}>
+                <Card className="ui-cardHover ui-petPickerCard">
                   <CardContent className="p-0">
-                    <div className="aspect-square flex flex-col items-center justify-center gap-2 px-2">
-                      <PetSpeciesIcon species={card.value} className="h-16 w-16" />
+                    <div className="aspect-square flex flex-col items-center justify-center gap-3 px-2">
+                      <div
+                        className={`ui-petPickerIcon flex h-16 w-16 items-center justify-center rounded-2xl ${card.tone}`}
+                      >
+                        <PetSpeciesIcon species={card.value} className="h-10 w-10" />
+                      </div>
                       <div className="ui-h2 text-center leading-tight">{card.label}</div>
                     </div>
                   </CardContent>
