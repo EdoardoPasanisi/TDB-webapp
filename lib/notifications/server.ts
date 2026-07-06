@@ -242,6 +242,21 @@ export async function createUserNotificationIfEnabled(args: {
 
   if (isInAppNotificationEnabled(preferences, category)) {
     createdNotification = await createNotification(args);
+
+    // Push APNs verso i device iOS dell'utente (fire-and-forget: un errore non
+    // deve compromettere la notifica in-app). Import dinamico così node:http2/
+    // node:crypto restano fuori dai bundle che non ne hanno bisogno.
+    try {
+      const { sendApnsToUser } = await import('@/lib/notifications/apns');
+      await sendApnsToUser({
+        userId: args.userId,
+        title: args.title,
+        body: args.body,
+        data: args.data,
+      });
+    } catch (error) {
+      console.error('Notification push delivery failed:', error);
+    }
   }
 
   if (isEmailNotificationEnabled(preferences, category)) {

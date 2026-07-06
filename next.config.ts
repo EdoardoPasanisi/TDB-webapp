@@ -1,4 +1,18 @@
+import { networkInterfaces } from 'node:os';
 import type { NextConfig } from 'next';
+
+// IPv4 LAN del Mac (es. 192.168.x.x o 172.20.10.x dell'hotspot iPhone). Serve in dev
+// per autorizzare la WebView Capacitor che carica il dev server, senza dover hardcodare
+// l'IP: cambia rete → il dev server riparte e ri-rileva l'indirizzo da solo.
+function localNetworkIPs(): string[] {
+  const out: string[] = [];
+  for (const addrs of Object.values(networkInterfaces())) {
+    for (const addr of addrs ?? []) {
+      if (addr.family === 'IPv4' && !addr.internal) out.push(addr.address);
+    }
+  }
+  return out;
+}
 
 const scriptSrc =
   process.env.NODE_ENV === 'production'
@@ -18,7 +32,9 @@ const csp = [
   "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.cloudflarestream.com",
   // *.supabase.co serve al viewer in-app dei documenti PDF (iframe sul signed URL).
   "frame-src 'self' https://*.supabase.co https://*.cloudflarestream.com",
-  'upgrade-insecure-requests',
+  // upgrade-insecure-requests è giusto in produzione (forza HTTPS) ma in dev rompe
+  // il caricamento dal dev server locale in HTTP (es. WebView Capacitor → http://IP:3000).
+  ...(process.env.NODE_ENV === 'production' ? ['upgrade-insecure-requests'] : []),
 ].join('; ');
 
 function hostFromEnvUrl(value: string | undefined): string | null {
@@ -32,8 +48,14 @@ function hostFromEnvUrl(value: string | undefined): string | null {
 }
 
 const configuredDevHost = hostFromEnvUrl(process.env.NEXT_PUBLIC_AUTH_REDIRECT_BASE_URL);
+// Host del dev server quando la WebView Capacitor punta al Mac (sezione 5 handoff).
+const capacitorDevHost = hostFromEnvUrl(process.env.CAPACITOR_SERVER_URL);
 const allowedDevOrigins = Array.from(
-  new Set(['*.ngrok-free.dev', configuredDevHost].filter((host): host is string => Boolean(host)))
+  new Set(
+    ['*.ngrok-free.dev', configuredDevHost, capacitorDevHost, ...localNetworkIPs()].filter(
+      (host): host is string => Boolean(host),
+    ),
+  )
 );
 
 const nextConfig: NextConfig = {

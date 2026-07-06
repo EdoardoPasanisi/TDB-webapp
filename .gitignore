@@ -40,3 +40,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# capacitor / ios build artifacts
+/ios/App/Pods/
+/ios/App/App/public/
+/ios/App/build/
+/ios/DerivedData/
+/ios/App/output/
+*.xcuserstate
+
+# capacitor / android build artifacts
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/app/src/main/assets/public/
+/android/capacitor-cordova-android-plugins/
+/android/local.properties
+/android/.idea/
+*.keystore
+!debug.keystore

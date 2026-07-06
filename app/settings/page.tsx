@@ -9,6 +9,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { fetchAdminJson } from '@/lib/admin/client';
 import type { AdminStaffAccess } from '@/lib/admin/types';
 import { useTutorial } from '@/components/tutorial/TutorialProvider';
+import { deleteCurrentUserAccount } from '@/lib/account/deleteAccountApi';
 
 function SettingActionCard({
   title,
@@ -34,6 +35,9 @@ export default function SettingsPage() {
   const { start: startTutorial } = useTutorial();
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [staffAccess, setStaffAccess] = useState<AdminStaffAccess | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -66,6 +70,26 @@ export default function SettingsPage() {
       }
       router.push('/login');
       router.refresh();
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      await deleteCurrentUserAccount();
+      await supabase.auth.signOut().catch(() => undefined);
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.removeItem('sb-access-token');
+          localStorage.removeItem('sb-refresh-token');
+        } catch {}
+      }
+      router.push('/login');
+      router.refresh();
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : 'Eliminazione non riuscita.');
+      setDeleteLoading(false);
     }
   };
 
@@ -164,6 +188,62 @@ export default function SettingsPage() {
             <Button type="button" variant="primary" fullWidth disabled={logoutLoading} onClick={handleLogout}>
               {logoutLoading ? 'Uscita…' : 'Esci dall’account'}
             </Button>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="space-y-3">
+            <SectionHeader
+              title="Elimina account"
+              subtitle="Cancella definitivamente il tuo account e tutti i dati collegati."
+            />
+
+            {deleteError ? <div className="ui-error">{deleteError}</div> : null}
+
+            {!deleteConfirmOpen ? (
+              <Button
+                type="button"
+                variant="danger"
+                fullWidth
+                onClick={() => {
+                  setDeleteError(null);
+                  setDeleteConfirmOpen(true);
+                }}
+              >
+                Elimina account
+              </Button>
+            ) : (
+              <div className="ui-alertWarn space-y-3">
+                <p className="ui-body font-[var(--font-weight-semibold)]">
+                  Sei sicuro di voler eliminare l’account?
+                </p>
+                <p className="ui-muted">
+                  L’operazione è irreversibile: verranno cancellati profilo, pet, documenti,
+                  prenotazioni e tutti i dati personali. Eventuali questioni in sospeso vanno
+                  risolte prima dell’eliminazione.
+                </p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    fullWidth
+                    disabled={deleteLoading}
+                    onClick={() => setDeleteConfirmOpen(false)}
+                  >
+                    Annulla
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="danger"
+                    fullWidth
+                    disabled={deleteLoading}
+                    onClick={handleDeleteAccount}
+                  >
+                    {deleteLoading ? 'Eliminazione…' : 'Elimina definitivamente'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
