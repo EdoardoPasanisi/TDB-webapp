@@ -1,8 +1,14 @@
 # Handoff — App mobile (iOS App Store + Google Play) e fix layout WebView
 
 > Documento per riprendere il lavoro in una nuova chat senza ricostruire il contesto.
-> Ultimo aggiornamento: 2026-06-28.
+> Ultimo aggiornamento: 2026-07-06.
 > Vedi anche i runbook dedicati: [`docs/ios-app-store-runbook.md`](./ios-app-store-runbook.md) e [`docs/google-play-runbook.md`](./google-play-runbook.md).
+>
+> **STATO 2026-07-06**: tutto il codice mobile (Capacitor iOS/Android, push APNs, fotocamera
+> nativa, delete account) è **mergiato su `main`** e deployato su Vercel (verificato verde:
+> tsc/lint/test/build). Restano SOLO gli step manuali portale Apple + Xcode + env + Archive
+> elencati in §6 e nel runbook iOS. Vincolo noto: ambiente su **Node 20** → `@capacitor/cli`
+> resta a 7.x (il CLI 8.x richiede Node ≥22); guida comunque bene il progetto Capacitor 8.
 
 ---
 
