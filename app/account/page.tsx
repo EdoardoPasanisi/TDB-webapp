@@ -542,10 +542,13 @@ export default function AccountPage() {
       const cfProvided = cfClean.length > 0;
       const cfValid = !cfProvided ? true : isValidItalianFiscalCode(cfClean);
 
+      // CF invalido = errore bloccante: mostra l'avviso e RESTA nella schermata di
+      // modifica senza salvare né uscire, così l'utente può correggerlo.
       if (cfProvided && !cfValid) {
         setFiscalCodeWarning(
-          'Il Codice Fiscale inserito non sembra nel formato corretto (16 caratteri). Non lo abbiamo salvato.'
+          'Codice Fiscale non valido: controlla i 16 caratteri. Correggilo per salvare le modifiche.'
         );
+        return;
       }
 
       const payload = {
@@ -562,7 +565,7 @@ export default function AccountPage() {
 
         email: form.email || user.email || null,
 
-        fiscal_code: cfProvided ? (cfValid ? cfClean : (profile?.fiscal_code ?? null)) : null,
+        fiscal_code: cfProvided ? cfClean : null,
 
         birth_date: form.birth_date || null,
 
@@ -583,12 +586,6 @@ export default function AccountPage() {
       homeAddressAutocomplete.setFocused(false);
       serviceAddressAutocomplete.setFocused(false);
       setEditing(false);
-
-      if (cfProvided && !cfValid) {
-        window.alert(
-          'Attenzione: il Codice Fiscale inserito non è nel formato corretto. Non lo abbiamo salvato.'
-        );
-      }
     } catch (err) {
       console.error(err);
       setError('Errore nel salvataggio.');
