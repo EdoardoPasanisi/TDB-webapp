@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { Dog } from '@/types/dog';
 import type { PublicDogCardOwner } from '@/components/dogs/DogPublicCard';
 import { Button } from '@/components/ui/Button';
@@ -206,8 +207,11 @@ function DogCardPreferencesDialog({
     await onSave(nextDogPrefs, nextOwnerPrefs);
   };
 
-  return (
-    <div className="fixed inset-0 z-50">
+  // Renderizzato in portal su document.body: fuori dallo scroller .ui-appMain
+  // (position: fixed → stacking context) altrimenti la bottom nav dipinge sopra i
+  // tasti e il touch nelle aree non scrollabili propaga allo scroller sottostante.
+  const content = (
+    <div className="fixed inset-0 z-[60]">
       <button type="button" className="ui-modalOverlay" onClick={onClose} aria-label="Chiudi" />
 
       <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-4">
@@ -224,7 +228,7 @@ function DogCardPreferencesDialog({
             </Button>
           </div>
 
-          <div className="ui-modalBody flex-1 min-h-0 space-y-6">
+          <div className="ui-modalBody flex-1 min-h-0 space-y-6 overscroll-contain">
             <section className="space-y-3">
               <h3 className="ui-body font-[var(--font-weight-semibold)]">Informazioni del cane</h3>
               <div className="grid grid-cols-1 gap-2">
@@ -417,6 +421,8 @@ function DogCardPreferencesDialog({
       </div>
     </div>
   );
+
+  return typeof document === 'undefined' ? null : createPortal(content, document.body);
 }
 
 export function DogCardPreferencesModal({ open, dog, owner, saving, onClose, onSave }: Props) {

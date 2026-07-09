@@ -184,7 +184,7 @@ export function formatAccommodationTypeLabel(value: string | null | undefined) {
     case 'APT_GARDEN_NIGHT_PERSON':
       return 'Appartamento con giardino e presenza notturna';
     case 'HOTEL':
-      return 'Hotel - stanza luxury con giardino e aria condizionata';
+      return 'Hotel - stanza luxury con giardino';
     case 'CATTERY':
       return 'Catery';
     default:

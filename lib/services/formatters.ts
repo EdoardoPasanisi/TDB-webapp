@@ -74,7 +74,7 @@ const ACCOMMODATION_LABELS: Record<AccommodationKey, string> = {
   CHALET: 'Chalet',
   APT_GARDEN: 'Appartamento con giardino',
   APT_GARDEN_NIGHT_PERSON: 'Appartamento con giardino (presenza notturna)',
-  HOTEL: 'Hotel - stanza luxury con giardino e aria condizionata',
+  HOTEL: 'Hotel - stanza luxury con giardino',
   CATTERY: 'Gattile',
 };
 

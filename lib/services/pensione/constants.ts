@@ -63,7 +63,7 @@ export const ACCOMMODATION_PRICES: Record<
     pricePerDay: ACCOMMODATION_TIER_PRICES.APT_GARDEN_NIGHT_PERSON[0],
   },
   HOTEL: {
-    label: 'Hotel - stanza luxury con giardino e aria condizionata',
+    label: 'Hotel - stanza luxury con giardino',
     pricePerDay: ACCOMMODATION_TIER_PRICES.HOTEL[0],
   },
   CATTERY: { label: 'Gattile', pricePerDay: ACCOMMODATION_TIER_PRICES.CATTERY[0] },
