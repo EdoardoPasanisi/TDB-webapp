@@ -211,7 +211,7 @@ function DogCardPreferencesDialog({
       <button type="button" className="ui-modalOverlay" onClick={onClose} aria-label="Chiudi" />
 
       <div className="absolute inset-x-0 bottom-0 sm:inset-0 sm:flex sm:items-center sm:justify-center p-0 sm:p-4">
-        <div className="ui-modalPanel w-full sm:max-w-xl overflow-auto">
+        <div className="ui-modalPanel w-full sm:max-w-xl">
           <div className="ui-modalHeader items-start">
             <div>
               <h2 className="ui-h2">Personalizza scheda pet</h2>
@@ -224,7 +224,7 @@ function DogCardPreferencesDialog({
             </Button>
           </div>
 
-          <div className="p-4 space-y-6">
+          <div className="ui-modalBody flex-1 min-h-0 space-y-6">
             <section className="space-y-3">
               <h3 className="ui-body font-[var(--font-weight-semibold)]">Informazioni del cane</h3>
               <div className="grid grid-cols-1 gap-2">
@@ -402,7 +402,10 @@ function DogCardPreferencesDialog({
             </section>
           </div>
 
-          <div className="ui-modalFooter grid gap-2 sm:grid-cols-2">
+          <div
+            className="ui-modalFooter grid gap-2 sm:grid-cols-2"
+            style={{ paddingBottom: 'calc(16px + var(--safe-bottom))' }}
+          >
             <Button type="button" variant="secondary" fullWidth onClick={onClose} disabled={saving}>
               Annulla
             </Button>

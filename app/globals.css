@@ -1850,6 +1850,15 @@ button {
       overscroll-behavior-y: contain;
       -webkit-overflow-scrolling: touch;
     }
+    /* Le pagine dentro lo scroller nativo non devono forzare 100vh: .ui-appMain è già
+       alto 100dvh e ha padding per topbar/bottom-nav/safe-area, quindi un min-height di
+       100vh sul contenuto sfora di tutto quel padding e crea scroll "fantasma" oltre il
+       contenuto (lo schermo nero in fondo su pagine corte come profilo/servizi). Con
+       100% riempiono esattamente l'area disponibile senza generare overflow inutile. */
+    body[data-mobile-chrome='on'] .ui-appMain .ui-page,
+    body[data-mobile-chrome='on'] .ui-appMain .min-h-screen {
+      min-height: 100%;
+    }
     body[data-chat-layout='immersive'] {
       overflow: hidden;
     }

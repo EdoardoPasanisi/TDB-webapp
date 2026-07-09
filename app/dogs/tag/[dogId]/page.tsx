@@ -10,6 +10,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { DogPublicCard, type PublicDogCardDog, type PublicDogCardOwner } from '@/components/dogs/DogPublicCard';
+import { getDogByIdForOwner } from '@/lib/dogs/dogApi';
 
 interface ApiResponse {
   publicId?: string;
@@ -76,6 +78,7 @@ export default function DogTagPage() {
 
   const [publicId, setPublicId] = useState<string | null>(null);
   const [publicUrl, setPublicUrl] = useState<string | null>(null);
+  const [card, setCard] = useState<{ dog: PublicDogCardDog; owner: PublicDogCardOwner | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -142,6 +145,50 @@ export default function DogTagPage() {
         const origin = typeof window !== 'undefined' ? window.location.origin : '';
         const url = `${origin}/dogs/card/${data.publicId}`;
         setPublicUrl(url);
+
+        // Anteprima della scheda pubblica (best-effort: se fallisce, resta solo il QR).
+        try {
+          const [dogData, profileRes] = await Promise.all([
+            getDogByIdForOwner(dogId, user.id),
+            supabase
+              .from('profiles')
+              .select(
+                'user_id, first_name, last_name, phone, email, address_line, city, zip_code, province, dog_address_line, dog_city, dog_zip_code, dog_province, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card'
+              )
+              .eq('user_id', user.id)
+              .maybeSingle(),
+          ]);
+
+          if (dogData) {
+            const p = profileRes.data as any;
+            const owner: PublicDogCardOwner | null = p
+              ? {
+                  id: p.user_id,
+                  first_name: p.first_name,
+                  last_name: p.last_name,
+                  phone: p.phone,
+                  email: p.email,
+                  address_line: p.address_line,
+                  city: p.city,
+                  zip_code: p.zip_code,
+                  province: p.province,
+                  dog_address_line: p.dog_address_line,
+                  dog_city: p.dog_city,
+                  dog_zip_code: p.dog_zip_code,
+                  dog_province: p.dog_province,
+                  show_first_name_on_dog_card: p.show_first_name_on_dog_card,
+                  show_last_name_on_dog_card: p.show_last_name_on_dog_card,
+                  show_phone_on_dog_card: p.show_phone_on_dog_card,
+                  show_email_on_dog_card: p.show_email_on_dog_card,
+                  show_address_on_dog_card: p.show_address_on_dog_card,
+                  show_dog_address_on_dog_card: p.show_dog_address_on_dog_card,
+                }
+              : null;
+            setCard({ dog: dogData as unknown as PublicDogCardDog, owner });
+          }
+        } catch (previewErr) {
+          console.error('Anteprima scheda non disponibile:', previewErr);
+        }
 
         setLoading(false);
       } catch (err: any) {
@@ -322,6 +369,20 @@ export default function DogTagPage() {
             ) : null}
           </CardContent>
         </Card>
+
+        {card ? (
+          <div className="print:hidden space-y-4">
+            <Card>
+              <CardContent className="space-y-3">
+                <SectionHeader
+                  title="Anteprima scheda pet"
+                  subtitle="È quello che vedrà chi scansiona il QR."
+                />
+              </CardContent>
+            </Card>
+            <DogPublicCard dog={card.dog} owner={card.owner} />
+          </div>
+        ) : null}
       </div>
     </main>
   );
