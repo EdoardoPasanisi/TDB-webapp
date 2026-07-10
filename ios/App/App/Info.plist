@@ -30,6 +30,8 @@
 	<array>
 		<string>armv7</string>
 	</array>
+	<key>UIRequiresFullScreen</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -51,13 +53,7 @@
 	<string>Per scegliere foto del tuo pet e documenti dalla galleria.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Per salvare nella galleria i media condivisi dalla struttura.</string>
-	<!-- ⚠️ SOLO DEV: permette alla WebView di caricare il dev server locale in HTTP
-	     (es. http://192.168.1.9:3000). RIMUOVERE questo blocco NSAppTransportSecurity
-	     prima dell'Archive per lo store: la produzione è HTTPS e non ne ha bisogno. -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsArbitraryLoads</key>
-		<true/>
-	</dict>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>

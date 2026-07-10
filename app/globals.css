@@ -923,6 +923,10 @@ button {
   .native-app {
     --topbar-h: 60px;
     --bottom-nav-h: 110px;
+    /* Su iPhone col notch env(safe-area-inset-top) ≈ 47px e resta invariato.
+       Su iPad (niente notch) env vale 0 → la topbar finirebbe sotto la status
+       bar: forziamo un minimo di 24px (altezza status bar iPad in verticale). */
+    --safe-top: max(env(safe-area-inset-top), 24px);
   }
 
   /* Bottom-nav (via di mezzo): nel browser mobile l'extra +8px la tiene sopra la barra
@@ -933,6 +937,39 @@ button {
   }
   .native-app .ui-bottomNavRow {
     height: 68px;
+  }
+
+  /* iPad (e schermi larghi in app nativa): il contenuto è pensato per la
+     larghezza di un telefono. Invece di lasciarlo ammassato in alto a sinistra,
+     lo limitiamo e lo centriamo in una colonna. Topbar e bottom-nav restano a
+     tutta larghezza (look intenzionale). La chat immersiva è esclusa perché ha
+     una gestione altezza propria. */
+  @media (min-width: 768px) {
+    /* App nativa su iPad (≥768px): usa il chrome MOBILE (topbar arancione con
+       safe-area + bottom nav) invece di quello desktop, che è pensato per il
+       browser e non gestisce la status bar. Così l'iPad si comporta come un
+       telefono grande, con contenuto in colonna centrata. */
+    .native-app [data-app-chrome='mobile-top'],
+    .native-app [data-app-chrome='mobile-bottom'] {
+      display: block !important;
+    }
+    .native-app [data-app-chrome='desktop-top'] {
+      display: none !important;
+    }
+    /* Padding del chrome mobile anche ≥768 (escludendo la chat immersiva, che ha
+       una gestione altezza propria). */
+    .native-app body[data-desktop-chrome='on']:not([data-chat-layout='immersive']) .ui-appMain {
+      padding-top: calc(var(--safe-top) + var(--topbar-h) + 12px);
+      padding-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + 12px);
+    }
+    /* Colonna centrata. */
+    .native-app .ui-appMain {
+      max-width: 720px;
+      margin-inline: auto;
+    }
+    .native-app body[data-chat-layout='immersive'] .ui-appMain {
+      max-width: none;
+    }
   }
 
   /* NB: lo stile dei pulsanti navbar (colori + look tattile) è definito più sotto,
