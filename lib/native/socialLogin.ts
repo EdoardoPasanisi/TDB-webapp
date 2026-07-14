@@ -13,11 +13,21 @@
 // della WebView, quindi middleware e SSR la vedono esattamente come dopo un login con
 // password — nessun browser esterno, nessun redirect.
 //
-// NONCE — il punto delicato. Il plugin passa il valore che gli diamo *così com'è* a
-// `ASAuthorizationAppleIDRequest.nonce` / a GIDSignIn, e i provider lo copiano
-// nell'id_token senza hasharlo. Supabase invece confronta la claim `nonce` del token
-// con l'SHA-256 del nonce che riceve. Quindi: al provider va l'hash, a Supabase il
-// nonce grezzo.
+// NONCE — si comporta in modo diverso sui due provider, e la differenza non è cosmetica.
+//
+// Apple: il plugin passa il nostro valore così com'è a `ASAuthorizationAppleIDRequest.nonce`
+// e Apple lo copia nell'id_token senza hasharlo; Supabase confronta la claim `nonce` del
+// token con l'SHA-256 di quello che gli passiamo. Quindi ad Apple va l'hash e a Supabase il
+// nonce grezzo. `ASAuthorizationController` fa sempre una richiesta nuova, quindi il nonce
+// che mandiamo è sempre quello che finisce nel token.
+//
+// Google: NIENTE nonce. Se sul dispositivo esiste già una sessione Google, il plugin non
+// rifà il login ma chiama `restorePreviousSignIn` (GoogleProvider.swift), percorso in cui il
+// nonce non viene passato: l'id_token torna con un nonce vecchio o assente e Supabase
+// risponde "Nonces mismatch". Non passando alcun nonce, Supabase salta il controllo e la
+// verifica resta su firma, scadenza e `aud` (che deve essere il nostro client iOS: un token
+// emesso per un'altra app viene rifiutato). È lo stesso motivo per cui Supabase espone
+// l'opzione "Skip nonce checks" citando esplicitamente iOS.
 
 import { supabase } from '@/lib/supabaseClient';
 import { getNativePlatform } from './platform';
@@ -88,21 +98,20 @@ export function isUserCancelledSocialLogin(error: unknown): boolean {
 export async function signInWithNativeProvider(provider: SocialProvider): Promise<void> {
   const SocialLogin = await loadPlugin();
 
-  const rawNonce = randomNonce();
-  const hashedNonce = await sha256Hex(rawNonce);
-
   let idToken: string | null;
+  let rawNonce: string | undefined;
 
   if (provider === 'apple') {
+    rawNonce = randomNonce();
     const { result } = await SocialLogin.login({
       provider: 'apple',
-      options: { scopes: ['email', 'name'], nonce: hashedNonce },
+      options: { scopes: ['email', 'name'], nonce: await sha256Hex(rawNonce) },
     });
     idToken = result.idToken;
   } else {
     const { result } = await SocialLogin.login({
       provider: 'google',
-      options: { scopes: ['email', 'profile'], nonce: hashedNonce },
+      options: { scopes: ['email', 'profile'] },
     });
     // In modalità 'offline' il plugin torna solo un serverAuthCode: qui usiamo la
     // default 'online', che include l'id_token.
@@ -116,7 +125,7 @@ export async function signInWithNativeProvider(provider: SocialProvider): Promis
   const { error } = await supabase.auth.signInWithIdToken({
     provider,
     token: idToken,
-    nonce: rawNonce,
+    ...(rawNonce ? { nonce: rawNonce } : {}),
   });
 
   if (error) throw error;
