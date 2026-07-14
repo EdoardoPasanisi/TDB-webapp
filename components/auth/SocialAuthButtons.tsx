@@ -1,8 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { isNativeApp } from '@/lib/native/platform';
+import {
+  getNativeSocialProviders,
+  isUserCancelledSocialLogin,
+  signInWithNativeProvider,
+  type SocialProvider,
+} from '@/lib/native/socialLogin';
 
 function GoogleIcon() {
   return (
@@ -22,12 +29,44 @@ function AppleIcon() {
 
 export function SocialAuthButtons({ next = '/' }: { next?: string }) {
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<'google' | 'apple' | null>(null);
+  const [pending, setPending] = useState<SocialProvider | null>(null);
+  // null finché non sappiamo se siamo nell'app: nel dubbio si rende il set completo
+  // (comportamento browser), poi l'effetto nasconde ciò che in app non è disponibile.
+  const [nativeProviders, setNativeProviders] = useState<SocialProvider[] | null>(null);
 
-  const signIn = async (provider: 'google' | 'apple') => {
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      if (!(await isNativeApp())) return;
+      const providers = await getNativeSocialProviders();
+      if (active) setNativeProviders(providers);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const isHidden = (provider: SocialProvider) =>
+    nativeProviders !== null && !nativeProviders.includes(provider);
+
+  const signIn = async (provider: SocialProvider) => {
     setError(null);
     setPending(provider);
     try {
+      // Dentro l'app il flusso OAuth web è vietato: Capacitor lo aprirebbe nel browser
+      // di sistema e la sessione non tornerebbe mai nella WebView (vedi lib/native/socialLogin.ts).
+      if (await isNativeApp()) {
+        const providers = await getNativeSocialProviders();
+        if (!providers.includes(provider)) {
+          setError('Questo accesso non è disponibile nell’app. Usa l’email o un altro provider.');
+          setPending(null);
+          return;
+        }
+        await signInWithNativeProvider(provider);
+        window.location.replace(next);
+        return;
+      }
+
       const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider,
@@ -39,6 +78,10 @@ export function SocialAuthButtons({ next = '/' }: { next?: string }) {
       }
       // in caso di successo il browser viene reindirizzato al provider
     } catch (e) {
+      if (isUserCancelledSocialLogin(e)) {
+        setPending(null);
+        return;
+      }
       setError(humanizeErrorMessage(e, 'Accesso non riuscito. Riprova.'));
       setPending(null);
     }
@@ -54,27 +97,31 @@ export function SocialAuthButtons({ next = '/' }: { next?: string }) {
 
       {error ? <div className="ui-error">{error}</div> : null}
 
-      <button
-        type="button"
-        onClick={() => signIn('google')}
-        disabled={pending !== null}
-        style={{ backgroundColor: '#ffffff', color: '#1f1f1f', borderColor: 'rgba(0,0,0,0.12)' }}
-        className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--radius)] border px-4 text-center text-[15px] font-[var(--font-weight-semibold)] disabled:opacity-60"
-      >
-        <GoogleIcon />
-        <span>{pending === 'google' ? 'Reindirizzamento…' : 'Continua con Google'}</span>
-      </button>
+      {isHidden('google') ? null : (
+        <button
+          type="button"
+          onClick={() => signIn('google')}
+          disabled={pending !== null}
+          style={{ backgroundColor: '#ffffff', color: '#1f1f1f', borderColor: 'rgba(0,0,0,0.12)' }}
+          className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--radius)] border px-4 text-center text-[15px] font-[var(--font-weight-semibold)] disabled:opacity-60"
+        >
+          <GoogleIcon />
+          <span>{pending === 'google' ? 'Accesso…' : 'Continua con Google'}</span>
+        </button>
+      )}
 
-      <button
-        type="button"
-        onClick={() => signIn('apple')}
-        disabled={pending !== null}
-        style={{ backgroundColor: '#000000', color: '#ffffff' }}
-        className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--radius)] px-4 text-center text-[15px] font-[var(--font-weight-semibold)] disabled:opacity-60"
-      >
-        <AppleIcon />
-        <span>{pending === 'apple' ? 'Reindirizzamento…' : 'Continua con Apple'}</span>
-      </button>
+      {isHidden('apple') ? null : (
+        <button
+          type="button"
+          onClick={() => signIn('apple')}
+          disabled={pending !== null}
+          style={{ backgroundColor: '#000000', color: '#ffffff' }}
+          className="flex h-12 w-full items-center justify-center gap-3 rounded-[var(--radius)] px-4 text-center text-[15px] font-[var(--font-weight-semibold)] disabled:opacity-60"
+        >
+          <AppleIcon />
+          <span>{pending === 'apple' ? 'Accesso…' : 'Continua con Apple'}</span>
+        </button>
+      )}
     </div>
   );
 }

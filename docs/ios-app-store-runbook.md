@@ -107,6 +107,57 @@ eseguono nulla — APNs è Apple-specifico):
    ```
    Senza queste env `sendApnsToUser` è un no-op sicuro (non rompe le notifiche in-app).
 
+## Login social (Apple / Google) — nativo, obbligatorio
+
+⚠️ **Qui è cascato il primo review** (reject 2.1(a) del 10/07/2026: *"Continue with
+Apple launches a website in Safari and does not login the user"*).
+
+Causa: `supabase.auth.signInWithOAuth` naviga la WebView verso l'endpoint
+`/authorize` di Supabase, che sta **fuori** dall'host di `server.url`. Capacitor
+apre le navigazioni fuori host nel **browser di sistema**: il login si concludeva
+in Safari e i cookie di sessione restavano lì, mai nella WKWebView → app sloggata.
+Valeva identico per Google.
+
+Fix: **dentro l'app non si usa mai il flusso OAuth web.** Si usano i flussi nativi
+(`@capgo/capacitor-social-login`), si ottiene un identity token e lo si scambia con
+`supabase.auth.signInWithIdToken` → la sessione finisce nei cookie della WebView.
+Codice: `lib/native/socialLogin.ts` + `components/auth/SocialAuthButtons.tsx`.
+Il browser continua a usare `signInWithOAuth` come prima.
+
+Nonce (fonte classica di login che fallisce senza motivo apparente): il plugin passa
+il nonce ai provider **senza hasharlo**, mentre Supabase confronta la claim `nonce`
+dell'id_token con l'SHA-256 di quello che gli passiamo → al provider va **l'hash**,
+a Supabase il **nonce grezzo**.
+
+### Configurazione esterna (senza questa il login nativo non funziona)
+
+**Apple** — non serve nessun ID nuovo: in nativo il client è il bundle id.
+1. Apple Developer → App ID `app.tenutadelbarone.client` → abilita la capability
+   **Sign in with Apple** → rigenera/scarica il provisioning profile (con firma
+   automatica Xcode lo rifà da solo).
+2. Xcode → Signing & Capabilities → **+ Sign in with Apple** (l'entitlement
+   `com.apple.developer.applesignin` è già in `App.entitlements`).
+3. Supabase → Authentication → Providers → Apple → aggiungi il **bundle id**
+   `app.tenutadelbarone.client` ai **Client IDs** (accanto al Services ID usato dal
+   web). Senza, Supabase rifiuta l'id_token: il suo `aud` è il bundle id.
+
+**Google** — l'SDK nativo non accetta il client web, ne serve uno dedicato.
+1. Google Cloud Console → Credenziali → ID client OAuth → tipo **iOS**, bundle id
+   `app.tenutadelbarone.client`.
+2. `NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID` su Vercel (env **public**: viene inlined a
+   build-time → serve un **redeploy**, non basta salvarla).
+3. `Info.plist` → `CFBundleURLTypes` con il **reversed client id**
+   (`com.googleusercontent.apps.XXXX`): è il callback dell'SDK.
+4. Supabase → Providers → Google → il client ID iOS va negli **Authorized Client IDs**.
+
+Se `NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID` manca, il pulsante Google **non viene mostrato
+dentro l'app** (sul sito resta): meglio assente che rotto.
+
+### Android
+
+Resta sul flusso web, quindi ha ancora lo stesso bug. Da sistemare se/quando si
+pubblica su Play (serve `webClientId` per Google e il flusso redirect per Apple).
+
 ## Auth Supabase nella WebView
 
 - Login email/password e sessione funzionano dentro la WebView (stesso origin

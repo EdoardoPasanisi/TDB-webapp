@@ -55,5 +55,16 @@
 	<string>Per salvare nella galleria i media condivisi dalla struttura.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<!-- Callback del Google Sign-In SDK: è il client id iOS scritto al contrario
+			     (reversed client id). Deve restare allineato a NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID. -->
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.188173056658-8cqrum1s4ssm92ka13ct68fffvq90j6j</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

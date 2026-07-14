@@ -39,6 +39,19 @@ const config: CapacitorConfig = {
     url: SERVER_URL,
     cleartext: false,
   },
+  plugins: {
+    // Login social nativo (vedi lib/native/socialLogin.ts). `providers` decide quali SDK
+    // finiscono nel binario: teniamo solo Apple e Google, così Facebook/Twitter non
+    // vengono impacchettati (app più leggera e nessun SDK di terzi da dichiarare).
+    SocialLogin: {
+      providers: {
+        apple: true,
+        google: true,
+        facebook: false,
+        twitter: false,
+      },
+    },
+  },
 };
 
 export default config;
