@@ -16,8 +16,26 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Firma dell'AAB di release con la upload keystore. Le credenziali NON vivono nel repo:
+    // vanno messe in ~/.gradle/gradle.properties (file globale fuori da qualunque git),
+    // vedi docs/google-play-runbook.md. Finché quelle proprietà non esistono, `bundleRelease`
+    // continua a produrre un AAB non firmato (comportamento invariato, niente si rompe).
+    def hasUploadSigning = project.hasProperty('TDB_UPLOAD_STORE_FILE')
+    if (hasUploadSigning) {
+        signingConfigs {
+            release {
+                storeFile file(TDB_UPLOAD_STORE_FILE)
+                storePassword TDB_UPLOAD_STORE_PASSWORD
+                keyAlias TDB_UPLOAD_KEY_ALIAS
+                keyPassword TDB_UPLOAD_KEY_PASSWORD
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasUploadSigning) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
