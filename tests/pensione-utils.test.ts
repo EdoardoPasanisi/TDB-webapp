@@ -24,10 +24,6 @@ test('computeDaysCount excludes departure day for morning pickup', () => {
 test('computeGroomingPriceForDog uses robust defaults and rounds to clean price steps', () => {
   assert.equal(
     computeGroomingPriceForDog({
-      id: 'dog-1',
-      name: 'Milo',
-      photo_path: null,
-      updated_at: null,
       size_category: 'media',
       grooming_difficulty: 2,
     }),
@@ -36,10 +32,6 @@ test('computeGroomingPriceForDog uses robust defaults and rounds to clean price 
 
   assert.equal(
     computeGroomingPriceForDog({
-      id: 'dog-2',
-      name: 'Penny',
-      photo_path: null,
-      updated_at: null,
       size_category: null,
       grooming_difficulty: null,
     }),

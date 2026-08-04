@@ -554,10 +554,6 @@ async function getUserGroomingQuotes(userId: string) {
       groomingDifficulty: dog.groomingDifficulty,
       groomingDifficultyLabel: formatGroomingDifficultyLabel(dog.groomingDifficulty),
       estimatedPriceEur: computeGroomingPriceForDog({
-        id: dog.id,
-        name: dog.name,
-        photo_path: null,
-        updated_at: null,
         size_category: dog.size,
         grooming_difficulty: dog.groomingDifficulty,
       }),

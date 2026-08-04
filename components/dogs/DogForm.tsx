@@ -14,6 +14,7 @@ import { temperamentOptionsForSpecies, genderedTemperamentLabel } from '@/data/p
 import { BreedSearchInput } from '@/components/dogs/BreedSearchInput';
 import type { Dog, DogInput, DogSex, PetSpecies } from '@/types/dog';
 import { isValidMicrochip, sanitizeMicrochip } from '@/lib/validation/italy';
+import { computeGroomingPriceForDog } from '@/lib/services/pensione/utils';
 import { isIosApp } from '@/lib/native/platform';
 import { pickPhotoNative } from '@/lib/native/camera';
 import { Button } from '@/components/ui/Button';
@@ -182,11 +183,23 @@ export function DogForm({
   const isMeticcio = isDog && isMeticcioBreed(breed);
   const breedList = (species === 'CAT' ? CAT_BREEDS : DOG_BREEDS) as DogBreed[];
   const temperamentOptions = useMemo(() => temperamentOptionsForSpecies(species), [species]);
-  // Il meticcio non mostra la taglia: è nascosta e derivata (prezzi massimi o dalle razze
-  // di provenienza), quindi anche in gestionale non serve il selettore taglia.
-  const sizeFromBreedOnly = (!allowManualSize && !isOther) || isMeticcio;
+  // Lato utente il meticcio non mostra la taglia: è nascosta e derivata (prezzi massimi
+  // o dalle razze di provenienza). Dal gestionale invece è sempre modificabile.
+  const showSizeField = allowManualSize || isOther;
   // Difficoltà lavaggio: normalmente derivata dalla razza; modificabile solo dal gestionale.
   const showGroomingDifficulty = allowManualSize && !isOther;
+  // Prezzo toelettatura mostrato solo in gestionale: si aggiorna con taglia/difficoltà
+  // così lo staff vede subito la tariffa risultante.
+  const groomingPrice = useMemo(
+    () =>
+      sizeCategory && groomingDifficulty
+        ? computeGroomingPriceForDog({
+            size_category: sizeCategory,
+            grooming_difficulty: groomingDifficulty,
+          })
+        : null,
+    [sizeCategory, groomingDifficulty],
+  );
 
   // Mantieni il nome libretto allineato al nome finché l'utente non lo modifica (solo cani).
   function handleNameChange(value: string) {
@@ -634,12 +647,18 @@ export function DogForm({
         </CardContent>
       </Card>
 
-      {(allowManualSize || isOther) && !isMeticcio ? (
+      {showSizeField ? (
         <Card>
           <CardContent className="space-y-2">
             <Field
               label={isOther ? 'Taglia' : <>Taglia <span className="ui-required">*</span></>}
-              hint={sizeFromBreedOnly ? 'Preimpostata dalla razza, modificabile solo dal gestionale.' : 'Facoltativa.'}
+              hint={
+                isOther
+                  ? 'Facoltativa.'
+                  : isMeticcio
+                    ? 'Per i meticci segue le razze di provenienza; modificabile dal gestionale.'
+                    : 'Preimpostata dalla razza; modificabile dal gestionale.'
+              }
             >
               <select
                 value={sizeCategory ?? ''}
@@ -658,27 +677,39 @@ export function DogForm({
         </Card>
       ) : null}
 
-      {/* Difficoltà di lavaggio: derivata dalla razza, modificabile solo dal gestionale. */}
+      {/* Difficoltà di lavaggio: derivata dalla razza, modificabile solo dal gestionale.
+          Accanto mostriamo il prezzo toelettatura risultante da taglia + difficoltà. */}
       {showGroomingDifficulty ? (
         <Card>
           <CardContent className="space-y-2">
-            <Field
-              label="Difficoltà di lavaggio"
-              hint={isMeticcio ? 'Per i meticci segue le razze di provenienza; modificabile dal gestionale.' : 'Preimpostata dalla razza; modificabile dal gestionale.'}
-            >
-              <select
-                value={groomingDifficulty ?? ''}
-                onChange={(e) => setGroomingDifficulty((e.target.value ? Number(e.target.value) : null) as GroomingDifficulty | null)}
-                className="ui-control ui-select"
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Difficoltà di lavaggio"
+                hint={isMeticcio ? 'Per i meticci segue le razze di provenienza; modificabile dal gestionale.' : 'Preimpostata dalla razza; modificabile dal gestionale.'}
               >
-                <option value="">Seleziona difficoltà...</option>
-                {GROOMING_DIFFICULTY_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </Field>
+                <select
+                  value={groomingDifficulty ?? ''}
+                  onChange={(e) => setGroomingDifficulty((e.target.value ? Number(e.target.value) : null) as GroomingDifficulty | null)}
+                  className="ui-control ui-select"
+                >
+                  <option value="">Seleziona difficoltà...</option>
+                  {GROOMING_DIFFICULTY_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              <Field
+                label="Prezzo toelettatura"
+                hint="Calcolato da taglia e difficoltà di lavaggio."
+              >
+                <div className="ui-control ui-input truncate">
+                  {groomingPrice != null ? `${groomingPrice} €` : '—'}
+                </div>
+              </Field>
+            </div>
           </CardContent>
         </Card>
       ) : null}

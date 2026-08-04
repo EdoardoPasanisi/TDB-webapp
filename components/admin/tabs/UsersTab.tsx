@@ -33,7 +33,12 @@ import {
   buildRequiredDogMissing,
 } from '@/components/admin/shared';
 import { BookingDetailModal, DogDetailModal } from '@/components/admin/modals';
-import { DocumentCard, IdentityDocumentCard, groupAdminDocuments } from '@/components/admin/shared';
+import {
+  DocumentCard,
+  IdentityDocumentCard,
+  groupAdminDocuments,
+  type AdminDocumentEntry,
+} from '@/components/admin/shared';
 import { CreateUserModal } from '@/components/admin/CreateUserModal';
 import { DogEditModal } from '@/components/admin/DogEditModal';
 import { AssignPassModal } from '@/components/admin/AssignPassModal';
@@ -250,30 +255,49 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     if (selectedUserId) await loadDetail(selectedUserId);
   };
 
-  // Carica la liberatoria firmata dal gestionale: crea un nuovo documento
-  // WAIVER_SIGNED per il cliente selezionato.
-  const handleWaiverUpload = async (file: File) => {
+  // Crea un nuovo documento per il cliente selezionato caricandolo dal gestionale
+  // (liberatoria firmata oppure un lato del documento di identità).
+  const createUserDocument = async (
+    file: File,
+    options: { kind: 'WAIVER_SIGNED' | 'ID_DOCUMENT'; side?: 'FRONT' | 'BACK' }
+  ) => {
     if (!selectedUserId) return;
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('kind', options.kind);
+    if (options.side) formData.append('side', options.side);
+    const response = await fetch(`/api/admin/users/${selectedUserId}/documents`, {
+      method: 'POST',
+      credentials: 'include',
+      cache: 'no-store',
+      body: formData,
+    });
+    if (!response.ok) {
+      const json = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(json?.error?.trim() || 'Non siamo riusciti a caricare il documento.');
+    }
+    await loadDetail(selectedUserId);
+  };
+
+  const handleWaiverUpload = async (file: File) => {
     setWaiverUploadBusy(true);
     setError(null);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await fetch(`/api/admin/users/${selectedUserId}/documents`, {
-        method: 'POST',
-        credentials: 'include',
-        cache: 'no-store',
-        body: formData,
-      });
-      if (!response.ok) {
-        const json = (await response.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(json?.error?.trim() || 'Non siamo riusciti a caricare la liberatoria.');
-      }
-      await loadDetail(selectedUserId);
+      await createUserDocument(file, { kind: 'WAIVER_SIGNED' });
     } catch (err) {
       setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare la liberatoria.'));
     } finally {
       setWaiverUploadBusy(false);
+    }
+  };
+
+  // Documento di identità caricato dallo staff per un lato ancora mancante.
+  const handleIdentityUpload = async (side: 'FRONT' | 'BACK', file: File) => {
+    setError(null);
+    try {
+      await createUserDocument(file, { kind: 'ID_DOCUMENT', side });
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare il documento di identità.'));
     }
   };
 
@@ -396,6 +420,24 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
       setSettleSubmitting(false);
     }
   };
+
+  // Documenti del cliente. La scheda "Documento di identità" è sempre presente,
+  // anche senza file caricati, così lo staff può aggiungerne uno dal gestionale.
+  const documentEntries: AdminDocumentEntry[] = (() => {
+    const entries = groupAdminDocuments(detail?.documents ?? []);
+    if (!selectedUserId || entries.some((entry) => entry.type === 'identity')) return entries;
+    return [
+      {
+        type: 'identity' as const,
+        key: `id-${selectedUserId}`,
+        userId: selectedUserId,
+        ownerName: null,
+        front: null,
+        back: null,
+      },
+      ...entries,
+    ];
+  })();
 
   // Scheda dettaglio del cliente selezionato. Renderizzata in un solo punto
   // (inline sotto l'utente su mobile, oppure nella colonna destra su desktop),
@@ -634,33 +676,30 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                       </Button>
                     </div>
                   </div>
-                  {detail.documents.length ? (
-                    <div className="space-y-3">
-                      {groupAdminDocuments(detail.documents).map((entry) =>
-                        entry.type === 'identity' ? (
-                          <IdentityDocumentCard
-                            key={entry.key}
-                            entry={entry}
-                            canManage={canManage}
-                            onDecision={handleDocumentDecision}
-                            onReRequest={handleDocumentReRequest}
-                            onUpload={handleDocumentUpload}
-                          />
-                        ) : (
-                          <DocumentCard
-                            key={entry.key}
-                            document={entry.record}
-                            canManage={canManage}
-                            onDecision={(status) => handleDocumentDecision(entry.record.id, status)}
-                            onReRequest={() => handleDocumentReRequest(entry.record.id)}
-                            onUpload={(file) => handleDocumentUpload(entry.record.id, file)}
-                          />
-                        )
-                      )}
-                    </div>
-                  ) : (
-                    <EmptyCard label="Nessun documento caricato." />
-                  )}
+                  <div className="space-y-3">
+                    {documentEntries.map((entry) =>
+                      entry.type === 'identity' ? (
+                        <IdentityDocumentCard
+                          key={entry.key}
+                          entry={entry}
+                          canManage={canManage}
+                          onDecision={handleDocumentDecision}
+                          onReRequest={handleDocumentReRequest}
+                          onUpload={handleDocumentUpload}
+                          onCreate={handleIdentityUpload}
+                        />
+                      ) : (
+                        <DocumentCard
+                          key={entry.key}
+                          document={entry.record}
+                          canManage={canManage}
+                          onDecision={(status) => handleDocumentDecision(entry.record.id, status)}
+                          onReRequest={() => handleDocumentReRequest(entry.record.id)}
+                          onUpload={(file) => handleDocumentUpload(entry.record.id, file)}
+                        />
+                      )
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </>

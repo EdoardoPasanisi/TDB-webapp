@@ -960,27 +960,66 @@ export function groupAdminDocuments(records: AdminDocumentRecord[]): AdminDocume
 
 function IdentitySideBlock({
   label,
+  side,
   record,
   canManage,
   onReRequest,
   onUpload,
+  onCreate,
 }: {
   label: string;
+  side: 'FRONT' | 'BACK';
   record: AdminDocumentRecord | null;
   canManage: boolean;
   onReRequest?: (documentId: string) => Promise<void> | void;
   onUpload?: (documentId: string, file: File) => Promise<void> | void;
+  onCreate?: (side: 'FRONT' | 'BACK', file: File) => Promise<void> | void;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const missingFileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
   const [viewer, setViewer] = useState<DocumentViewerSource | null>(null);
 
+  const runUpload = async (task: () => Promise<void> | void) => {
+    setUploading(true);
+    try {
+      await task();
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  // Lato mancante: lo staff può caricarlo direttamente dal gestionale.
   if (!record) {
     return (
       <div className="ui-panelInset p-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="ui-accentPill">{label}</span>
-          <span className="ui-muted">Mancante</span>
+          {canManage && onCreate ? (
+            <>
+              <input
+                ref={missingFileInputRef}
+                type="file"
+                accept="application/pdf,image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  event.target.value = '';
+                  if (file) void runUpload(() => onCreate(side, file));
+                }}
+              />
+              <Button
+                variant="secondary"
+                className="ui-btnCompact"
+                disabled={uploading}
+                onClick={() => missingFileInputRef.current?.click()}
+              >
+                {uploading ? 'Caricamento…' : 'Carica'}
+              </Button>
+            </>
+          ) : (
+            <span className="ui-muted">Mancante</span>
+          )}
         </div>
       </div>
     );
@@ -988,12 +1027,7 @@ function IdentitySideBlock({
 
   const handleFileSelected = async (file: File | null) => {
     if (!file || !onUpload) return;
-    setUploading(true);
-    try {
-      await onUpload(record.id, file);
-    } finally {
-      setUploading(false);
-    }
+    await runUpload(() => onUpload(record.id, file));
   };
 
   const isPdf = isPdfFile(record.fileName) || isPdfFile(record.path);
@@ -1071,6 +1105,7 @@ export function IdentityDocumentCard({
   onDecision,
   onReRequest,
   onUpload,
+  onCreate,
   onOpenOwner,
 }: {
   entry: {
@@ -1083,11 +1118,12 @@ export function IdentityDocumentCard({
   onDecision?: (documentId: string, status: 'ACCEPTED' | 'REJECTED') => Promise<void> | void;
   onReRequest?: (documentId: string) => Promise<void> | void;
   onUpload?: (documentId: string, file: File) => Promise<void> | void;
+  onCreate?: (side: 'FRONT' | 'BACK', file: File) => Promise<void> | void;
   onOpenOwner?: (userId: string) => void;
 }) {
   const sides = [
-    { key: 'front', label: 'Fronte', record: entry.front },
-    { key: 'back', label: 'Retro', record: entry.back },
+    { key: 'front', side: 'FRONT', label: 'Fronte', record: entry.front },
+    { key: 'back', side: 'BACK', label: 'Retro', record: entry.back },
   ] as const;
 
   const pendingRecords = sides
@@ -1137,10 +1173,12 @@ export function IdentityDocumentCard({
             <IdentitySideBlock
               key={s.key}
               label={s.label}
+              side={s.side}
               record={s.record}
               canManage={canManage}
               onReRequest={onReRequest}
               onUpload={onUpload}
+              onCreate={onCreate}
             />
           ))}
         </div>

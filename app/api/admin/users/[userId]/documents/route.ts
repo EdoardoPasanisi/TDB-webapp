@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireStaffAccess } from '@/lib/admin/auth';
-import { createAdminWaiverDocument } from '@/lib/admin/data';
+import { createAdminIdentityDocument, createAdminWaiverDocument } from '@/lib/admin/data';
 import { adminErrorResponse } from '@/lib/admin/route';
 import { assertUuid } from '@/lib/admin/validation';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
@@ -24,8 +24,9 @@ function getFileExt(file: File): string {
   return 'jpg';
 }
 
-// Lo staff carica la liberatoria firmata di un cliente direttamente dal gestionale.
-// Crea una nuova riga user_documents (WAIVER_SIGNED) marcata come ACCETTATA.
+// Lo staff carica un documento di un cliente direttamente dal gestionale: la
+// liberatoria firmata (default) oppure un lato del documento d'identità.
+// Crea una nuova riga user_documents marcata come ACCETTATA.
 export async function POST(
   request: Request,
   context: { params: Promise<{ userId: string }> }
@@ -40,6 +41,16 @@ export async function POST(
     const file = formData.get('file');
     if (!file || !(file instanceof File)) {
       return NextResponse.json({ error: 'File mancante.' }, { status: 400 });
+    }
+
+    const kind = String(formData.get('kind') ?? 'WAIVER_SIGNED');
+    if (kind !== 'WAIVER_SIGNED' && kind !== 'ID_DOCUMENT') {
+      return NextResponse.json({ error: 'Tipo di documento non valido.' }, { status: 400 });
+    }
+
+    const side = String(formData.get('side') ?? 'FRONT');
+    if (kind === 'ID_DOCUMENT' && side !== 'FRONT' && side !== 'BACK') {
+      return NextResponse.json({ error: 'Lato del documento non valido.' }, { status: 400 });
     }
 
     const validationError = validateUploadFile({
@@ -59,7 +70,8 @@ export async function POST(
       return NextResponse.json({ error: signatureError }, { status: 400 });
     }
 
-    const path = `${normalizedUserId}/waivers/${crypto.randomUUID()}.${getFileExt(file)}`;
+    const folder = kind === 'ID_DOCUMENT' ? 'id-documents' : 'waivers';
+    const path = `${normalizedUserId}/${folder}/${crypto.randomUUID()}.${getFileExt(file)}`;
     const fileBytes = new Uint8Array(await file.arrayBuffer());
     const { error: uploadError } = await supabaseAdmin.storage
       .from(ID_DOC_BUCKET)
@@ -69,11 +81,18 @@ export async function POST(
         cacheControl: '3600',
       });
     if (uploadError) {
-      return NextResponse.json({ error: 'Non siamo riusciti a caricare la liberatoria.' }, { status: 400 });
+      return NextResponse.json({ error: 'Non siamo riusciti a caricare il documento.' }, { status: 400 });
     }
 
     try {
-      const { documentId } = await createAdminWaiverDocument({ userId: normalizedUserId, path });
+      const { documentId } =
+        kind === 'ID_DOCUMENT'
+          ? await createAdminIdentityDocument({
+              userId: normalizedUserId,
+              side: side as 'FRONT' | 'BACK',
+              path,
+            })
+          : await createAdminWaiverDocument({ userId: normalizedUserId, path });
       return NextResponse.json({ ok: true, documentId, path });
     } catch (error) {
       await supabaseAdmin.storage.from(ID_DOC_BUCKET).remove([path]).catch(() => undefined);

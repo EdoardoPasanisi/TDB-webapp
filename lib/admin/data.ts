@@ -2664,6 +2664,46 @@ export async function createAdminWaiverDocument(args: {
   return { documentId: String(data.id) };
 }
 
+/**
+ * Crea (o sostituisce) un lato del documento d'identità caricato dallo staff dal
+ * gestionale. Il file è già nello storage: qui registriamo la riga `user_documents`
+ * come ACCETTATA e allineiamo il path sul profilo, così le prenotazioni si sbloccano.
+ */
+export async function createAdminIdentityDocument(args: {
+  userId: string;
+  side: 'FRONT' | 'BACK';
+  path: string;
+}): Promise<{ documentId: string }> {
+  const { userId, side, path } = args;
+  const now = new Date().toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from('user_documents')
+    .insert({
+      user_id: userId,
+      kind: 'ID_DOCUMENT',
+      side,
+      path,
+      status: 'ACCEPTED',
+      accepted_at: now,
+      rejected_at: null,
+    })
+    .select('id')
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? 'Impossibile registrare il documento di identità.');
+  }
+
+  const profilePatch =
+    side === 'BACK'
+      ? { id_document_back_path: path, id_document_back_uploaded_at: now }
+      : { id_document_path: path, id_document_uploaded_at: now };
+  await supabaseAdmin.from('profiles').update(profilePatch).eq('user_id', userId);
+
+  return { documentId: String(data.id) };
+}
+
 export async function updateAdminBookingStatus(args: {
   kind: AdminBookingKind;
   bookingId: string;

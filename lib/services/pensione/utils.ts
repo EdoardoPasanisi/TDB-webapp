@@ -108,7 +108,9 @@ export function computeTaxiPrice(
  * ✅ Prezzo toelettatura per cane.
  * Se mancano dati nel DB, usiamo fallback “media + difficoltà 2” (MVP robusto).
  */
-export function computeGroomingPriceForDog(dog: DogLite): number {
+export function computeGroomingPriceForDog(
+  dog: Pick<DogLite, 'size_category' | 'grooming_difficulty'>
+): number {
   const size: DogSize = dog.size_category ?? 'media';
   const diff: WashDifficulty = dog.grooming_difficulty ?? 2;
 
