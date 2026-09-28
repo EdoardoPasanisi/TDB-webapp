@@ -277,6 +277,8 @@ export default function AccountPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fiscalCodeWarning, setFiscalCodeWarning] = useState<string | null>(null);
+  // Errore del salvataggio del profilo: compare sopra "Salva", non in cima.
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const [profile, setProfile] = useState<ProfileRow | null>(null);
   const [editing, setEditing] = useState(false);
@@ -520,7 +522,7 @@ export default function AccountPage() {
     if (!user) return;
 
     setSaving(true);
-    setError(null);
+    setSaveError(null);
 
     try {
       const dogAddress = form.dog_address_same_as_home
@@ -588,7 +590,7 @@ export default function AccountPage() {
       setEditing(false);
     } catch (err) {
       console.error(err);
-      setError('Errore nel salvataggio.');
+      setSaveError(humanizeErrorMessage(err, 'Errore nel salvataggio.'));
     } finally {
       setSaving(false);
     }
@@ -752,11 +754,6 @@ export default function AccountPage() {
           </div>
         ) : null}
 
-        {fiscalCodeWarning ? (
-          <div className="ui-alertWarn">
-            {fiscalCodeWarning}
-          </div>
-        ) : null}
 
         <Card>
           <CardContent className="space-y-3">
@@ -847,6 +844,7 @@ export default function AccountPage() {
           onChangeText={onChangeText}
           onToggle={onToggle}
           onSubmit={onSubmit}
+          submitError={fiscalCodeWarning ?? saveError}
           residenceAddressAutocomplete={{
             active: homeAddressAutocomplete.active,
             loading: homeAddressAutocomplete.loading,
@@ -871,6 +869,8 @@ export default function AccountPage() {
           }}
           onStartEdit={() => setEditing(true)}
           onCancelEdit={() => {
+            setSaveError(null);
+            setFiscalCodeWarning(null);
             homeAddressAutocomplete.setFocused(false);
             serviceAddressAutocomplete.setFocused(false);
             setEditing(false);

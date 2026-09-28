@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Toast } from '@/components/common/Toast';
 import { Modal } from '@/components/common/Modal';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useCurrentUser } from '@/lib/hooks/useCurrentUser';
@@ -272,6 +273,9 @@ export function GroupedServicePurchasePage({
               </div>
             )}
 
+            {/* Errore dell'acquisto sopra il pulsante; nel popup di conferma c'è la stessa riga. */}
+            {!confirmOpen ? <FormError message={error} /> : null}
+
             <Button
               variant="primary"
               fullWidth
@@ -291,7 +295,6 @@ export function GroupedServicePurchasePage({
               </div>
             ) : null}
 
-            {error ? <div className="ui-error">{error}</div> : null}
           </CardContent>
         </Card>
       ) : null}
@@ -321,6 +324,8 @@ export function GroupedServicePurchasePage({
                 </div>
               </CardContent>
             </Card>
+
+            <FormError message={error} />
 
             <div className="flex flex-col sm:flex-row gap-2 justify-end">
               <Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={purchasing}>

@@ -227,7 +227,8 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
       </div>
 
       <div className="admin-blocks min-w-0 space-y-4">
-        {error ? <div className="ui-error">{error}</div> : null}
+        {/* In modifica l'errore compare sopra "Salva" (dentro DogForm). */}
+        {error && !(editing && canManage) ? <div className="ui-error">{error}</div> : null}
         {detailState === 'loading' ? (
           <LoadingCard label="Caricamento dettaglio cane..." />
         ) : detailState === 'error' || !detail ? (
@@ -305,6 +306,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
                     initialDog={detail.dog}
                     onSubmit={saveDog}
                     submitting={savingDog}
+                    submitError={error}
                     photoEnabled={false}
                     allowManualSize
                     lockSpecies

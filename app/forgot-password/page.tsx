@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getAuthRedirectBase } from '@/lib/auth/getAuthRedirectBase';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 
@@ -66,8 +67,6 @@ export default function ForgotPasswordPage() {
               </div>
             ) : null}
 
-            {errorMessage ? <div className="ui-error">{errorMessage}</div> : null}
-
             <form onSubmit={handleSubmit} className="space-y-3">
               <Field label="Email" required>
                 <input
@@ -79,6 +78,8 @@ export default function ForgotPasswordPage() {
                   required
                 />
               </Field>
+
+              <FormError message={errorMessage} />
 
               <Button type="submit" variant="primary" fullWidth disabled={loading}>
                 {loading ? 'Invio in corso…' : 'Invia email di recupero'}

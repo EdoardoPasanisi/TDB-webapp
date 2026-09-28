@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { fetchAdminJson, isAbortError } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Field } from '@/components/ui/Field';
 import { Card, CardContent } from '@/components/ui/Card';
 import { ModalFrame, LoadingCard, ErrorCard, formatEuro } from '@/components/admin/shared';
@@ -293,7 +294,6 @@ export function BookingEditModal({
 
       {state === 'ready' && detail && detail.kind === 'PENSIONE' ? (
         <div className="space-y-4">
-          {error ? <div className="ui-error">{error}</div> : null}
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Arrivo">
@@ -421,6 +421,7 @@ export function BookingEditModal({
             )}
           </div>
 
+          <FormError message={error} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>Annulla</Button>
             <Button type="button" variant="primary" onClick={() => void handleSubmitPensione()} disabled={submitting || selectedDogIds.length === 0}>
@@ -432,7 +433,6 @@ export function BookingEditModal({
 
       {state === 'ready' && detail && detail.kind === 'SERVICE_SLOT' ? (
         <div className="space-y-4">
-          {error ? <div className="ui-error">{error}</div> : null}
 
           <Field label="Slot" hint="Lascia invariato per non spostare la prenotazione.">
             <select value={slotId} onChange={(e) => setSlotId(e.target.value)} className="ui-control ui-select">
@@ -475,6 +475,7 @@ export function BookingEditModal({
             <textarea value={notes} onChange={(e) => setNotes(e.target.value)} className="ui-control ui-textarea" rows={3} />
           </Field>
 
+          <FormError message={error} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={onClose} disabled={submitting}>Annulla</Button>
             <Button type="button" variant="primary" onClick={() => void handleSubmitSlot()} disabled={submitting}>

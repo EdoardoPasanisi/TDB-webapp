@@ -7,16 +7,24 @@ import { Button } from '@/components/ui/Button';
 // Schermata di conferma prenotazione a schermo intero. Non sparisce da sola:
 // l'utente deve interagire (Vai al calendario / Chiudi / Esc) per uscire, così
 // è chiaro che la prenotazione è andata a buon fine.
+//
+// Promemoria libretto: di default ricorda di portare la copia fisica del libretto
+// sanitario. Passare reminder={null} quando il pet non viene in struttura (consulenza).
+export const LIBRETTO_REMINDER =
+  'Ricordati di portare la copia fisica del libretto sanitario del tuo pet il giorno del servizio.';
+
 export function BookingSuccessScreen({
   open,
   onClose,
   title = 'Prenotazione effettuata correttamente',
   message = 'Puoi vedere tutti i dettagli nella pagina Calendario.',
+  reminder = LIBRETTO_REMINDER,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
   message?: string;
+  reminder?: string | null;
 }) {
   const router = useRouter();
 
@@ -62,6 +70,13 @@ export function BookingSuccessScreen({
 
         <h2 className="ui-h2 mt-5">{title}</h2>
         <p className="ui-muted mt-2">{message}</p>
+
+        {reminder ? (
+          <div className="ui-alertWarn mt-5 w-full text-left" role="note">
+            <p className="ui-body font-[var(--font-weight-semibold)]">Promemoria</p>
+            <p className="ui-body mt-1">{reminder}</p>
+          </div>
+        ) : null}
 
         <div className="mt-7 flex w-full flex-col gap-2">
           <Button variant="primary" fullWidth onClick={() => router.push('/services/calendar')}>

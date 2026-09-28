@@ -401,7 +401,8 @@ function DogDetailInner() {
           </div>
         ) : null}
 
-        {error ? <div className="ui-error">{error}</div> : null}
+        {/* In modifica l'errore compare sopra "Salva" (dentro DogForm). */}
+        {error && mode !== 'edit' ? <div className="ui-error">{error}</div> : null}
 
         {mode === 'edit' ? (
           <Card>
@@ -414,6 +415,7 @@ function DogDetailInner() {
                 photoUploading={photoUploading}
                 onSubmit={handleSubmit}
                 submitting={submitting}
+                submitError={error}
                 deleting={deleting}
                 lockSpecies
                 infoLocked={Boolean(dog.info_locked)}

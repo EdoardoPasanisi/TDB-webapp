@@ -34,6 +34,7 @@ import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { AccommodationsSection } from '@/components/admin/AccommodationsSection';
 import { BreedCombobox } from '@/components/dogs/BreedCombobox';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -58,6 +59,9 @@ export function ConfigTab({
   const [staffState, setStaffState] = useState<LoadState>('loading');
   const [staffSearchState, setStaffSearchState] = useState<LoadState>('idle');
   const [error, setError] = useState<string | null>(null);
+  // Quale form ha generato l'errore: lo mostriamo sopra il suo pulsante di salvataggio.
+  // null = errore di caricamento, mostrato in cima.
+  const [errorScope, setErrorScope] = useState<'slot' | 'staff' | 'block' | null>(null);
   const [slots, setSlots] = useState<AdminSlotRecord[]>([]);
   const [staff, setStaff] = useState<AdminStaffMember[]>([]);
   const [staffQuery, setStaffQuery] = useState('');
@@ -234,6 +238,7 @@ export function ConfigTab({
       setSlots(payload.items);
       setSlotsState('ready');
     } catch (err) {
+      setErrorScope(null);
       setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare gli slot disponibili.'));
       setSlotsState('error');
     }
@@ -247,6 +252,7 @@ export function ConfigTab({
       setStaff(payload.items);
       setStaffState('ready');
     } catch (err) {
+      setErrorScope(null);
       setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare gli accessi staff.'));
       setStaffState('error');
     }
@@ -267,6 +273,7 @@ export function ConfigTab({
       })
       .catch((err) => {
         if (isAbortError(err)) return;
+        setErrorScope(null);
         setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare gli slot disponibili.'));
         setSlotsState('error');
       });
@@ -283,6 +290,7 @@ export function ConfigTab({
       setBlocks(payload.items);
       setBlocksState('ready');
     } catch (err) {
+      setErrorScope(null);
       setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare i blocchi pensione.'));
       setBlocksState('error');
     }
@@ -307,6 +315,7 @@ export function ConfigTab({
       })
       .catch((err) => {
         if (isAbortError(err)) return;
+        setErrorScope(null);
         setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare i blocchi pensione.'));
         setBlocksState('error');
       });
@@ -331,6 +340,7 @@ export function ConfigTab({
       })
       .catch((err) => {
         if (isAbortError(err)) return;
+        setErrorScope(null);
         setError(humanizeErrorMessage(err, 'Non siamo riusciti a caricare gli accessi staff.'));
         setStaffState('error');
       });
@@ -392,6 +402,7 @@ export function ConfigTab({
   }, [selectedDayKey]);
 
   const saveSlot = async () => {
+    setErrorScope('slot');
     setSavingSlot(true);
     setError(null);
     try {
@@ -459,6 +470,7 @@ export function ConfigTab({
   };
 
   const saveStaff = async () => {
+    setErrorScope('staff');
     if (isSelfStaffMember) {
       setError('Non puoi modificare il tuo stesso ruolo staff.');
       return;
@@ -486,6 +498,7 @@ export function ConfigTab({
   };
 
   const removeStaffMember = async (member: AdminStaffMember) => {
+    setErrorScope('staff');
     if (member.userId === currentUserId) {
       setError('Non puoi rimuovere il tuo stesso accesso staff.');
       return;
@@ -544,6 +557,7 @@ export function ConfigTab({
   };
 
   const deleteSlot = async () => {
+    setErrorScope('slot');
     if (!slotForm.slotId) return;
 
     const confirmed = await confirm({
@@ -613,6 +627,7 @@ export function ConfigTab({
   };
 
   const saveBlock = async () => {
+    setErrorScope('block');
     if (blockForm.endDate < blockForm.startDate) {
       setError('La data di fine deve essere uguale o successiva alla data di inizio.');
       return;
@@ -646,6 +661,7 @@ export function ConfigTab({
   };
 
   const deleteBlock = async () => {
+    setErrorScope('block');
     if (!blockForm.blockId) return;
     const confirmed = await confirm({
       keyword: 'ELIMINA',
@@ -680,7 +696,7 @@ export function ConfigTab({
 
   return (
     <div className="admin-blocks space-y-4">
-      {error ? <div className="ui-error">{error}</div> : null}
+      {error && errorScope === null ? <div className="ui-error">{error}</div> : null}
 
       {canManage ? (
       <Card>
@@ -746,6 +762,7 @@ export function ConfigTab({
                 <div className="ui-muted">Nessun utente trovato.</div>
               )
             ) : null}
+            {errorScope === 'staff' ? <FormError message={error} /> : null}
             <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]">
               <select
                 value={staffForm.role}
@@ -1077,6 +1094,7 @@ export function ConfigTab({
                     placeholder="Note slot"
                     disabled={!canManage || savingSlot || deletingSlot}
                   />
+                  {errorScope === 'slot' ? <FormError message={error} className="sm:col-span-2" /> : null}
                   {slotForm.slotId ? (
                     <Button
                       variant="danger"
@@ -1282,6 +1300,7 @@ export function ConfigTab({
                     />
                   </Field>
 
+                  {errorScope === 'block' ? <FormError message={error} /> : null}
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {blockForm.blockId ? (
                       <>

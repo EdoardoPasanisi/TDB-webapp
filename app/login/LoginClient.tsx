@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -93,8 +94,6 @@ export default function LoginClient() {
               </div>
             ) : null}
 
-            {error ? <div className="ui-error">{error}</div> : null}
-
             <form onSubmit={onSubmit} className="space-y-3">
               <Field label="Email" required>
                 <input
@@ -115,6 +114,8 @@ export default function LoginClient() {
                   required
                 />
               </Field>
+
+              <FormError message={error} />
 
               <Button type="submit" variant="primary" fullWidth disabled={loading}>
                 {loading ? 'Accesso…' : 'Accedi'}

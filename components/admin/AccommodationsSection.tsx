@@ -18,6 +18,7 @@ import { invalidateAccommodationCatalogCache } from '@/lib/services/pensione/hoo
 import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { EmptyCard, ErrorCard, LoadingCard, cx, formatEuro, type LoadState } from '@/components/admin/shared';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -216,7 +217,8 @@ export function AccommodationsSection() {
           subtitle="Prezzo totale al giorno in base a quanti cani porta lo stesso cliente (lo sconto per più cani è già dentro). Con la climatizzazione attiva, ogni cane in quell’alloggio paga il supplemento al giorno: il cliente lo vede nel preventivo e non può toglierlo. Vale per le prenotazioni create o modificate mentre è attiva."
         />
 
-        {error ? <div className="ui-error">{error}</div> : null}
+        {/* Col form aperto l'errore compare sopra "Salva". */}
+        {error && !form ? <div className="ui-error">{error}</div> : null}
 
         {state === 'ready' && bookable.length > 0 ? (
           <div className="ui-card flex flex-wrap items-center justify-between gap-3 p-3">
@@ -362,6 +364,7 @@ export function AccommodationsSection() {
                 />
               </Field>
 
+              <FormError message={error} />
               <div className="flex justify-end gap-2">
                 <Button variant="secondary" className="ui-btnCompact" onClick={() => setForm(null)} disabled={saving}>
                   Annulla

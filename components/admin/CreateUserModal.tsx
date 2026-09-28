@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { fetchAdminJson } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Field } from '@/components/ui/Field';
 import { ModalFrame } from '@/components/admin/shared';
 import { EMPTY_PROFILE_FORM, buildProfilePayload } from '@/components/admin/shared';
@@ -100,7 +101,6 @@ export function CreateUserModal({
         </div>
       ) : (
         <div className="space-y-4">
-          {error ? <div className="ui-error">{error}</div> : null}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Email" required>
               <input
@@ -139,6 +139,7 @@ export function CreateUserModal({
               />
             </Field>
           </div>
+          <FormError message={error} />
           <div className="flex justify-end gap-2">
             <Button type="button" variant="secondary" onClick={handleClose} disabled={submitting}>
               Annulla

@@ -15,6 +15,7 @@ import { computeGroomingPriceForDog, isSundayDate } from '@/lib/services/pension
 import { DogAvatar } from '@/components/dogs/DogAvatar';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Field } from '@/components/ui/Field';
 import type { AddressSearchApiResponse, AddressSuggestion } from '@/lib/address/addressSearch';
 import { TaxiQuote } from '@/components/services/common/TaxiQuote';
@@ -861,6 +862,8 @@ export function PensioneBookingForm(props: Props) {
           </div>
 
           <div className="grid grid-cols-1 gap-2">
+            <FormError message={error} />
+
             {showCancelEdit ? (
               <Button variant="secondary" fullWidth onClick={onCancelEdit}>
                 Annulla modifiche
@@ -875,8 +878,6 @@ export function PensioneBookingForm(props: Props) {
             >
               {saving ? 'Salvataggio…' : showCancelEdit ? 'Salva modifiche' : 'Crea prenotazione'}
             </Button>
-
-            {error ? <div className="ui-error">{error}</div> : null}
           </div>
         </CardContent>
       </Card>

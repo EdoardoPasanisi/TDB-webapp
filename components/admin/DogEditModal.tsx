@@ -85,12 +85,12 @@ export function DogEditModal({
       title={mode === 'create' ? 'Aggiungi pet' : `Modifica ${dog?.name ?? 'pet'}`}
       onClose={onClose}
     >
-      {error ? <div className="ui-error">{error}</div> : null}
       <DogForm
         mode={mode}
         initialDog={dog ?? null}
         onSubmit={handleSubmit}
         submitting={submitting}
+        submitError={error}
         deleting={deleting}
         photoEnabled={false}
         allowManualSize

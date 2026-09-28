@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { updateProfileForCurrentUser } from '@/lib/account/profileApi';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 
@@ -114,7 +115,8 @@ export function RequiredBookingProfileCard({
         </div>
 
         {loading ? <div className="ui-muted">Caricamento dati profilo…</div> : null}
-        {error ? <div className="ui-error">{error}</div> : null}
+        {/* Senza form (errore di caricamento) l'errore resta qui; col form va sopra il pulsante. */}
+        {error && loading ? <div className="ui-error">{error}</div> : null}
 
         {!loading ? (
           <>
@@ -147,6 +149,8 @@ export function RequiredBookingProfileCard({
                 className="ui-control ui-input"
               />
             </Field>
+
+            <FormError message={error} />
 
             <Button type="button" fullWidth onClick={() => void handleSave()} disabled={saving}>
               {saving ? 'Salvataggio…' : 'Salva e continua'}

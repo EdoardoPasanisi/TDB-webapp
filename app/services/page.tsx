@@ -9,7 +9,8 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { ServiceCards } from '@/components/services/ServiceCards';
 import { ServicePassCards } from '@/components/services/ServicePassCards';
 import { FissaDataModal } from '@/components/services/FissaDataModal';
-import { BookingSuccessScreen } from '@/components/services/BookingSuccessScreen';
+import { requiresDogs } from '@/types/services';
+import { BookingSuccessScreen, LIBRETTO_REMINDER } from '@/components/services/BookingSuccessScreen';
 
 import {
   getUserServicePasses,
@@ -40,6 +41,7 @@ export default function ServicesPage() {
 
   const [fixDateOpen, setFixDateOpen] = useState(false);
   const [bookingSuccessOpen, setBookingSuccessOpen] = useState(false);
+  const [bookedWithPet, setBookedWithPet] = useState(true);
   const [selectedPassGroupKey, setSelectedPassGroupKey] = useState<string | null>(null);
 
   const selectedPass = useMemo(
@@ -123,6 +125,8 @@ export default function ServicesPage() {
           userId={user.id}
           pass={selectedPass}
           onBooked={async () => {
+            // Promemoria libretto solo se il pet viene in struttura (non per la consulenza).
+            setBookedWithPet(selectedPass ? requiresDogs(selectedPass.serviceType) : true);
             setBookingSuccessOpen(true);
             try {
               const passes = await getUserServicePasses(user.id);
@@ -136,6 +140,7 @@ export default function ServicesPage() {
         <BookingSuccessScreen
           open={bookingSuccessOpen}
           onClose={() => setBookingSuccessOpen(false)}
+          reminder={bookedWithPet ? LIBRETTO_REMINDER : null}
         />
       </div>
     </main>

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -117,8 +118,6 @@ export default function ResetPasswordPage() {
               </div>
             ) : null}
 
-            {errorMessage ? <div className="ui-error">{errorMessage}</div> : null}
-
             <form onSubmit={handleSubmit} className="space-y-3">
               <Field label="Nuova password" required hint="Minimo 8 caratteri.">
                 <PasswordInput
@@ -137,6 +136,8 @@ export default function ResetPasswordPage() {
                   required
                 />
               </Field>
+
+              <FormError message={errorMessage} />
 
               <Button type="submit" variant="primary" fullWidth disabled={loading}>
                 {loading ? 'Salvataggio…' : 'Aggiorna password'}

@@ -17,6 +17,7 @@ import { isValidMicrochip, sanitizeMicrochip } from '@/lib/validation/italy';
 import { computeGroomingPriceForDog } from '@/lib/services/pensione/utils';
 import { isIosApp } from '@/lib/native/platform';
 import { pickPhotoNative } from '@/lib/native/camera';
+import { FormError } from '@/components/ui/FormError';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
@@ -89,6 +90,10 @@ interface DogFormProps {
   // Informazioni verificate e bloccate dallo staff: l'utente non può più modificare
   // nome sul libretto, razza, microchip e data di nascita (solo lo staff dal gestionale).
   infoLocked?: boolean;
+
+  // Errore del salvataggio arrivato da chi usa il form (es. risposta del server):
+  // lo mostriamo sopra "Salva" insieme agli errori di validazione.
+  submitError?: string | null;
 }
 
 export function DogForm({
@@ -98,6 +103,7 @@ export function DogForm({
   onCancel,
   onDelete,
   submitting,
+  submitError = null,
   deleting,
   onPhotoRemove,
 
@@ -390,14 +396,6 @@ export function DogForm({
             verificate e bloccate dallo staff e non sono più modificabili qui. Per correggerle
             contatta la struttura.
           </p>
-        </div>
-      ) : null}
-
-      {formError ? <div className="ui-error">{formError}</div> : null}
-
-      {submitNotice ? (
-        <div className="ui-alertWarn">
-          <p className="ui-body">{submitNotice}</p>
         </div>
       ) : null}
 
@@ -841,7 +839,15 @@ export function DogForm({
         </CardContent>
       </Card>
 
-      <div className="mt-6 pt-4 border-t border-[var(--border)]">
+      <div className="mt-6 pt-4 border-t border-[var(--border)] space-y-3">
+        <FormError message={formError ?? submitError} />
+
+        {submitNotice ? (
+          <div className="ui-alertWarn">
+            <p className="ui-body">{submitNotice}</p>
+          </div>
+        ) : null}
+
         <div className="grid gap-2 sm:grid-cols-2">
           <Button type="submit" variant="primary" disabled={submitting || photoUploading} fullWidth>
             {submitting ? 'Salvataggio…' : 'Salva'}

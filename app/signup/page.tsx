@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { getAuthRedirectBase } from '@/lib/auth/getAuthRedirectBase';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Field } from '@/components/ui/Field';
 import { PasswordInput } from '@/components/ui/PasswordInput';
@@ -81,8 +82,6 @@ export default function SignupPage() {
               <p className="ui-muted">Crea il tuo account per iniziare a usare l’app.</p>
             </div>
 
-            {error ? <div className="ui-error">{error}</div> : null}
-
             <form onSubmit={handleSubmit} className="space-y-3">
               <Field label="Email" required>
                 <input
@@ -103,6 +102,8 @@ export default function SignupPage() {
                   required
                 />
               </Field>
+
+              <FormError message={error} />
 
               <Button type="submit" variant="primary" fullWidth disabled={loading}>
                 {loading ? 'Creazione account…' : 'Crea account'}

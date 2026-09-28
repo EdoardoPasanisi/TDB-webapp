@@ -4,6 +4,7 @@ import type { AddressSuggestion } from '@/lib/address/addressSearch';
 import type { Profile as ProfileRow } from '@/types/profile';
 import type { ProfileFormState } from '@/types/forms';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 
@@ -32,6 +33,8 @@ interface ProfileDetailsProps {
   onSubmit: (event: FormEvent) => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
+  /** Errore del salvataggio (validazione o server): mostrato sopra "Salva". */
+  submitError?: string | null;
 }
 
 function formatAddressLine(
@@ -143,6 +146,7 @@ export function ProfileDetails({
   onSubmit,
   onStartEdit,
   onCancelEdit,
+  submitError = null,
 }: ProfileDetailsProps) {
   const ownerNamePreview = `${profile?.first_name ?? ''} ${profile?.last_name ?? ''}`.trim();
 
@@ -442,6 +446,8 @@ export function ProfileDetails({
                 </div>
               </DetailsBlock>
             </div>
+
+            <FormError message={submitError} />
 
             <div className="flex items-center gap-2">
               <Button type="submit" variant="primary" disabled={savingProfile}>

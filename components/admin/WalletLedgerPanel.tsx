@@ -9,6 +9,7 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import type { AdminWalletEntry } from '@/lib/admin/wallet';
 import { EmptyCard, formatDateTime, formatEuro } from '@/components/admin/shared';
 import { Button } from '@/components/ui/Button';
+import { FormError } from '@/components/ui/FormError';
 import { Field } from '@/components/ui/Field';
 
 const KIND_LABELS: Record<AdminWalletEntry['kind'], string> = {
@@ -84,7 +85,8 @@ export function WalletLedgerPanel({ userId, onChanged }: { userId: string; onCha
         ) : null}
       </div>
 
-      {error ? <div className="ui-error">{error}</div> : null}
+      {/* Col modulo di rettifica aperto l'errore compare sopra "Salva rettifica". */}
+      {error && !(open && adjustOpen) ? <div className="ui-error">{error}</div> : null}
 
       {open && adjustOpen ? (
         <div className="ui-card space-y-3 p-3">
@@ -126,6 +128,7 @@ export function WalletLedgerPanel({ userId, onChanged }: { userId: string; onCha
               />
             </Field>
           </div>
+          <FormError message={error} />
           <div className="flex justify-end gap-2">
             <Button variant="secondary" className="ui-btnCompact" onClick={() => setAdjustOpen(false)} disabled={saving}>
               Annulla

@@ -106,7 +106,8 @@ export default function NewDogPage() {
                 </Button>
               }
             />
-            {error ? <div className="ui-error">{error}</div> : null}
+            {/* Con il form aperto l'errore compare sopra "Salva" (dentro DogForm). */}
+            {error && !species ? <div className="ui-error">{error}</div> : null}
           </CardContent>
         </Card>
 
@@ -146,6 +147,7 @@ export default function NewDogPage() {
                 photoUploading={photoUploading}
                 onPhotoSelected={setPhotoFile}
                 onSubmit={handleSubmit}
+                submitError={error}
                 onCancel={() => setSpecies(null)}
               />
             </CardContent>

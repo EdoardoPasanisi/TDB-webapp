@@ -82,6 +82,8 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
   const [profileForm, setProfileForm] = useState(EMPTY_PROFILE_FORM);
   const [profileEditing, setProfileEditing] = useState(false);
   const [savingProfile, setSavingProfile] = useState(false);
+  // Errore del salvataggio profilo: sopra "Salva" nel form, non in cima alla colonna.
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [selectedDogId, setSelectedDogId] = useState<string | null>(null);
   const [editingDog, setEditingDog] = useState<Dog | null>(null);
   const [addingDog, setAddingDog] = useState(false);
@@ -212,7 +214,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     event.preventDefault();
     if (!selectedUserId) return;
     setSavingProfile(true);
-    setError(null);
+    setProfileSaveError(null);
     try {
       const nextProfile = await fetchAdminJson<Profile>(`/api/admin/users/${selectedUserId}`, {
         method: 'PATCH',
@@ -223,7 +225,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
       setProfileEditing(false);
       await loadUsers();
     } catch (err) {
-      setError(humanizeErrorMessage(err, 'Non siamo riusciti a salvare il profilo del cliente.'));
+      setProfileSaveError(humanizeErrorMessage(err, 'Non siamo riusciti a salvare il profilo del cliente.'));
     } finally {
       setSavingProfile(false);
     }
@@ -583,6 +585,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                 })
               }
               onSubmit={saveProfile}
+              submitError={profileSaveError}
               onStartEdit={async () => {
                 const ok = await confirm({
                   keyword: 'MODIFICA',
@@ -592,6 +595,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                 if (ok) setProfileEditing(true);
               }}
               onCancelEdit={() => {
+                setProfileSaveError(null);
                 setProfileEditing(false);
                 setProfileForm(initProfileForm(detail.profile));
               }}
