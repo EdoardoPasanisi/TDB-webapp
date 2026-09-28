@@ -174,6 +174,36 @@ export function AccommodationsSection() {
     }
   };
 
+  // Interruttore generale: sovrascrive la climatizzazione di tutti gli alloggi.
+  const bookable = items.filter((item) => item.active);
+  const climateOnCount = bookable.filter((item) => item.climateActive).length;
+  const allClimateOn = bookable.length > 0 && climateOnCount === bookable.length;
+  const [togglingClimate, setTogglingClimate] = useState(false);
+
+  const setClimateForAll = async (active: boolean) => {
+    const ok = await confirm({
+      keyword: 'MODIFICA',
+      title: active ? 'Attiva la climatizzazione su tutti gli alloggi' : 'Disattiva la climatizzazione su tutti gli alloggi',
+      message: active
+        ? 'Il supplemento climatizzazione si applica a tutti gli alloggi, sostituendo le scelte dei singoli alloggi. Vale per le prenotazioni create o modificate da ora.'
+        : 'Il supplemento climatizzazione viene tolto da tutti gli alloggi, sostituendo le scelte dei singoli alloggi. Le prenotazioni già salvate non cambiano.',
+    });
+    if (!ok) return;
+    setTogglingClimate(true);
+    setError(null);
+    try {
+      await fetchAdminJson('/api/admin/accommodations', {
+        method: 'PATCH',
+        body: JSON.stringify({ climateActive: active }),
+      });
+      await afterChange();
+    } catch (err) {
+      setError(humanizeErrorMessage(err, 'Non siamo riusciti ad aggiornare la climatizzazione.'));
+    } finally {
+      setTogglingClimate(false);
+    }
+  };
+
   const visible = items.filter((item) => showArchived || item.active);
   const archivedCount = items.filter((item) => !item.active).length;
   const price1 = form ? toNumber(form.price1) : 0;
@@ -187,6 +217,31 @@ export function AccommodationsSection() {
         />
 
         {error ? <div className="ui-error">{error}</div> : null}
+
+        {state === 'ready' && bookable.length > 0 ? (
+          <div className="ui-card flex flex-wrap items-center justify-between gap-3 p-3">
+            <div className="min-w-0">
+              <div className="ui-body font-[var(--font-weight-semibold)]">Climatizzazione su tutti gli alloggi</div>
+              <div className="ui-muted">
+                {allClimateOn
+                  ? 'Attiva su tutti gli alloggi.'
+                  : climateOnCount === 0
+                    ? 'Spenta su tutti gli alloggi.'
+                    : `Attiva su ${climateOnCount} alloggi su ${bookable.length}.`}{' '}
+                L’interruttore sovrascrive la scelta dei singoli alloggi.
+              </div>
+            </div>
+            <label className="flex shrink-0 items-center gap-2 ui-body">
+              <input
+                type="checkbox"
+                checked={allClimateOn}
+                disabled={togglingClimate}
+                onChange={(e) => void setClimateForAll(e.target.checked)}
+              />
+              {togglingClimate ? 'Aggiornamento…' : allClimateOn ? 'Attiva' : 'Spenta'}
+            </label>
+          </div>
+        ) : null}
 
         <div className="flex flex-wrap gap-2">
           <Button

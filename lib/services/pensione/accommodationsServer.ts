@@ -153,3 +153,16 @@ export async function setAccommodationActive(key: string, active: boolean): Prom
     .eq('key', key);
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Interruttore generale della climatizzazione: accende o spegne il supplemento su
+ * TUTTI gli alloggi in un colpo, sovrascrivendo le scelte dei singoli alloggi.
+ * Come per il singolo alloggio, vale per le prenotazioni create o modificate da ora.
+ */
+export async function setClimateForAllAccommodations(active: boolean): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('pensione_accommodations')
+    .update({ climate_active: active, updated_at: new Date().toISOString() })
+    .not('key', 'is', null);
+  if (error) throw new Error(error.message);
+}

@@ -6,6 +6,7 @@ import {
   createAccommodation,
   loadAccommodationCatalog,
   sanitizeAccommodationInput,
+  setClimateForAllAccommodations,
 } from '@/lib/services/pensione/accommodationsServer';
 
 // Catalogo completo, compresi gli alloggi eliminati (servono per le prenotazioni esistenti).
@@ -27,6 +28,21 @@ export async function POST(request: Request) {
     if (error instanceof AccommodationInputError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+    return adminErrorResponse(error);
+  }
+}
+
+// Interruttore generale: { climateActive: boolean } su tutti gli alloggi.
+export async function PATCH(request: Request) {
+  try {
+    await requireStaffAccess(request, 'manage');
+    const body = (await request.json().catch(() => null)) as { climateActive?: unknown } | null;
+    if (typeof body?.climateActive !== 'boolean') {
+      return NextResponse.json({ error: 'Valore non valido.' }, { status: 400 });
+    }
+    await setClimateForAllAccommodations(body.climateActive);
+    return NextResponse.json({ ok: true });
+  } catch (error) {
     return adminErrorResponse(error);
   }
 }
