@@ -8,7 +8,6 @@ import {
   formatTaxiOptionLabel,
 } from '@/components/admin/shared';
 import { buildDogCostLines } from '@/lib/services/pensione/breakdown';
-import type { AccommodationKey } from '@/types/booking';
 
 // Riepilogo prenotazione pensione ottimizzato per la stampa.
 // Gerarchia: arrivo/partenza, pet, proprietario e totale GRANDI; sistemazione,
@@ -67,7 +66,7 @@ export function PrintPensioneCard({ detail }: { detail: AdminBookingDetail }) {
         <div className="print-section-title">Voci di costo</div>
         {detail.dogs.map((dog) => {
           const lines = buildDogCostLines({
-            accommodationType: dog.pricing.accommodationType as AccommodationKey | null,
+            accommodationType: dog.pricing.accommodationType,
             accommodationPricePerDay: dog.pricing.accommodationPricePerDay,
             accommodationSubtotal: dog.pricing.accommodationSubtotal,
             daysCount: dog.pricing.daysCount,
@@ -105,7 +104,7 @@ export function PrintPensioneCard({ detail }: { detail: AdminBookingDetail }) {
         <div className="print-section-title">Sistemazione</div>
         {detail.dogs.map((dog) => (
           <div key={dog.dogId} className="print-row">
-            <strong>{dog.name}</strong>: {formatAccommodationTypeLabel(dog.pricing.accommodationType) ?? '—'}
+            <strong>{dog.name}</strong>: {formatAccommodationTypeLabel(dog.pricing.accommodationType, dog.extras) ?? '—'}
           </div>
         ))}
       </div>

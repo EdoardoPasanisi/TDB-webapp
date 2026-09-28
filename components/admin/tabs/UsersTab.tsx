@@ -8,6 +8,7 @@ import type {
   AdminServiceKey,
   AdminUserDetail,
   AdminUserListItem,
+  PaymentTag,
 } from '@/lib/admin/types';
 import { getAdminRoleLabel, getAdminServiceLabel } from '@/lib/admin/utils';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
@@ -40,17 +41,22 @@ import {
   type AdminDocumentEntry,
 } from '@/components/admin/shared';
 import { CreateUserModal } from '@/components/admin/CreateUserModal';
+import { WalletLedgerPanel } from '@/components/admin/WalletLedgerPanel';
 import { DogEditModal } from '@/components/admin/DogEditModal';
 import { AssignPassModal } from '@/components/admin/AssignPassModal';
 import { CreatePensioneBookingModal } from '@/components/admin/CreatePensioneBookingModal';
 import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { Modal } from '@/components/common/Modal';
 
-type UsersMode = 'all' | 'active' | 'deleted';
+const PAYMENT_TAG_OPTIONS: PaymentTag[] = ['C', 'CC'];
+
+type UsersMode = 'all' | 'active' | 'present' | 'deleted';
 
 const MODE_TABS: Array<{ key: UsersMode; label: string }> = [
   { key: 'all', label: 'Tutti' },
   { key: 'active', label: 'Prenotazioni attive' },
+  // Clienti con almeno un cane in pensione oggi (filtro lato server).
+  { key: 'present', label: 'Cani presenti' },
   { key: 'deleted', label: 'Eliminati' },
 ];
 
@@ -105,7 +111,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
   const buildListUrl = () =>
     isDeletedMode
       ? '/api/admin/users?status=deleted'
-      : `/api/admin/users?q=${encodeURIComponent(debouncedQuery)}`;
+      : `/api/admin/users?q=${encodeURIComponent(debouncedQuery)}${mode === 'present' ? '&present=1' : ''}`;
 
   const applyMode = (list: AdminUserListItem[]) =>
     mode === 'active' ? list.filter((item) => item.activeBookings > 0) : list;
@@ -398,7 +404,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     setSettleOpen(true);
   };
 
-  const handleSettleWallet = async () => {
+  const handleSettleWallet = async (tag: PaymentTag) => {
     if (!selectedUserId) return;
     const amount = Number(String(settleAmount).replace(',', '.'));
     if (!Number.isFinite(amount) || amount < 0) {
@@ -410,7 +416,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     try {
       await fetchAdminJson(`/api/admin/users/${selectedUserId}/settle`, {
         method: 'POST',
-        body: JSON.stringify({ amountEur: amount }),
+        body: JSON.stringify({ amountEur: amount, tag }),
       });
       setSettleOpen(false);
       await loadDetail(selectedUserId);
@@ -507,13 +513,14 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                 title="Saldo e pagamenti"
                 subtitle={
                   canManage
-                    ? "Conferma l'incasso per azzerare il saldo e sbloccare i pacchetti."
+                    ? "Il saldo segue da solo i servizi del cliente. Conferma l'incasso per azzerarlo e sbloccare i pacchetti."
                     : 'Saldo dovuto dal cliente (sola lettura).'
                 }
               />
               <div className="flex items-center justify-between gap-3">
                 <div className="ui-body">
-                  Saldo attuale: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>
+                  {walletDue < 0 ? 'Credito del cliente' : 'Saldo attuale'}:{' '}
+                  <span className="font-[var(--font-weight-bold)]">€ {Math.abs(walletDue).toFixed(2)}</span>
                 </div>
                 {canManage ? (
                   <button
@@ -526,6 +533,9 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                   </button>
                 ) : null}
               </div>
+              {canManage && selectedUserId ? (
+                <WalletLedgerPanel userId={selectedUserId} onChanged={() => void loadDetail(selectedUserId)} />
+              ) : null}
             </CardContent>
           </Card>
 
@@ -879,7 +889,9 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                   ? 'Nessun cliente eliminato.'
                   : mode === 'active'
                     ? 'Nessun cliente con prenotazioni attive.'
-                    : 'Nessun cliente trovato.'
+                    : mode === 'present'
+                      ? 'Nessun cane presente in struttura oggi.'
+                      : 'Nessun cliente trovato.'
               }
             />
           ) : null}
@@ -988,8 +1000,11 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
         <div className="space-y-4">
           <div className="ui-muted">
             Saldo da pagare: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>. Conferma
-            l&apos;importo effettivamente incassato (modificabile in caso di sconto). Il saldo verrà azzerato e i pacchetti
-            in attesa verranno sbloccati.
+            l&apos;importo effettivamente incassato, poi scegli <strong>C</strong> o <strong>CC</strong>: il pagamento
+            finisce nella lista corrispondente dell&apos;analisi ricavi. Se incassi meno del saldo la differenza viene
+            registrata come sconto; se incassi di più resta come credito. Le prenotazioni risultano pagate e i pacchetti
+            in attesa vengono sbloccati. I pagamenti <strong>C</strong> sono quelli di prova: si possono eliminare tutti
+            insieme dall&apos;analisi.
           </div>
           <div className="space-y-1">
             <label className="ui-muted">Importo incassato (€)</label>
@@ -1013,14 +1028,18 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
             >
               Annulla
             </button>
-            <button
-              type="button"
-              className="ui-btn ui-btnTone-primary ui-btnCompact"
-              onClick={() => void handleSettleWallet()}
-              disabled={settleSubmitting}
-            >
-              {settleSubmitting ? 'Salvataggio…' : 'Conferma pagamento'}
-            </button>
+            {PAYMENT_TAG_OPTIONS.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="ui-btn ui-btnTone-primary ui-btnCompact min-w-[64px]"
+                onClick={() => void handleSettleWallet(tag)}
+                disabled={settleSubmitting}
+                aria-label={`Registra pagamento come ${tag}`}
+              >
+                {settleSubmitting ? '…' : tag}
+              </button>
+            ))}
           </div>
         </div>
       </Modal>

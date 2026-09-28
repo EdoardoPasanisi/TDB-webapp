@@ -3,7 +3,12 @@
 // (app/api/admin/pensione-bookings) per creare prenotazioni per conto di un utente.
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { formatPersonName } from '@/lib/admin/utils';
-import { accommodationOptionsForSpecies, DEFAULT_TAXI } from '@/lib/services/pensione/constants';
+import { DEFAULT_TAXI } from '@/lib/services/pensione/constants';
+import {
+  accommodationOptionsForSpecies,
+  type AccommodationCatalog,
+} from '@/lib/services/pensione/accommodations';
+import { loadAccommodationCatalog } from '@/lib/services/pensione/accommodationsServer';
 import {
   buildExtrasPayload,
   computeDaysCount,
@@ -113,13 +118,14 @@ export function buildBookingPayload(args: {
 }
 
 export function buildBookingDogsPayload(args: {
+  catalog: AccommodationCatalog;
   bookingId: string;
   selectedDogIds: string[];
   dogs: Map<string, DogLite>;
   perDogForm: Record<string, PerDogForm>;
   daysCount: number;
 }): StoredBookingDogRow[] {
-  const { bookingId, selectedDogIds, dogs, perDogForm, daysCount } = args;
+  const { catalog, bookingId, selectedDogIds, dogs, perDogForm, daysCount } = args;
 
   return selectedDogIds.map((dogId) => {
     const dog = dogs.get(dogId);
@@ -129,8 +135,8 @@ export function buildBookingDogsPayload(args: {
       throw new PensioneBookingError('Dati cane mancanti.');
     }
 
-    const extras = buildExtrasPayload(form);
-    const totals = computePerDogTotals({ dog, form, daysCount, totalDogs: selectedDogIds.length });
+    const extras = buildExtrasPayload(form, catalog);
+    const totals = computePerDogTotals({ catalog, dog, form, daysCount, totalDogs: selectedDogIds.length });
 
     return {
       booking_id: bookingId,
@@ -147,6 +153,26 @@ export function buildBookingDogsPayload(args: {
 }
 
 /**
+ * Verifica che ogni cane abbia un alloggio attivo e adatto alla sua specie. Torna il
+ * messaggio d'errore da mostrare, o null se è tutto a posto. Condiviso con la rotta utente.
+ */
+export function findAccommodationSelectionError(
+  catalog: AccommodationCatalog,
+  dogs: Array<Pick<OwnedDogRow, 'id' | 'name' | 'species'>>,
+  input: Pick<SavePensioneBookingInput, 'perDogForm'>
+): string | null {
+  for (const dog of dogs) {
+    const allowed = accommodationOptionsForSpecies(catalog, dog.species ?? 'DOG');
+    const form = input.perDogForm[dog.id];
+    if (allowed.length === 0) return `${dog.name} non è prenotabile in pensione.`;
+    if (form && !allowed.some((item) => item.key === form.accommodationType)) {
+      return `Alloggio non valido per ${dog.name}.`;
+    }
+  }
+  return null;
+}
+
+/**
  * Carica e valida i cani selezionati per un dato proprietario, calcola il prezzo
  * e costruisce la mappa cani. Condiviso tra creazione utente e gestionale.
  */
@@ -155,8 +181,14 @@ export async function loadAndPricePensioneBooking(args: {
   input: SavePensioneBookingInput;
   daysCount: number;
   enforcePetRequirements: boolean;
-}): Promise<{ dogMap: Map<string, DogLite>; pricing: ReturnType<typeof computePricing>; ownedDogRows: OwnedDogRow[] }> {
+}): Promise<{
+  dogMap: Map<string, DogLite>;
+  pricing: ReturnType<typeof computePricing>;
+  ownedDogRows: OwnedDogRow[];
+  catalog: AccommodationCatalog;
+}> {
   const { userId, input, daysCount, enforcePetRequirements } = args;
+  const catalog = await loadAccommodationCatalog();
 
   const { data: ownedDogs, error: dogsError } = await supabaseAdmin
     .from('dogs')
@@ -191,18 +223,10 @@ export async function loadAndPricePensioneBooking(args: {
     }
   }
 
-  // Alloggio coerente con la specie (cane: no gattile; gatto: solo gattile; altro: non prenotabile).
-  for (const dog of ownedDogRows) {
-    const species = dog.species ?? 'DOG';
-    const allowed = accommodationOptionsForSpecies(species);
-    const chosen = input.perDogForm[dog.id]?.accommodationType;
-    if (allowed.length === 0) {
-      throw new PensioneBookingError(`${dog.name} non è prenotabile in pensione.`);
-    }
-    if (chosen && !allowed.includes(chosen)) {
-      throw new PensioneBookingError(`Alloggio non valido per ${dog.name}.`);
-    }
-  }
+  // Alloggio attivo e coerente con la specie (cane: no gattile; gatto: solo gattile;
+  // altro: non prenotabile).
+  const accommodationError = findAccommodationSelectionError(catalog, ownedDogRows, input);
+  if (accommodationError) throw new PensioneBookingError(accommodationError);
 
   const dogMap = new Map<string, DogLite>(
     ownedDogRows.map((dog) => [
@@ -219,6 +243,7 @@ export async function loadAndPricePensioneBooking(args: {
   );
 
   const pricing = computePricing({
+    catalog,
     selectedDogIds: input.selectedDogIds,
     daysCount,
     dogs: Array.from(dogMap.values()),
@@ -231,7 +256,7 @@ export async function loadAndPricePensioneBooking(args: {
     throw new PensioneBookingError('Impossibile calcolare il prezzo.');
   }
 
-  return { dogMap, pricing, ownedDogRows };
+  return { dogMap, pricing, ownedDogRows, catalog };
 }
 
 /**
@@ -263,7 +288,7 @@ export async function createPensioneBooking(args: {
   const daysCount = computeDaysCount(input.startDate, input.endDate, input.departureTime);
   if (daysCount <= 0) throw new PensioneBookingError('Date prenotazione non valide.');
 
-  const { dogMap, pricing, ownedDogRows } = await loadAndPricePensioneBooking({
+  const { dogMap, pricing, ownedDogRows, catalog } = await loadAndPricePensioneBooking({
     userId,
     input,
     daysCount,
@@ -305,6 +330,7 @@ export async function createPensioneBooking(args: {
 
   const bookingId = String(bookingInsert.id);
   const bookingDogsPayload = buildBookingDogsPayload({
+    catalog,
     bookingId,
     selectedDogIds: input.selectedDogIds,
     dogs: dogMap,

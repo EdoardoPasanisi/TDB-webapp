@@ -11,7 +11,9 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const query = sanitizeSearchQuery(searchParams.get('q') ?? '');
-    const dogs = await searchAdminDogs(query, 50, access.canManage ? 'full' : 'limited');
+    const dogs = await searchAdminDogs(query, 50, access.canManage ? 'full' : 'limited', {
+      presentOnly: searchParams.get('present') === '1',
+    });
 
     return NextResponse.json({ items: dogs });
   } catch (error) {

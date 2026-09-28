@@ -31,6 +31,7 @@ import {
   type LoadState,
 } from '@/components/admin/shared';
 import { useConfirm } from '@/components/admin/ConfirmProvider';
+import { AccommodationsSection } from '@/components/admin/AccommodationsSection';
 import { BreedCombobox } from '@/components/dogs/BreedCombobox';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -1101,6 +1102,8 @@ export function ConfigTab({
           </div>
         </CardContent>
       </Card>
+
+      {canManage ? <AccommodationsSection /> : null}
 
       <Card>
         <CardContent className="space-y-3">

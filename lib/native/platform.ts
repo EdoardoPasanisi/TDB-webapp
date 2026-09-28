@@ -6,22 +6,40 @@
 //  - nessun modulo Capacitor viene mai importato/eseguito in un browser, perché
 //    l'import di `@capacitor/core` è dinamico e avviene solo lato client.
 //
-// La distinzione ios/android NON si basa sulla classe `.native-app` (condivisa dalle
-// due app), ma sul platform runtime esposto dal bridge nativo di Capacitor.
+// La distinzione ios/android usa il platform runtime esposto dal bridge nativo di
+// Capacitor, con lo user-agent del guscio come rete di sicurezza (vedi sotto).
 
 export type NativePlatform = 'ios' | 'android' | 'web';
 
 let cached: NativePlatform | undefined;
 
+// Il guscio nativo aggiunge 'TDBApp' allo user-agent (capacitor.config.ts →
+// appendUserAgent): è la fonte più affidabile per sapere SE siamo nell'app, perché
+// c'è dal primo byte della pagina. `Capacitor.getPlatform()` invece dipende dal bridge
+// iniettato dal guscio: se `@capacitor/core` viene valutato prima che il bridge sia
+// pronto (capitava su Android) risponde 'web', e quel 'web' finiva in cache per tutta
+// la sessione → pulsanti social visibili "a volte" e flusso OAuth web dentro l'app.
+function platformFromUserAgent(): NativePlatform {
+  const ua = navigator.userAgent;
+  if (ua.indexOf('TDBApp') === -1) return 'web';
+  return /Android/i.test(ua) ? 'android' : 'ios';
+}
+
 export async function getNativePlatform(): Promise<NativePlatform> {
   if (cached) return cached;
   if (typeof window === 'undefined') return 'web';
+  const fromUserAgent = platformFromUserAgent();
+  // Nei browser lo user-agent non contiene mai 'TDBApp': niente Capacitor da caricare.
+  if (fromUserAgent === 'web') {
+    cached = 'web';
+    return cached;
+  }
   try {
     const { Capacitor } = await import('@capacitor/core');
     const platform = Capacitor.getPlatform();
-    cached = platform === 'ios' || platform === 'android' ? platform : 'web';
+    cached = platform === 'ios' || platform === 'android' ? platform : fromUserAgent;
   } catch {
-    cached = 'web';
+    cached = fromUserAgent;
   }
   return cached;
 }

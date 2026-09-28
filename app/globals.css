@@ -929,6 +929,22 @@ button {
     --safe-top: max(env(safe-area-inset-top), 24px);
   }
 
+  /* Android: il guscio è edge-to-edge (obbligatorio da Android 15) e le safe-area le
+     misura il plugin SystemBars di Capacitor, che le espone in --safe-area-inset-*.
+     Su WebView < 140 env(safe-area-inset-*) vale 0 anche sotto le barre e il guscio
+     sposta già la WebView fuori da status bar / barra di navigazione (variabili a 0):
+     il minimo di 24px pensato per iPad qui aggiungerebbe una fascia vuota in alto. */
+  .native-app.native-android {
+    --safe-top: var(--safe-area-inset-top, env(safe-area-inset-top));
+    --safe-bottom: var(--safe-area-inset-bottom, env(safe-area-inset-bottom));
+  }
+
+  /* Pulsanti social: nell'app restano nascosti finché non sappiamo quali provider
+     nativi esistono (vedi SocialAuthButtons). */
+  .native-app [data-social-pending] {
+    display: none;
+  }
+
   /* Bottom-nav (via di mezzo): nel browser mobile l'extra +8px la tiene sopra la barra
      del browser; nell'app riduciamo l'arancione sopra l'home indicator senza azzerarlo,
      e abbassiamo un po' la riga icone. */

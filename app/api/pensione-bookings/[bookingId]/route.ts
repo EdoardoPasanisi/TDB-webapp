@@ -39,13 +39,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Prenotazione non trovata.' }, { status: 404 });
     }
 
-    const status = String(booking.status ?? '');
-    const wasOutstanding = status === 'CONFIRMED' || status === 'COMPLETED';
-    const total = Number((booking as { total_price?: number | null }).total_price ?? 0);
-    if (wasOutstanding && Number.isFinite(total) && total > 0) {
-      await supabaseAdmin.rpc('add_wallet_due', { p_user_id: userId, p_amount_eur: -total });
-    }
-
+    // Lo storno dal saldo lo fa il trigger all'eliminazione (registro movimenti).
     await supabaseAdmin.from('booking_dogs').delete().eq('booking_id', bookingId);
     const { error: deleteError } = await supabaseAdmin
       .from('bookings')

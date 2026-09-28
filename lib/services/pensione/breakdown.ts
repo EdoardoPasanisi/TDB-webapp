@@ -2,19 +2,14 @@
 // stampa per mostrare di quali costi si compone il prezzo finale.
 import type { AccommodationKey, BookingDogExtras } from '@/types/booking';
 import type { DogSize, WashDifficulty } from '@/data/dogBreeds';
-import { ACCOMMODATION_PRICES, EXTRA_PRICES } from './constants';
+import { EXTRA_PRICES } from './constants';
+import { resolveAccommodationLabel } from './accommodations';
 import { computeGroomingPriceForDog } from './utils';
 import type { DogLite } from './types';
 
 export interface PensioneCostLine {
   label: string;
   amount: number;
-}
-
-function accommodationLabel(type: AccommodationKey | string | null): string {
-  if (!type) return 'Alloggio';
-  const known = ACCOMMODATION_PRICES[type as AccommodationKey];
-  return known?.label ?? 'Alloggio';
 }
 
 /**
@@ -37,9 +32,16 @@ export function buildDogCostLines(args: {
   const days = daysCount ?? 0;
   const subtotal = accommodationSubtotal ?? perDay * days;
   const perDayLabel = perDay > 0 && days > 0 ? ` (${perDay}€/g × ${days} gg)` : '';
-  lines.push({ label: `${accommodationLabel(accommodationType)}${perDayLabel}`, amount: subtotal });
+  const label = resolveAccommodationLabel(accommodationType, { extras }) ?? 'Alloggio';
+  lines.push({ label: `${label}${perDayLabel}`, amount: subtotal });
 
   if (!extras) return lines;
+
+  if (extras.climate) {
+    const climatePerDay = extras.climatePricePerDay ?? 0;
+    const climateDays = days > 0 ? ` (${climatePerDay}€/g × ${days} gg)` : '';
+    lines.push({ label: `Climatizzazione${climateDays}`, amount: climatePerDay * days });
+  }
 
   if (extras.grooming) {
     const grooming = computeGroomingPriceForDog({

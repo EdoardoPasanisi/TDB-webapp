@@ -2,9 +2,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { AccommodationKey, TaxiOption } from '@/types/booking';
+import type { TaxiOption } from '@/types/booking';
 import type { DogLite, PerDogForm, PensionePricing } from '@/lib/services/pensione/types';
-import { ACCOMMODATION_PRICES, accommodationOptionsForSpecies } from '@/lib/services/pensione/constants';
+import {
+  accommodationClimatePricePerDay,
+  accommodationOptionsForSpecies,
+  accommodationPricePerDay,
+  findAccommodation,
+  type AccommodationCatalog,
+} from '@/lib/services/pensione/accommodations';
 import { computeGroomingPriceForDog, isSundayDate } from '@/lib/services/pensione/utils';
 import { DogAvatar } from '@/components/dogs/DogAvatar';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -50,6 +56,8 @@ type Props = {
   notes: string;
 
   perDogForm: Record<string, PerDogForm>;
+  /** Alloggi e prezzi gestiti dal gestionale. */
+  accommodationCatalog: AccommodationCatalog;
 
   daysCount: number;
   pricing: PensionePricing;
@@ -195,6 +203,7 @@ export function PensioneBookingForm(props: Props) {
     showTaxiServiceAddressEditor,
     notes,
     perDogForm,
+    accommodationCatalog,
     daysCount,
     pricing,
     onToggleDog,
@@ -659,7 +668,8 @@ export function PensioneBookingForm(props: Props) {
 
 	              const groomingPrice = computeGroomingPriceForDog(dog);
 	              const therapyMissing = form.therapy === '';
-	              const accommodation = ACCOMMODATION_PRICES[form.accommodationType];
+	              const accommodation = findAccommodation(accommodationCatalog, form.accommodationType);
+	              const climatePrice = accommodationClimatePricePerDay(accommodationCatalog, form.accommodationType);
 
 	              return (
 	                <div key={dogId} className="ui-card p-4 space-y-4 ui-minw0">
@@ -676,22 +686,21 @@ export function PensioneBookingForm(props: Props) {
 	                  <Field label="Alloggio *">
 	                    <select
 	                      value={form.accommodationType}
-	                      onChange={(e) =>
-	                        onUpdatePerDogField(dogId, 'accommodationType', e.target.value as AccommodationKey)
-	                      }
+	                      onChange={(e) => onUpdatePerDogField(dogId, 'accommodationType', e.target.value)}
 	                      className="ui-control ui-select"
 	                    >
-	                      {(Object.entries(ACCOMMODATION_PRICES) as Array<
-	                        [AccommodationKey, { label: string; pricePerDay: number }]
-	                      >)
-	                        .filter(([key]) => accommodationOptionsForSpecies(dog.species ?? 'DOG').includes(key))
-	                        .map(([key, info]) => (
-	                          <option key={key} value={key}>
-	                            {info.label} — {info.pricePerDay}€/giorno
-	                          </option>
-	                        ))}
+	                      {accommodationOptionsForSpecies(accommodationCatalog, dog.species ?? 'DOG').map((item) => (
+	                        <option key={item.key} value={item.key}>
+	                          {/* Prezzo a cane già scontato per il numero di pet selezionati. */}
+	                          {item.label} — {accommodationPricePerDay(accommodationCatalog, item.key, selectedDogIds.length)}€/giorno
+	                        </option>
+	                      ))}
 	                    </select>
 	                  </Field>
+
+	                  {climatePrice > 0 ? (
+	                    <div className="ui-muted">Climatizzazione inclusa: +{climatePrice}€/giorno</div>
+	                  ) : null}
 
                   {/* ✅ NO CHECKBOX: solo card selezionabili */}
                   <div className="space-y-2 ui-minw0">
@@ -831,9 +840,17 @@ export function PensioneBookingForm(props: Props) {
               Totale alloggi:{' '}
               <span className="font-[var(--font-weight-semibold)]">{pricing.alloggioTotalDiscounted.toFixed(2)}€</span>
             </div>
+            {pricing.climateTotal > 0 ? (
+              <div>
+                Climatizzazione:{' '}
+                <span className="font-[var(--font-weight-semibold)]">{pricing.climateTotal.toFixed(2)}€</span>
+              </div>
+            ) : null}
             <div>
               Totale extra (incluso taxi):{' '}
-              <span className="font-[var(--font-weight-semibold)]">{pricing.extrasTotal.toFixed(2)}€</span>
+              <span className="font-[var(--font-weight-semibold)]">
+                {(pricing.extrasTotal - pricing.climateTotal).toFixed(2)}€
+              </span>
             </div>
             <div className="pt-2 ui-h2">
               Totale preventivo:{' '}

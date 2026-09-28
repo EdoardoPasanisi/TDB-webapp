@@ -40,7 +40,8 @@ export interface PensionePricing {
   alloggioTotalFull: number;
   alloggioTotalDiscounted: number;
 
-  extrasTotal: number; // include taxi
+  extrasTotal: number; // include taxi e climatizzazione
+  climateTotal: number; // parte di extrasTotal dovuta alla climatizzazione
   taxiPrice: number;
 
   totalPrice: number;

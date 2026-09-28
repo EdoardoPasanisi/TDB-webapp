@@ -1,4 +1,4 @@
-// Login social nativo (Apple / Google) — SOLO app iOS.
+// Login social nativo: Apple + Google su iOS, solo Google su Android.
 //
 // Perché non basta `signInWithOAuth` dentro l'app: quella chiamata naviga la WebView
 // verso l'endpoint /authorize di Supabase, che sta su un host diverso da `server.url`.
@@ -39,17 +39,32 @@ export type SocialProvider = 'apple' | 'google';
 // significherebbe ricadere nel flusso web, cioè nel bug che ha causato il reject.
 const GOOGLE_IOS_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_IOS_CLIENT_ID?.trim() ?? '';
 
+// Android (Credential Manager) vuole il client **Web** — lo stesso configurato come
+// provider Google su Supabase — e l'id_token torna con `aud` = questo client. Google
+// autorizza l'app tramite un client separato di tipo Android (package + SHA-1 della
+// chiave di firma Play), che non compare nel codice. Stessa regola di iOS: senza
+// client id il pulsante Google su Android non viene mostrato.
+//
+// Apple su Android non c'è: non esiste un SDK nativo, il plugin passerebbe da una
+// Custom Tab con redirect su un backend nostro. Google Play non lo richiede.
+const GOOGLE_WEB_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID?.trim() ?? '';
+
 let initialization: Promise<void> | null = null;
 
 async function loadPlugin() {
   const { SocialLogin } = await import('@capgo/capacitor-social-login');
 
   if (!initialization) {
-    initialization = SocialLogin.initialize({
-      // Su iOS il client Apple è il bundle id dell'app: niente da configurare.
-      apple: {},
-      ...(GOOGLE_IOS_CLIENT_ID ? { google: { iOSClientId: GOOGLE_IOS_CLIENT_ID } } : {}),
-    }).catch((error: unknown) => {
+    const platform = await getNativePlatform();
+    initialization = SocialLogin.initialize(
+      platform === 'android'
+        ? { google: { webClientId: GOOGLE_WEB_CLIENT_ID } }
+        : {
+            // Su iOS il client Apple è il bundle id dell'app: niente da configurare.
+            apple: {},
+            ...(GOOGLE_IOS_CLIENT_ID ? { google: { iOSClientId: GOOGLE_IOS_CLIENT_ID } } : {}),
+          },
+    ).catch((error: unknown) => {
       initialization = null; // consente un nuovo tentativo al prossimo tap
       throw error;
     });
@@ -76,11 +91,13 @@ async function sha256Hex(value: string): Promise<string> {
 
 /**
  * Provider utilizzabili in modalità nativa sulla piattaforma corrente.
- * Nel browser (e su Android, che usa ancora il flusso web) torna sempre [].
+ * Nel browser torna sempre [] (lì si usa il flusso OAuth web).
  */
 export async function getNativeSocialProviders(): Promise<SocialProvider[]> {
-  if ((await getNativePlatform()) !== 'ios') return [];
-  return GOOGLE_IOS_CLIENT_ID ? ['apple', 'google'] : ['apple'];
+  const platform = await getNativePlatform();
+  if (platform === 'ios') return GOOGLE_IOS_CLIENT_ID ? ['apple', 'google'] : ['apple'];
+  if (platform === 'android') return GOOGLE_WEB_CLIENT_ID ? ['google'] : [];
+  return [];
 }
 
 /** L'utente ha chiuso il foglio di login: non è un errore da mostrare. */
@@ -109,9 +126,12 @@ export async function signInWithNativeProvider(provider: SocialProvider): Promis
     });
     idToken = result.idToken;
   } else {
+    // Su Android email/profile/openid sono già i default del plugin, e passare `scopes`
+    // espliciti fa rifiutare il login (richiederebbe di modificare MainActivity).
+    const isAndroid = (await getNativePlatform()) === 'android';
     const { result } = await SocialLogin.login({
       provider: 'google',
-      options: { scopes: ['email', 'profile'] },
+      options: isAndroid ? {} : { scopes: ['email', 'profile'] },
     });
     // In modalità 'offline' il plugin torna solo un serverAuthCode: qui usiamo la
     // default 'online', che include l'id_token.

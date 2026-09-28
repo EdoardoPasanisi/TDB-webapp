@@ -160,6 +160,30 @@ export type AdminAnalytics = {
   }>;
 };
 
+/** Etichetta del pagamento scelta in "Segna come pagato" (due liste separate per l'analisi ricavi). */
+export type PaymentTag = 'C' | 'CC';
+
+export type AdminPaymentEntry = {
+  id: string;
+  userId: string;
+  customerName: string;
+  amountEur: number;
+  paidAt: string;
+};
+
+export type AdminPaymentsByTag = {
+  tags: Array<{
+    tag: PaymentTag;
+    totalEur: number;
+    last30DaysEur: number;
+    count: number;
+    /** Ultimi pagamenti (i più recenti per primi). */
+    items: AdminPaymentEntry[];
+  }>;
+  /** Pagamenti registrati prima dell'introduzione dei tag. */
+  untagged: { totalEur: number; count: number };
+};
+
 export type AdminUserDetail = {
   userId: string;
   profile: Profile | null;

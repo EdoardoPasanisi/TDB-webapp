@@ -20,14 +20,10 @@ export type BookingStatus =
 export type TaxiOption = 'NONE' | 'ONE_WAY' | 'RETURN_ONLY' | 'ROUND_TRIP';
 export type TaxiDistanceBand = 'ENTRO_40' | 'OLTRE_40';
 
-export type AccommodationKey =
-  | 'BOX'
-  | 'BOX_GARDEN'
-  | 'CHALET'
-  | 'APT_GARDEN'
-  | 'APT_GARDEN_NIGHT_PERSON'
-  | 'HOTEL'
-  | 'CATTERY';
+// Chiave di un alloggio del catalogo `pensione_accommodations` (gestito dal gestionale).
+// Gli alloggi di serie sono BOX, BOX_GARDEN, CHALET, APT_GARDEN, APT_GARDEN_NIGHT_PERSON,
+// HOTEL, CATTERY; lo staff può aggiungerne altri.
+export type AccommodationKey = string;
 
 export interface BookingDogExtras {
   grooming?: boolean;
@@ -38,6 +34,13 @@ export interface BookingDogExtras {
   trekkingSessions?: number; // Trekking in campagna
   therapyActive?: boolean;
   therapyNotes?: string;
+  // Climatizzazione applicata dal gestionale all'alloggio: prezzo €/giorno storicizzato
+  // al momento della prenotazione (il cliente non la sceglie).
+  climate?: boolean;
+  climatePricePerDay?: number;
+  // Nome dell'alloggio al momento della prenotazione (resta leggibile anche se poi
+  // l'alloggio viene rinominato o eliminato dal gestionale).
+  accommodationLabel?: string;
 }
 
 export interface BookingRow {

@@ -10,9 +10,14 @@ import {
   getMissingRequiredPetBookingFields,
   type CustomerBookingRequirementProfile,
 } from '@/lib/bookings/customerBookingRequirements';
-import { accommodationOptionsForSpecies, DEFAULT_TAXI } from '@/lib/services/pensione/constants';
+import { DEFAULT_TAXI } from '@/lib/services/pensione/constants';
+import { loadAccommodationCatalog } from '@/lib/services/pensione/accommodationsServer';
 import { isPlainObject, normalizeUuid, parsePensioneBookingInput } from '@/lib/services/pensione/parseInput';
-import { buildBookingPayload, buildBookingDogsPayload } from '@/lib/services/pensione/persist';
+import {
+  buildBookingPayload,
+  buildBookingDogsPayload,
+  findAccommodationSelectionError,
+} from '@/lib/services/pensione/persist';
 import { findPensioneBlockConflict, formatBlockedPeriodsMessage } from '@/lib/admin/pensioneBlocks';
 import type { DogLite } from '@/lib/services/pensione/types';
 import {
@@ -211,23 +216,12 @@ export async function POST(request: Request) {
       }
     }
 
-    // Alloggio coerente con la specie (cane: no gattile; gatto: solo gattile; altro: non prenotabile).
-    for (const dog of ownedDogRows) {
-      const species = dog.species ?? 'DOG';
-      const allowed = accommodationOptionsForSpecies(species);
-      const chosen = input.perDogForm[dog.id]?.accommodationType;
-      if (allowed.length === 0) {
-        return NextResponse.json(
-          { error: `${dog.name} non è prenotabile in pensione.` },
-          { status: 400 }
-        );
-      }
-      if (chosen && !allowed.includes(chosen)) {
-        return NextResponse.json(
-          { error: `Alloggio non valido per ${dog.name}.` },
-          { status: 400 }
-        );
-      }
+    // Alloggio attivo e coerente con la specie (cane: no gattile; gatto: solo gattile;
+    // altro: non prenotabile).
+    const catalog = await loadAccommodationCatalog();
+    const accommodationError = findAccommodationSelectionError(catalog, ownedDogRows, input);
+    if (accommodationError) {
+      return NextResponse.json({ error: accommodationError }, { status: 400 });
     }
 
     const dogMap = new Map<string, DogLite>(
@@ -245,6 +239,7 @@ export async function POST(request: Request) {
     );
 
     const pricing = computePricing({
+      catalog,
       selectedDogIds: input.selectedDogIds,
       daysCount,
       dogs: Array.from(dogMap.values()),
@@ -325,6 +320,7 @@ export async function POST(request: Request) {
       }
 
       const nextBookingDogs = buildBookingDogsPayload({
+        catalog,
         bookingId: input.bookingId,
         selectedDogIds: input.selectedDogIds,
         dogs: dogMap,
@@ -381,6 +377,7 @@ export async function POST(request: Request) {
 
     const bookingId = String(bookingInsert.id);
     const bookingDogsPayload = buildBookingDogsPayload({
+      catalog,
       bookingId,
       selectedDogIds: input.selectedDogIds,
       dogs: dogMap,

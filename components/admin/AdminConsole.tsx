@@ -129,7 +129,7 @@ export function AdminConsole({ initialTabFromQuery = null }: { initialTabFromQue
 
   const tabContent = useMemo(() => {
     if (effectiveTab === 'overview') return <OverviewTab canManage={canManage} />;
-    if (effectiveTab === 'analytics') return <AnalyticsTab />;
+    if (effectiveTab === 'analytics') return <AnalyticsTab canManage={canManage} />;
     if (effectiveTab === 'users') return <UsersTab canManage={canManage} />;
     if (effectiveTab === 'dogs') return <DogsTab canManage={canManage} />;
     if (effectiveTab === 'services') return <ServicesTab canManage={canManage} />;

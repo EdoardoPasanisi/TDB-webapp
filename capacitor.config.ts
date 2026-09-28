@@ -40,6 +40,16 @@ const config: CapacitorConfig = {
     cleartext: false,
   },
   plugins: {
+    // Barre di sistema (status bar + navigazione Android / home indicator iOS).
+    // 'DARK' = contenuti chiari per sfondo scuro: l'app è nera (#060807) e con lo
+    // stile di default (che segue il tema del telefono) in modalità chiara icone e tasti
+    // di navigazione diventavano neri su nero, cioè invisibili.
+    // insetsHandling 'css' (default): su Android le safe-area arrivano al CSS in
+    // --safe-area-inset-* (vedi `.native-android` in app/globals.css).
+    SystemBars: {
+      style: 'DARK',
+      insetsHandling: 'css',
+    },
     // Login social nativo (vedi lib/native/socialLogin.ts). `providers` decide quali SDK
     // finiscono nel binario: teniamo solo Apple e Google, così Facebook/Twitter non
     // vengono impacchettati (app più leggera e nessun SDK di terzi da dichiarare).

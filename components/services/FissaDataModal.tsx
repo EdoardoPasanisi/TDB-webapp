@@ -16,7 +16,6 @@ import {
   bookServiceSlotAtomic,
   type ServiceSlotWithRemainingRow,
 } from '@/lib/services/serviceCalendarApi';
-import { addToWalletDueEur } from '@/lib/wallet/walletApi';
 import { supabase } from '@/lib/supabaseClient';
 import { DogAvatar } from '@/components/dogs/DogAvatar';
 import { Button } from '@/components/ui/Button';
@@ -585,10 +584,7 @@ export function FissaDataModal({
         notes: null,
       });
 
-      if (taxiEnabled && taxiAllowed && taxiComputed.price != null && taxiComputed.price > 0) {
-        await addToWalletDueEur(taxiComputed.price);
-      }
-
+      // Il taxi entra nel saldo lato server, insieme alla prenotazione (registro movimenti).
       setBookingState('ready');
       setMissingWarn(null);
       clearBookingDraft(draftKey);

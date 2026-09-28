@@ -23,27 +23,5 @@ export async function getWalletDueEur(userId: string): Promise<number> {
   return normalizeWalletDue((data as WalletProfileRow | null) ?? null);
 }
 
-/**
- * Incrementa/Decrementa il wallet (debito) dell'utente loggato tramite RPC.
- */
-export async function addToWalletDueEur(amountEur: number): Promise<void> {
-  const delta = Number(amountEur);
-  if (!Number.isFinite(delta) || delta === 0) return;
-
-  const { error } = await supabase.rpc('add_wallet_due', {
-    p_amount_eur: delta,
-  });
-
-  if (error) {
-    const msg = error.message ?? '';
-    const looksMissingFn =
-      msg.includes('add_wallet_due') &&
-      (msg.includes('does not exist') || msg.includes('schema cache') || msg.includes('Could not find'));
-
-    if (looksMissingFn) {
-      throw new Error('Database non aggiornato: applica le ultime migration Supabase.');
-    }
-
-    throw new Error(humanizeErrorMessage(error, 'Non siamo riusciti ad aggiornare il saldo.'));
-  }
-}
+// Il saldo si modifica solo lato server: gli addebiti seguono i servizi tramite il
+// registro movimenti (wallet_entries). Dal client si legge soltanto.

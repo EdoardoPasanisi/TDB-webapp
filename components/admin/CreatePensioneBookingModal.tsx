@@ -5,11 +5,13 @@ import { ModalFrame } from '@/components/admin/shared';
 import { PensioneBookingForm } from '@/components/services/pensione/PensioneBookingForm';
 import { fetchAdminJson } from '@/lib/admin/client';
 import { humanizeErrorMessage } from '@/lib/errors/humanize';
+import { DEFAULT_TAXI, DEFAULT_TIMES } from '@/lib/services/pensione/constants';
 import {
-  DEFAULT_TAXI,
-  DEFAULT_TIMES,
+  DEFAULT_ACCOMMODATIONS,
   defaultAccommodationForSpecies,
-} from '@/lib/services/pensione/constants';
+  reconcilePerDogAccommodations,
+} from '@/lib/services/pensione/accommodations';
+import { useAccommodationCatalog } from '@/lib/services/pensione/hooks/useAccommodationCatalog';
 import {
   computeDaysCount,
   computePricing,
@@ -82,7 +84,7 @@ export function CreatePensioneBookingModal({
 
   const [dogs, setDogs] = useState<DogLite[]>([]);
   const [selectedDogIds, setSelectedDogIds] = useState<string[]>([]);
-  const [perDogForm, setPerDogForm] = useState<Record<string, PerDogForm>>({});
+  const [rawPerDogForm, setPerDogForm] = useState<Record<string, PerDogForm>>({});
 
   const [startDate, setStartDate] = useState(getTodayISO());
   const [endDate, setEndDate] = useState(getTodayISO());
@@ -148,7 +150,7 @@ export function CreatePensioneBookingModal({
         const initialPerDog: Record<string, PerDogForm> = {};
         for (const dog of dogList) {
           initialPerDog[dog.id] = {
-            accommodationType: defaultAccommodationForSpecies(dog.species ?? 'DOG'),
+            accommodationType: defaultAccommodationForSpecies(DEFAULT_ACCOMMODATIONS, dog.species ?? 'DOG'),
             grooming: false,
             vaccine: false,
             trackingSessions: 0,
@@ -242,6 +244,13 @@ export function CreatePensioneBookingModal({
     [isSingleDog, dogs, selectedDogIds]
   );
 
+  // Alloggi e prezzi dal gestionale; le scelte si riallineano al catalogo corrente.
+  const { catalog } = useAccommodationCatalog('admin');
+  const perDogForm = useMemo(
+    () => reconcilePerDogAccommodations(catalog, dogs, rawPerDogForm),
+    [catalog, dogs, rawPerDogForm]
+  );
+
   const daysCount = useMemo(
     () => computeDaysCount(startDate, endDate, departureTime),
     [startDate, endDate, departureTime]
@@ -250,6 +259,7 @@ export function CreatePensioneBookingModal({
   const pricing = useMemo(
     () =>
       computePricing({
+        catalog,
         selectedDogIds: effectiveSelectedDogIds,
         daysCount,
         dogs,
@@ -257,7 +267,7 @@ export function CreatePensioneBookingModal({
         taxiOption,
         taxiDistanceBand,
       }),
-    [effectiveSelectedDogIds, daysCount, dogs, perDogForm, taxiOption, taxiDistanceBand]
+    [catalog, effectiveSelectedDogIds, daysCount, dogs, perDogForm, taxiOption, taxiDistanceBand]
   );
 
   const toggleDogSelection = useCallback(
@@ -394,6 +404,7 @@ export function CreatePensioneBookingModal({
           showTaxiServiceAddressEditor={taxiServiceAddressDirty || !hasTaxiAddressMinimum(taxiServiceAddress)}
           notes={notes}
           perDogForm={perDogForm}
+          accommodationCatalog={catalog}
           daysCount={daysCount}
           pricing={pricing}
           onToggleDog={toggleDogSelection}

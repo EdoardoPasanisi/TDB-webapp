@@ -20,7 +20,9 @@ export async function GET(request: Request) {
     }
 
     const query = sanitizeSearchQuery(searchParams.get('q') ?? '');
-    const users = await searchAdminUsers(query, 40, access.canManage ? 'full' : 'limited');
+    const users = await searchAdminUsers(query, 40, access.canManage ? 'full' : 'limited', {
+      presentOnly: searchParams.get('present') === '1',
+    });
 
     return NextResponse.json({ items: users });
   } catch (error) {

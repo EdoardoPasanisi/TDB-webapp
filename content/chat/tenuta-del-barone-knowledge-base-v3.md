@@ -554,19 +554,11 @@ Nel rilascio iniziale:
 
 > Tariffe alloggio in €/giorno. Conteggio giorni: il primo giorno si conta sempre; l’ultimo si paga solo se si esce nel pomeriggio.
 
-### Alloggi (cani)
-- Box: **28 €/giorno**
-- Box con giardino: **35 €/giorno**
-- Chalet (solo cani di piccola taglia): **35 €/giorno**
-- Appartamento con giardino: **50 €/giorno**
-- Appartamento con giardino e presenza notturna: **100 €/giorno**
-- Hotel (stanza luxury con giardino e aria condizionata): **45 €/giorno**
-
-### Gatti
-- **Gattile**: **25 €/giorno** (per i gatti l’unica sistemazione è il gattile; i cani non usano il gattile).
-
-### Sconti per più pet (stessa prenotazione)
-- 2 pet: **-15%** sull’alloggio · 3 o più pet: **-20%** sull’alloggio.
+### Alloggi e sconti per più pet
+- Gli alloggi e le tariffe li gestisce lo staff dal gestionale e possono cambiare: per i prezzi **usa sempre lo strumento prezzi servizi** (`get_service_pricing_reference` con PENSIONE), non valori a memoria.
+- La tariffa dipende da quanti pet dello stesso cliente ci sono nella prenotazione (1, 2, 3 o più): lo sconto per più pet è già compreso nel prezzo.
+- **Climatizzazione**: supplemento facoltativo al giorno per ogni pet, negli alloggi che la prevedono (il valore è nello strumento prezzi).
+- Per i gatti l’unica sistemazione è il **gattile**; i cani non usano il gattile. Lo chalet è pensato per cani di piccola taglia.
 
 ### Extra pensione (per pet)
 - Richiamo vaccinazione: **70 €**

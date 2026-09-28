@@ -27,6 +27,7 @@ export default function PensioneClient() {
     showTaxiServiceAddressEditor,
     notes,
     perDogForm,
+    accommodationCatalog,
     daysCount,
     pricing,
     setStartDate,
@@ -77,6 +78,7 @@ export default function PensioneClient() {
       showTaxiServiceAddressEditor={showTaxiServiceAddressEditor}
       notes={notes}
       perDogForm={perDogForm}
+      accommodationCatalog={accommodationCatalog}
       daysCount={daysCount}
       pricing={pricing}
       onToggleDog={toggleDogSelection}

@@ -7,7 +7,7 @@ import type {
 
 const DEFAULT_NOTIFICATION_PREFERENCES: Omit<NotificationPreferences, 'user_id' | 'created_at' | 'updated_at'> = {
   booking_in_app: true,
-  booking_email: false,
+  booking_email: true, // unica email attiva di default: esito prenotazioni
   document_in_app: true,
   document_email: false,
   chat_in_app: true,

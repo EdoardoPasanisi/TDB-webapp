@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Sfondo dell'app (= themeColor del web, #060807). È il colore che si vede dietro
+         status bar e barra di navigazione: senza, Android mostrava il grigio del tema
+         di default (la "barra grigia in alto" segnalata dai tester). -->
+    <color name="tdb_background">#060807</color>
+</resources>

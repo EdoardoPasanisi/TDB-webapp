@@ -2,6 +2,8 @@
 // gestione cani, edit completo prenotazioni (pensione + slot), crediti/pacchetti.
 // Tutte via supabaseAdmin (service role, bypassa RLS). Le rotte chiamanti devono
 // sempre passare da requireStaffAccess(request, 'manage').
+import { loadAccommodationCatalog } from '@/lib/services/pensione/accommodationsServer';
+import { findAccommodation } from '@/lib/services/pensione/accommodations';
 import { resolveDogBreedProfile } from '@/data/petBreeds';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { purgeUserAccount } from '@/lib/account/deleteAccount';
@@ -27,18 +29,13 @@ const PASS_SELECT =
 const PROFILE_RETURN_SELECT =
   'user_id, photo_path, first_name, last_name, phone, address_line, city, zip_code, province, email, fiscal_code, birth_date, dog_address_line, dog_city, dog_zip_code, dog_province, id_document_path, id_document_uploaded_at, id_document_back_path, id_document_back_uploaded_at, wallet_due_eur, deleted_at, show_first_name_on_dog_card, show_last_name_on_dog_card, show_phone_on_dog_card, show_email_on_dog_card, show_address_on_dog_card, show_dog_address_on_dog_card';
 
-/** Debito ancora in sospeso nel saldo: confermato ma non pagato. */
-function isOutstandingBalanceStatus(status: BookingStatus | ServiceStatus | null | undefined): boolean {
-  return status === 'CONFIRMED' || status === 'COMPLETED';
-}
-
-async function addWalletDue(userId: string, amountEur: number): Promise<void> {
-  if (!Number.isFinite(amountEur) || amountEur === 0) return;
-  const { error } = await supabaseAdmin.rpc('add_wallet_due', {
-    p_user_id: userId,
-    p_amount_eur: amountEur,
-  });
-  if (error) throw new Error(error.message);
+/**
+ * Stati in cui una prenotazione pensione è addebitata nel saldo. Il saldo lo aggiornano
+ * i trigger del database (registro wallet_entries, migration 20260929): qui serve solo
+ * per dire allo staff di quanto è cambiato.
+ */
+function isChargedBookingStatus(status: BookingStatus | ServiceStatus | null | undefined): boolean {
+  return status === 'CONFIRMED' || status === 'PAID' || status === 'COMPLETED';
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -235,14 +232,14 @@ export async function assignAdminServicePass(args: {
       credits_used: 0,
       status,
       unlocked_at: status === 'ACTIVE' ? now : null,
+      price_eur: Number(row.price_eur ?? 0),
     })
     .select(PASS_SELECT)
     .single();
 
   if (passError || !pass) throw new Error(passError?.message ?? 'Impossibile assegnare il pacchetto.');
 
-  await addWalletDue(userId, Number(row.price_eur ?? 0));
-
+  // Il prezzo salvato sul pacchetto entra nel saldo tramite trigger.
   return pass as ServicePassRow;
 }
 
@@ -332,7 +329,18 @@ export async function updateAdminPensioneBookingFull(
     ])
   );
 
+  // Lo staff può tenere un alloggio poi eliminato dal catalogo (prenotazione esistente),
+  // ma non sceglierne uno inesistente.
+  const catalog = await loadAccommodationCatalog();
+  for (const dog of ownedDogRows) {
+    const form = input.perDogForm[dog.id];
+    if (!form || !findAccommodation(catalog, form.accommodationType)) {
+      throw new Error(`Alloggio non valido per ${dog.name}.`);
+    }
+  }
+
   const pricing = computePricing({
+    catalog,
     selectedDogIds: input.selectedDogIds,
     daysCount,
     dogs: Array.from(dogMap.values()),
@@ -380,7 +388,7 @@ export async function updateAdminPensioneBookingFull(
   const bookingDogsPayload = input.selectedDogIds.map((dogId) => {
     const dog = dogMap.get(dogId)!;
     const form = input.perDogForm[dogId];
-    const totals = computePerDogTotals({ dog, form, daysCount, totalDogs: input.selectedDogIds.length });
+    const totals = computePerDogTotals({ catalog, dog, form, daysCount, totalDogs: input.selectedDogIds.length });
     return {
       booking_id: bookingId,
       dog_id: dogId,
@@ -388,7 +396,7 @@ export async function updateAdminPensioneBookingFull(
       accommodation_price_per_day: totals.accommodation_price_per_day,
       days_count: daysCount,
       accommodation_subtotal: totals.accommodation_subtotal,
-      extras: buildExtrasPayload(form),
+      extras: buildExtrasPayload(form, catalog),
       extras_subtotal: totals.extras_subtotal,
       per_dog_total: totals.per_dog_total,
     };
@@ -397,12 +405,10 @@ export async function updateAdminPensioneBookingFull(
   const { error: insertError } = await supabaseAdmin.from('booking_dogs').insert(bookingDogsPayload);
   if (insertError) throw new Error(insertError.message);
 
-  // Riconciliazione saldo: solo se la prenotazione è "a saldo" (CONFIRMED/COMPLETED).
-  const walletApplied = isOutstandingBalanceStatus(previousStatus);
+  // Il saldo lo riallinea il trigger sulla prenotazione; qui calcoliamo solo la
+  // variazione da mostrare allo staff.
+  const walletApplied = isChargedBookingStatus(previousStatus);
   const walletDelta = walletApplied ? pricing.totalPrice - previousTotal : 0;
-  if (walletDelta !== 0) {
-    await addWalletDue(userId, walletDelta);
-  }
 
   return {
     userId,
@@ -494,19 +500,16 @@ export async function updateAdminSlotBookingFull(
     .eq('id', bookingId);
   if (updateError) throw new Error(updateError.message);
 
-  // Riconciliazione taxi nel saldo solo se la prenotazione è attiva (non annullata).
-  let walletDelta = 0;
-  if (booking.status !== 'CANCELLED') {
-    walletDelta = nextTaxiPrice - oldTaxiPrice;
-    if (walletDelta !== 0) await addWalletDue(userId, walletDelta);
-  }
+  // Il taxi nel saldo lo riallinea il trigger; qui solo la variazione da mostrare.
+  const walletDelta = booking.status !== 'CANCELLED' ? nextTaxiPrice - oldTaxiPrice : 0;
 
   return { userId, walletDelta };
 }
 
 // ──────────────────────────────────────────────────────────────────────────
 // Fix gap §2.1: annullo/riattivazione admin di uno SLOT con rimborso/riaddebito
-// crediti + taxi. Da usare al posto del semplice updateAdminBookingStatus per gli slot.
+// crediti. Il taxi nel saldo segue lo stato tramite trigger. Da usare al posto del
+// semplice updateAdminBookingStatus per gli slot.
 // ──────────────────────────────────────────────────────────────────────────
 
 export async function updateAdminSlotBookingStatus(args: {
@@ -537,10 +540,8 @@ export async function updateAdminSlotBookingStatus(args: {
 
   const passId = (current as { pass_id?: string | null }).pass_id ?? null;
   const creditsSpent = Number((current as { credits_spent?: number | null }).credits_spent ?? 0);
-  const taxiEnabled = Boolean((current as { taxi_enabled?: boolean | null }).taxi_enabled);
-  const taxiPrice = Number((current as { taxi_price_eur?: number | null }).taxi_price_eur ?? 0);
 
-  // attivo → annullato: rimborsa credito e togli taxi dal saldo.
+  // attivo → annullato: rimborsa il credito.
   if (wasActive && !willBeActive) {
     if (passId && creditsSpent > 0) {
       const { data: pass } = await supabaseAdmin
@@ -557,10 +558,9 @@ export async function updateAdminSlotBookingStatus(args: {
           .eq('id', passId);
       }
     }
-    if (taxiEnabled && taxiPrice > 0) await addWalletDue(userId, -taxiPrice);
   }
 
-  // annullato → attivo: riaddebita credito e rimetti taxi nel saldo.
+  // annullato → attivo: riaddebita il credito.
   if (!wasActive && willBeActive) {
     if (passId && creditsSpent > 0) {
       const { data: pass } = await supabaseAdmin
@@ -577,7 +577,6 @@ export async function updateAdminSlotBookingStatus(args: {
           .eq('id', passId);
       }
     }
-    if (taxiEnabled && taxiPrice > 0) await addWalletDue(userId, taxiPrice);
   }
 
   return {

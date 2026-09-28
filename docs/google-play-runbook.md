@@ -123,3 +123,34 @@ native:
 - Pagamenti: solo servizi reali (pensione/addestramento) → esenti da Play Billing.
 - Il rischio "è solo un sito" su Play è molto più basso che su Apple, ma push +
   fotocamera native restano consigliate per UX.
+
+## Fix 1.0.1 (versionCode 2) — feedback tester + rifiuto accesso produzione (2026-09-28)
+
+Cosa cambia nel guscio:
+- **Tasto/gesto indietro**: prima chiudeva l'app; ora torna alla schermata precedente
+  (`@capacitor/app`, `components/native/NativeBackButton.tsx`), e sulla prima
+  schermata manda l'app in background.
+- **Barre di sistema**: sfondo finestra `#060807` (via la "barra grigia"), stile
+  `SystemBars: DARK` (icone status bar e tasti di navigazione chiari, prima neri su
+  nero), niente velo di contrasto. Safe-area Android via `--safe-area-inset-*`
+  (`.native-android` in `app/globals.css`).
+- **Login social**: rilevamento app via user-agent (prima a volte il bridge diceva
+  "web" → pulsanti che comparivano a intermittenza e flusso OAuth nel browser).
+  Android: solo **Google nativo** (Credential Manager); Apple solo su iOS.
+
+Da fare a mano per attivare Google su Android (senza, il pulsante resta nascosto):
+1. Play Console → Configurazione → **Integrità app** → Firma dell'app: copia lo
+   **SHA-1 della chiave di firma dell'app** (e, per provare build caricate a mano,
+   anche quello della chiave di caricamento: `keytool -list -v -keystore ~/tdb-upload.keystore`).
+2. Google Cloud Console (stesso progetto del client iOS) → Credenziali → Crea ID
+   client OAuth → tipo **Android**, package `app.tenutadelbarone.client`, SHA-1 del
+   punto 1 (un client Android per ogni SHA-1).
+3. Vercel → env `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID` = client **Web** già usato dal
+   provider Google su Supabase → redeploy.
+4. Supabase → Auth → Providers → Google: il client Web dev'essere tra i Client IDs
+   (di solito lo è già: è quello principale).
+
+Avvisi Play "API deprecate edge-to-edge" (`setStatusBarColor` ecc.): vengono da
+librerie di terzi (Material Components via `@capacitor/camera`, androidbrowserhelper
+via social-login). Sono **raccomandazioni, non bloccanti**; il nostro codice non usa
+quelle API. Spariranno aggiornando i plugin quando i maintainer migrano.

@@ -8,15 +8,27 @@ import { Field } from '@/components/ui/Field';
 import { Card, CardContent } from '@/components/ui/Card';
 import { ModalFrame, LoadingCard, ErrorCard, formatEuro } from '@/components/admin/shared';
 import type { AdminAgendaItem, AdminBookingDetail, AdminSlotRecord, AdminUserDetail } from '@/lib/admin/types';
-import { ACCOMMODATION_PRICES } from '@/lib/services/pensione/constants';
 import { computePricing } from '@/lib/services/pensione/utils';
+import {
+  accommodationClimatePricePerDay,
+  type AccommodationCatalog,
+} from '@/lib/services/pensione/accommodations';
+import { useAccommodationCatalog } from '@/lib/services/pensione/hooks/useAccommodationCatalog';
 import type { DogLite, PerDogForm } from '@/lib/services/pensione/types';
-import type { AccommodationKey, TaxiDistanceBand, TaxiOption } from '@/types/booking';
+import type { TaxiDistanceBand, TaxiOption } from '@/types/booking';
+import type { PetSpecies } from '@/types/dog';
 
-const ACCOMMODATION_OPTIONS = Object.entries(ACCOMMODATION_PRICES).map(([key, value]) => ({
-  key: key as AccommodationKey,
-  label: value.label,
-}));
+/**
+ * Alloggi selezionabili in modifica: quelli attivi adatti alla specie, più quello già
+ * salvato sulla prenotazione anche se nel frattempo è stato eliminato dal catalogo.
+ */
+function accommodationChoices(catalog: AccommodationCatalog, species: PetSpecies | null | undefined, current: string) {
+  const wanted = species === 'CAT' ? 'CAT' : 'DOG';
+  return catalog
+    .filter((item) => item.key === current || (item.active && item.species === wanted))
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((item) => ({ key: item.key, label: item.active ? item.label : `${item.label} (eliminato)` }));
+}
 
 const TAXI_OPTIONS: Array<{ value: TaxiOption; label: string }> = [
   { value: 'NONE', label: 'Nessun taxi' },
@@ -42,7 +54,7 @@ function emptyPerDog(): PerDogForm {
 function perDogFromDetailDog(dog: AdminBookingDetail['dogs'][number]): PerDogForm {
   const extras = dog.extras;
   return {
-    accommodationType: (dog.pricing.accommodationType as AccommodationKey) ?? 'BOX',
+    accommodationType: dog.pricing.accommodationType ?? 'BOX',
     grooming: Boolean(extras?.grooming),
     vaccine: Boolean(extras?.vaccine),
     trackingSessions: extras?.trackingSessions ?? 0,
@@ -94,6 +106,8 @@ export function BookingEditModal({
   const [notes, setNotes] = useState('');
   const [selectedDogIds, setSelectedDogIds] = useState<string[]>([]);
   const [perDogForm, setPerDogForm] = useState<Record<string, PerDogForm>>({});
+  // Catalogo completo (anche alloggi eliminati, per le prenotazioni che li usano già).
+  const { catalog } = useAccommodationCatalog('admin');
 
   // Slot form
   const [slotId, setSlotId] = useState<string>('');
@@ -188,6 +202,7 @@ export function BookingEditModal({
     const hour = parseInt(departureTime.split(':')[0] ?? '0', 10);
     if (hour >= 9 && hour < 13) daysCount = Math.max(daysCount - 1, 1);
     return computePricing({
+      catalog,
       selectedDogIds,
       daysCount,
       dogs: ownerDogLites,
@@ -195,7 +210,7 @@ export function BookingEditModal({
       taxiOption,
       taxiDistanceBand,
     });
-  }, [detail, selectedDogIds, startDate, endDate, departureTime, ownerDogLites, perDogForm, taxiOption, taxiDistanceBand]);
+  }, [catalog, detail, selectedDogIds, startDate, endDate, departureTime, ownerDogLites, perDogForm, taxiOption, taxiDistanceBand]);
 
   const updatesBalance =
     detail?.status === 'CONFIRMED' || detail?.status === 'COMPLETED';
@@ -329,6 +344,7 @@ export function BookingEditModal({
           {selectedDogIds.map((dogId) => {
             const dog = ownerDogs.find((d) => d.id === dogId);
             const form = perDogForm[dogId] ?? emptyPerDog();
+            const climatePrice = accommodationClimatePricePerDay(catalog, form.accommodationType);
             return (
               <Card key={dogId} className="admin-listCard">
                 <CardContent className="space-y-3">
@@ -336,15 +352,18 @@ export function BookingEditModal({
                   <Field label="Alloggio">
                     <select
                       value={form.accommodationType}
-                      onChange={(e) => setDogForm(dogId, { accommodationType: e.target.value as AccommodationKey })}
+                      onChange={(e) => setDogForm(dogId, { accommodationType: e.target.value })}
                       className="ui-control ui-select"
                     >
-                      {ACCOMMODATION_OPTIONS.map((o) => (
+                      {accommodationChoices(catalog, dog?.species, form.accommodationType).map((o) => (
                         <option key={o.key} value={o.key}>{o.label}</option>
                       ))}
                     </select>
                   </Field>
                   <div className="flex flex-wrap gap-4">
+                    {climatePrice > 0 ? (
+                      <span className="ui-muted">Climatizzazione attiva: +{climatePrice}€/g</span>
+                    ) : null}
                     <label className="flex items-center gap-2 ui-body">
                       <input type="checkbox" checked={form.grooming} onChange={(e) => setDogForm(dogId, { grooming: e.target.checked })} />
                       Toelettatura

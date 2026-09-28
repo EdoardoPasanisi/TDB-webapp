@@ -39,7 +39,6 @@ import { SectionHeader } from '@/components/ui/SectionHeader';
 import { BookingEditModal } from '@/components/admin/BookingEditModal';
 import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { buildDogCostLines } from '@/lib/services/pensione/breakdown';
-import type { AccommodationKey } from '@/types/booking';
 
 export function UserDetailModal({
   userId,
@@ -588,7 +587,7 @@ export function BookingDetailModal({
                                   items={[
                                     {
                                       label: 'Alloggio',
-                                      value: formatAccommodationTypeLabel(dog.pricing.accommodationType),
+                                      value: formatAccommodationTypeLabel(dog.pricing.accommodationType, dog.extras),
                                     },
                                     {
                                       label: 'Prezzo alloggio / giorno',
@@ -627,7 +626,7 @@ export function BookingDetailModal({
                                     title="Voci di costo"
                                     items={[
                                       ...buildDogCostLines({
-                                        accommodationType: dog.pricing.accommodationType as AccommodationKey | null,
+                                        accommodationType: dog.pricing.accommodationType,
                                         accommodationPricePerDay: dog.pricing.accommodationPricePerDay,
                                         accommodationSubtotal: dog.pricing.accommodationSubtotal,
                                         daysCount: dog.pricing.daysCount,

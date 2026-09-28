@@ -4,21 +4,15 @@
 import type { SavePensioneBookingInput } from '@/lib/services/pensione/api';
 import type { PerDogForm } from '@/lib/services/pensione/types';
 import type { AccommodationKey, TaxiDistanceBand, TaxiOption } from '@/types/booking';
+import { ACCOMMODATION_KEY_PATTERN } from '@/lib/services/pensione/accommodations';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const TAXI_OPTIONS = new Set<TaxiOption>(['NONE', 'ONE_WAY', 'RETURN_ONLY', 'ROUND_TRIP']);
 const TAXI_DISTANCE_BANDS = new Set<TaxiDistanceBand>(['ENTRO_40', 'OLTRE_40']);
-const ACCOMMODATION_KEYS = new Set<AccommodationKey>([
-  'BOX',
-  'BOX_GARDEN',
-  'CHALET',
-  'APT_GARDEN',
-  'APT_GARDEN_NIGHT_PERSON',
-  'HOTEL',
-  'CATTERY',
-]);
+// L'esistenza dell'alloggio nel catalogo (e la coerenza con la specie) la verifica
+// chi salva: qui controlliamo solo la forma della chiave.
 
 export function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -68,7 +62,7 @@ function parsePerDogForm(value: unknown): PerDogForm | null {
   const therapy = normalizeTherapy(value.therapy);
   const therapyNotes = String(value.therapyNotes ?? '');
 
-  if (!ACCOMMODATION_KEYS.has(accommodationType)) return null;
+  if (!ACCOMMODATION_KEY_PATTERN.test(accommodationType)) return null;
   if (grooming === null || vaccine === null) return null;
   if (trackingSessions === null || fitnessSessions === null || walkSessions === null) return null;
   if (trekkingSessions === null) return null;

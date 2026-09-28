@@ -15,7 +15,8 @@ import {
 import type { Profile } from '@/types/profile';
 import type { ProfileFormState } from '@/types/forms';
 import type { Dog } from '@/types/dog';
-import type { BookingStatus } from '@/types/booking';
+import type { BookingDogExtras, BookingStatus } from '@/types/booking';
+import { resolveAccommodationLabel } from '@/lib/services/pensione/accommodations';
 import type { ServiceStatus } from '@/types/services';
 import { isValidItalianFiscalCode, sanitizeFiscalCode } from '@/lib/validation/italy';
 import { Button } from '@/components/ui/Button';
@@ -171,25 +172,11 @@ export function formatTaxiDistanceBandLabel(value: AdminBookingDetail['booking']
   return null;
 }
 
-export function formatAccommodationTypeLabel(value: string | null | undefined) {
-  switch (value) {
-    case 'BOX':
-      return 'Box';
-    case 'BOX_GARDEN':
-      return 'Box con giardino';
-    case 'CHALET':
-      return 'Chalet';
-    case 'APT_GARDEN':
-      return 'Appartamento con giardino';
-    case 'APT_GARDEN_NIGHT_PERSON':
-      return 'Appartamento con giardino e presenza notturna';
-    case 'HOTEL':
-      return 'Hotel - stanza luxury con giardino';
-    case 'CATTERY':
-      return 'Catery';
-    default:
-      return value ? value.replaceAll('_', ' ') : null;
-  }
+export function formatAccommodationTypeLabel(
+  value: string | null | undefined,
+  extras?: BookingDogExtras | null
+) {
+  return resolveAccommodationLabel(value, { extras });
 }
 
 export function isPresentValue(value: ReactNode): boolean {
@@ -347,11 +334,11 @@ function nextStatuses(status: string | null | undefined): Array<{
     ];
   }
 
+  // Niente "Segna pagata" sulla singola prenotazione: gli incassi si registrano solo
+  // con "Segna come pagato" nella scheda cliente (che le segna pagate da sé). Due modi
+  // di incassare toglievano i soldi dal saldo due volte.
   if (status === 'CONFIRMED' || status === 'COMPLETED') {
-    return [
-      { label: 'Segna pagata', status: 'PAID' },
-      { label: 'Annulla', status: 'CANCELLED', variant: 'danger' },
-    ];
+    return [{ label: 'Annulla', status: 'CANCELLED', variant: 'danger' }];
   }
 
   if (status === 'PAID') {

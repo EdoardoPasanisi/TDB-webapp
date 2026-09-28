@@ -13,7 +13,12 @@ import {
   getMissingRequiredCustomerBookingFields,
   getMissingRequiredPetBookingFields,
 } from '@/lib/bookings/customerBookingRequirements';
-import { defaultAccommodationForSpecies } from '../constants';
+import {
+  DEFAULT_ACCOMMODATIONS,
+  defaultAccommodationForSpecies,
+  reconcilePerDogAccommodations,
+} from '../accommodations';
+import { useAccommodationCatalog } from './useAccommodationCatalog';
 import {
   buildPensioneBookingDraftKey,
   clearBookingDraft,
@@ -239,7 +244,18 @@ export function usePensioneBooking() {
   const [blockedMessage, setBlockedMessage] = useState<string | null>(null);
 
   // Form per-cane
-  const [perDogForm, setPerDogForm] = useState<Record<string, PerDogForm>>({});
+  const [rawPerDogForm, setPerDogForm] = useState<Record<string, PerDogForm>>({});
+
+  // Alloggi e prezzi dal gestionale (parte dagli alloggi di serie finché non arrivano).
+  const { catalog } = useAccommodationCatalog('public');
+
+  // Scelte riallineate al catalogo corrente: un alloggio non più prenotabile torna al
+  // primo disponibile per la specie, e la climatizzazione si spegne dove l'alloggio non
+  // la prevede. Altrimenti il server rifiuterebbe il salvataggio.
+  const perDogForm = useMemo(
+    () => reconcilePerDogAccommodations(catalog, dogs, rawPerDogForm),
+    [catalog, dogs, rawPerDogForm]
+  );
 
   const normalizeSelectedDogIds = useCallback(
     (candidateIds: string[], dogList: DogLite[]) => {
@@ -357,7 +373,7 @@ export function usePensioneBooking() {
       const initialPerDog: Record<string, PerDogForm> = {};
       for (const dog of dogList) {
         initialPerDog[dog.id] = {
-          accommodationType: defaultAccommodationForSpecies(dog.species ?? 'DOG'),
+          accommodationType: defaultAccommodationForSpecies(DEFAULT_ACCOMMODATIONS, dog.species ?? 'DOG'),
           grooming: false,
           vaccine: false,
           trackingSessions: 0,
@@ -651,6 +667,7 @@ export function usePensioneBooking() {
 
   const pricing = useMemo(() => {
     return computePricing({
+      catalog,
       selectedDogIds: effectiveSelectedDogIds,
       daysCount,
       dogs,
@@ -658,7 +675,7 @@ export function usePensioneBooking() {
       taxiOption,
       taxiDistanceBand,
     });
-  }, [effectiveSelectedDogIds, daysCount, dogs, perDogForm, taxiOption, taxiDistanceBand]);
+  }, [catalog, effectiveSelectedDogIds, daysCount, dogs, perDogForm, taxiOption, taxiDistanceBand]);
 
   useEffect(() => {
     if (!draftKey) return;
@@ -925,6 +942,7 @@ export function usePensioneBooking() {
     notes,
 
     perDogForm,
+    accommodationCatalog: catalog,
 
     daysCount,
     pricing,

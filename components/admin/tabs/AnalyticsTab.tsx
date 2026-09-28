@@ -6,6 +6,8 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import type { AdminAnalytics } from '@/lib/admin/types';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { PaymentsByTagSection } from '@/components/admin/PaymentsByTagSection';
+import { WalletReviewSection } from '@/components/admin/WalletReviewSection';
 import {
   EmptyCard,
   ErrorCard,
@@ -15,7 +17,7 @@ import {
   type LoadState,
 } from '@/components/admin/shared';
 
-export function AnalyticsTab() {
+export function AnalyticsTab({ canManage = false }: { canManage?: boolean }) {
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState<string | null>(null);
   const [analytics, setAnalytics] = useState<AdminAnalytics | null>(null);
@@ -95,6 +97,9 @@ export function AnalyticsTab() {
           )}
         </CardContent>
       </Card>
+
+      {canManage ? <WalletReviewSection /> : null}
+      {canManage ? <PaymentsByTagSection /> : null}
     </div>
   );
 }

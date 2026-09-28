@@ -5,14 +5,13 @@ import { updateAdminSlotBookingStatus } from '@/lib/admin/management';
 import { getServiceLabel, type ServiceType, type ServiceVariant } from '@/types/services';
 import type { Dog } from '@/types/dog';
 import {
-  ACCOMMODATION_PRICES,
-  ACCOMMODATION_TIER_PRICES,
   EXTRA_PRICES,
   GROOMING_BASE_BY_SIZE,
   GROOMING_MULTIPLIER_BY_DIFFICULTY,
   TAXI_PRICES_WITH_DISTANCE,
 } from '@/lib/services/pensione/constants';
 import { computeGroomingPriceForDog } from '@/lib/services/pensione/utils';
+import { loadAccommodationCatalog } from '@/lib/services/pensione/accommodationsServer';
 import type { ChatConversationRow, ChatHandoffReason } from '@/types/chat';
 
 type UserDocumentRow = {
@@ -410,19 +409,21 @@ async function getServicePricingReference(args: { serviceKey: unknown }) {
       // cani dello stesso proprietario [1 cane, 2 cani, 3+ cani]. La tariffa per
       // singolo cane = totale del tier / numero cani (cap a 3, quindi 4+ cani usano
       // la tariffa/cane del tier "3").
-      accommodationPricesPerDay: Object.entries(ACCOMMODATION_PRICES).map(([key, value]) => {
-        const tiers = ACCOMMODATION_TIER_PRICES[key as keyof typeof ACCOMMODATION_TIER_PRICES];
-        return {
+      // Catalogo gestito dal gestionale: solo alloggi attivi.
+      accommodationPricesPerDay: (await loadAccommodationCatalog())
+        .filter((item) => item.active)
+        .map(({ key, label, tierPrices: tiers, climateActive, climatePricePerDay }) => ({
           code: key,
-          label: value.label,
+          label,
           totalPricePerDayByDogs: { oneDog: tiers[0], twoDogs: tiers[1], threeOrMoreDogs: tiers[2] },
           perDogPricePerDayByDogs: {
             oneDog: Math.round(tiers[0] * 100) / 100,
             twoDogs: Math.round((tiers[1] / 2) * 100) / 100,
             threeOrMoreDogs: Math.round((tiers[2] / 3) * 100) / 100,
           },
-        };
-      }),
+          // Supplemento automatico per cane quando lo staff attiva la climatizzazione.
+          climatizzazionePerDay: climateActive ? climatePricePerDay : null,
+        })),
       extras: {
         vaccine: EXTRA_PRICES.VACCINE,
         ricercaOlfattiva: EXTRA_PRICES.TRACKING, // 20€ / 15 min

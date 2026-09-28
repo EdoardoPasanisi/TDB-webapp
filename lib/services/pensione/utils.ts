@@ -3,7 +3,6 @@ import type { TaxiDistanceBand, TaxiOption } from '@/types/booking';
 import type { BookingDogExtras } from '@/types/booking';
 import type { DogLite, PerDogForm, PensionePricing } from './types';
 import {
-  accommodationPricePerDay,
   DEFAULT_TIMES,
   EXTRA_PRICES,
   GROOMING_BASE_BY_SIZE,
@@ -11,6 +10,12 @@ import {
   TAXI_PRICES_WITH_DISTANCE,
 } from './constants';
 import type { DogSize, WashDifficulty } from '@/data/dogBreeds';
+import {
+  accommodationClimatePricePerDay,
+  accommodationPricePerDay,
+  findAccommodation,
+  type AccommodationCatalog,
+} from './accommodations';
 
 export function getTodayISO(): string {
   const today = new Date();
@@ -126,110 +131,42 @@ export function computeGroomingPriceForDog(
   return Math.max(0, rounded);
 }
 
-export function computePricing(args: {
-  selectedDogIds: string[];
-  daysCount: number;
-  dogs: DogLite[];
-  perDogForm: Record<string, PerDogForm>;
-  taxiOption: TaxiOption;
-  taxiDistanceBand: TaxiDistanceBand;
-}): PensionePricing {
-  const { selectedDogIds, daysCount, dogs, perDogForm, taxiOption, taxiDistanceBand } =
-    args;
-
-  if (selectedDogIds.length === 0 || daysCount <= 0) {
-    return {
-      dogsCount: selectedDogIds.length,
-      discountPercent: 0,
-      alloggioTotalFull: 0,
-      alloggioTotalDiscounted: 0,
-      extrasTotal: 0,
-      taxiPrice: 0,
-      totalPrice: 0,
-    };
-  }
-
-  const dogsCount = selectedDogIds.length;
-
-  // Lo sconto multi-cane è ora incorporato nelle tariffe a scaglioni (tier) per
-  // numero di cani: niente più sconto percentuale separato.
-  const discountPercent = 0;
-
-  let alloggioTotalFull = 0;
-  let extrasTotalPerDogs = 0;
-
-  for (const dogId of selectedDogIds) {
-    const form = perDogForm[dogId];
-    if (!form) continue;
-
-    const dog = dogs.find((d) => d.id === dogId);
-    if (!dog) continue;
-
-    alloggioTotalFull += accommodationPricePerDay(form.accommodationType, dogsCount) * daysCount;
-
-    const groomingPrice = form.grooming ? computeGroomingPriceForDog(dog) : 0;
-
-    extrasTotalPerDogs +=
-      groomingPrice +
-      (form.vaccine ? EXTRA_PRICES.VACCINE : 0) +
-      form.trackingSessions * EXTRA_PRICES.TRACKING +
-      form.fitnessSessions * EXTRA_PRICES.FITNESS +
-      form.walkSessions * EXTRA_PRICES.WALK +
-      form.trekkingSessions * EXTRA_PRICES.TREKKING;
-  }
-
-  const taxiPrice = computeTaxiPrice(taxiOption, taxiDistanceBand);
-
-  const alloggioTotalDiscounted =
-    alloggioTotalFull * (dogsCount > 1 ? 1 - discountPercent / 100 : 1);
-
-  const extrasTotal = extrasTotalPerDogs + taxiPrice;
-  const totalPrice = alloggioTotalDiscounted + extrasTotal;
-
-  return {
-    dogsCount,
-    discountPercent: dogsCount > 1 ? discountPercent : 0,
-    alloggioTotalFull,
-    alloggioTotalDiscounted,
-    extrasTotal,
-    taxiPrice,
-    totalPrice,
-  };
+/**
+ * Tariffe già storicizzate su una prenotazione salvata. Se presenti prevalgono sul
+ * catalogo: servono quando si ricalcola una prenotazione per un motivo che non c'entra
+ * con l'alloggio (es. cambia la taglia → cambia la toelettatura), così un cambio
+ * prezzi nel gestionale non altera di nascosto le prenotazioni esistenti.
+ */
+export interface StoredDogRates {
+  accommodationPricePerDay: number | null;
+  /** Climatizzazione salvata sulla prenotazione (0 = non applicata). */
+  climatePricePerDay: number;
 }
 
-export function buildExtrasPayload(form: PerDogForm): BookingDogExtras {
-  return {
-    grooming: form.grooming,
-    vaccine: form.vaccine,
-    trackingSessions: form.trackingSessions,
-    fitnessSessions: form.fitnessSessions,
-    walkSessions: form.walkSessions,
-    trekkingSessions: form.trekkingSessions,
-    therapyActive: form.therapy === 'YES',
-    therapyNotes: form.therapy === 'YES' ? form.therapyNotes : '',
-  };
-}
-
-export function computePerDogTotals(args: {
-  dog: DogLite;
+function computeDogCosts(args: {
+  catalog: AccommodationCatalog;
+  dog: Pick<DogLite, 'size_category' | 'grooming_difficulty'>;
   form: PerDogForm;
   daysCount: number;
   totalDogs: number;
-}): {
-  accommodation_price_per_day: number;
-  accommodation_subtotal: number;
-  extras_subtotal: number;
-  per_dog_total: number;
-  grooming_price: number;
-} {
-  const { dog, form, daysCount, totalDogs } = args;
-  const accommodation_price_per_day = accommodationPricePerDay(form.accommodationType, totalDogs);
+  stored?: StoredDogRates;
+}) {
+  const { catalog, dog, form, daysCount, totalDogs, stored } = args;
 
+  const accommodation_price_per_day =
+    stored?.accommodationPricePerDay ?? accommodationPricePerDay(catalog, form.accommodationType, totalDogs);
   const accommodation_subtotal = accommodation_price_per_day * daysCount;
+
+  // Climatizzazione: la decide il gestionale per alloggio, non il cliente.
+  const climatePricePerDay = stored
+    ? stored.climatePricePerDay
+    : accommodationClimatePricePerDay(catalog, form.accommodationType);
+  const climate_subtotal = climatePricePerDay * daysCount;
 
   const grooming_price = form.grooming ? computeGroomingPriceForDog(dog) : 0;
 
   const extras_subtotal =
+    climate_subtotal +
     grooming_price +
     (form.vaccine ? EXTRA_PRICES.VACCINE : 0) +
     form.trackingSessions * EXTRA_PRICES.TRACKING +
@@ -240,8 +177,117 @@ export function computePerDogTotals(args: {
   return {
     accommodation_price_per_day,
     accommodation_subtotal,
+    climate_price_per_day: climatePricePerDay,
+    climate_subtotal,
     extras_subtotal,
     per_dog_total: accommodation_subtotal + extras_subtotal,
     grooming_price,
   };
+}
+
+export function computePricing(args: {
+  catalog: AccommodationCatalog;
+  selectedDogIds: string[];
+  daysCount: number;
+  dogs: DogLite[];
+  perDogForm: Record<string, PerDogForm>;
+  taxiOption: TaxiOption;
+  taxiDistanceBand: TaxiDistanceBand;
+}): PensionePricing {
+  const { catalog, selectedDogIds, daysCount, dogs, perDogForm, taxiOption, taxiDistanceBand } = args;
+
+  if (selectedDogIds.length === 0 || daysCount <= 0) {
+    return {
+      dogsCount: selectedDogIds.length,
+      discountPercent: 0,
+      alloggioTotalFull: 0,
+      alloggioTotalDiscounted: 0,
+      extrasTotal: 0,
+      climateTotal: 0,
+      taxiPrice: 0,
+      totalPrice: 0,
+    };
+  }
+
+  const dogsCount = selectedDogIds.length;
+
+  // Lo sconto multi-cane è incorporato nelle tariffe a scaglioni (tier) per numero di
+  // cani: niente sconto percentuale separato.
+  const discountPercent = 0;
+
+  let alloggioTotalFull = 0;
+  let extrasTotalPerDogs = 0;
+  let climateTotal = 0;
+
+  for (const dogId of selectedDogIds) {
+    const form = perDogForm[dogId];
+    if (!form) continue;
+
+    const dog = dogs.find((d) => d.id === dogId);
+    if (!dog) continue;
+
+    const costs = computeDogCosts({ catalog, dog, form, daysCount, totalDogs: dogsCount });
+    alloggioTotalFull += costs.accommodation_subtotal;
+    extrasTotalPerDogs += costs.extras_subtotal;
+    climateTotal += costs.climate_subtotal;
+  }
+
+  const taxiPrice = computeTaxiPrice(taxiOption, taxiDistanceBand);
+
+  const alloggioTotalDiscounted = alloggioTotalFull;
+  const extrasTotal = extrasTotalPerDogs + taxiPrice;
+  const totalPrice = alloggioTotalDiscounted + extrasTotal;
+
+  return {
+    dogsCount,
+    discountPercent,
+    alloggioTotalFull,
+    alloggioTotalDiscounted,
+    extrasTotal,
+    climateTotal,
+    taxiPrice,
+    totalPrice,
+  };
+}
+
+/**
+ * Extra da salvare su booking_dogs. Storicizza anche nome alloggio e prezzo della
+ * climatizzazione, così la prenotazione resta leggibile e stabile se il catalogo cambia.
+ */
+export function buildExtrasPayload(form: PerDogForm, catalog: AccommodationCatalog): BookingDogExtras {
+  const accommodation = findAccommodation(catalog, form.accommodationType);
+  const climatePricePerDay = accommodationClimatePricePerDay(catalog, form.accommodationType);
+
+  return {
+    grooming: form.grooming,
+    vaccine: form.vaccine,
+    trackingSessions: form.trackingSessions,
+    fitnessSessions: form.fitnessSessions,
+    walkSessions: form.walkSessions,
+    trekkingSessions: form.trekkingSessions,
+    therapyActive: form.therapy === 'YES',
+    therapyNotes: form.therapy === 'YES' ? form.therapyNotes : '',
+    climate: climatePricePerDay > 0,
+    ...(climatePricePerDay > 0 ? { climatePricePerDay } : {}),
+    ...(accommodation ? { accommodationLabel: accommodation.label } : {}),
+  };
+}
+
+export function computePerDogTotals(args: {
+  catalog: AccommodationCatalog;
+  dog: DogLite;
+  form: PerDogForm;
+  daysCount: number;
+  totalDogs: number;
+  stored?: StoredDogRates;
+}): {
+  accommodation_price_per_day: number;
+  accommodation_subtotal: number;
+  climate_price_per_day: number;
+  climate_subtotal: number;
+  extras_subtotal: number;
+  per_dog_total: number;
+  grooming_price: number;
+} {
+  return computeDogCosts(args);
 }

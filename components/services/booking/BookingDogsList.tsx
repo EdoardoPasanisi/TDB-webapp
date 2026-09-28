@@ -8,6 +8,7 @@ function extrasToLines(extras: BookingDogExtras | null | undefined): string[] {
   const lines: string[] = [];
   if (!extras) return lines;
 
+  if (extras.climate) lines.push('Climatizzazione');
   if (extras.grooming) lines.push('Toelettatura');
   if (extras.vaccine) lines.push('Vaccino');
 
@@ -71,7 +72,7 @@ export function BookingDogsList({
 
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <div className="col-span-2">
-                  <InfoTile label="Alloggio" value={accommodationLabel(d.accommodation_type)} />
+                  <InfoTile label="Alloggio" value={accommodationLabel(d.accommodation_type, d.extras)} />
                 </div>
                 <InfoTile label="Tariffa al giorno" value={euro(d.accommodation_price_per_day)} />
                 <InfoTile label="Giorni" value={String(d.days_count)} />

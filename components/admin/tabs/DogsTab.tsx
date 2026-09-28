@@ -33,6 +33,9 @@ import { Button } from '@/components/ui/Button';
 export function DogsTab({ canManage }: { canManage: boolean }) {
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebouncedValue(query, SEARCH_DEBOUNCE_MS);
+  // "Cani presenti": solo i pet in pensione oggi (filtro lato server).
+  const [presentOnly, setPresentOnly] = useState(false);
+  const listUrl = `/api/admin/dogs?q=${encodeURIComponent(debouncedQuery)}${presentOnly ? '&present=1' : ''}`;
   const [listState, setListState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [detailState, setDetailState] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -50,9 +53,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
     setListState('loading');
     setError(null);
     try {
-      const data = await fetchAdminJson<{ items: AdminDogListItem[] }>(
-        `/api/admin/dogs?q=${encodeURIComponent(debouncedQuery)}`
-      );
+      const data = await fetchAdminJson<{ items: AdminDogListItem[] }>(listUrl);
       setItems(data.items);
       setSelectedDogId((current) => (current && data.items.some((item) => item.dogId === current) ? current : data.items[0]?.dogId ?? null));
       setListState('ready');
@@ -81,7 +82,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
     setListState('loading');
     setError(null);
 
-    fetchAdminJson<{ items: AdminDogListItem[] }>(`/api/admin/dogs?q=${encodeURIComponent(debouncedQuery)}`, {
+    fetchAdminJson<{ items: AdminDogListItem[] }>(listUrl, {
       signal: controller.signal,
     })
       .then((data) => {
@@ -98,7 +99,7 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
       });
 
     return () => controller.abort();
-  }, [debouncedQuery]);
+  }, [listUrl]);
 
   useEffect(() => {
     if (!selectedDogId) {
@@ -161,6 +162,24 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
         <Card>
           <CardContent className="space-y-3">
             <SectionHeader title="Ricerca pet" subtitle="Cerca per nome, razza, microchip o dati del proprietario." />
+            <div className="flex flex-wrap gap-2">
+              {[
+                { present: false, label: 'Tutti' },
+                { present: true, label: 'Cani presenti' },
+              ].map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  onClick={() => setPresentOnly(option.present)}
+                  className={cx(
+                    'rounded-full px-3 py-1.5 ui-body ui-clickable',
+                    presentOnly === option.present && 'ui-clickable--selected'
+                  )}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -173,7 +192,15 @@ export function DogsTab({ canManage }: { canManage: boolean }) {
         {listState === 'loading' ? <LoadingCard label="Caricamento cani..." /> : null}
         {listState === 'error' ? <ErrorCard error={error ?? 'Errore cani.'} onRetry={loadDogs} /> : null}
         {listState === 'ready' && items.length === 0 ? (
-          <EmptyCard label={hasQuery ? 'Nessun pet trovato.' : 'Nessun pet registrato.'} />
+          <EmptyCard
+            label={
+              presentOnly && !hasQuery
+                ? 'Nessun pet presente in struttura oggi.'
+                : hasQuery
+                  ? 'Nessun pet trovato.'
+                  : 'Nessun pet registrato.'
+            }
+          />
         ) : null}
 
         {items.map((item) => (

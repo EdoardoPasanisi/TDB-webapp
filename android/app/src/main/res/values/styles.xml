@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Base application theme. -->
     <style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar">
@@ -9,10 +9,20 @@
         <item name="colorAccent">@color/colorAccent</item>
     </style>
 
+    <!-- Tema dell'activity dopo lo splash (BridgeActivity lo imposta in onCreate).
+         Il guscio è edge-to-edge (Android 15+): le barre di sistema sono trasparenti e
+         mostrano lo sfondo della finestra, quindi lo allineiamo al nero dell'app.
+         Colori barre e contrasto si gestiscono da qui e dal plugin SystemBars
+         (capacitor.config.ts), NON con le API deprecate Window.setStatusBarColor /
+         setNavigationBarColor. -->
     <style name="AppTheme.NoActionBar" parent="Theme.AppCompat.DayNight.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <item name="android:windowBackground">@color/tdb_background</item>
+        <!-- Niente velo semitrasparente sulla barra a 3 tasti: sfondo nero + icone chiare. -->
+        <item name="android:enforceNavigationBarContrast" tools:targetApi="29">false</item>
+        <item name="android:enforceStatusBarContrast" tools:targetApi="29">false</item>
     </style>
 
 

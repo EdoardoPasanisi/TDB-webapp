@@ -2,6 +2,7 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AppChromeGate } from '@/components/AppChromeGate';
+import { NativeBackButton } from '@/components/native/NativeBackButton';
 import { ScrollResetOnNavigate } from '@/components/ScrollResetOnNavigate';
 
 export const metadata: Metadata = {
@@ -41,16 +42,18 @@ export default function RootLayout({
       <head>
         {/* Marca il contesto nativo (WebView Capacitor) PRIMA del primo paint, così
             gli override `.native-app` in globals.css non producono flash. Nei browser
-            lo user-agent non contiene 'TDBApp' → la classe non viene mai aggiunta. */}
+            lo user-agent non contiene 'TDBApp' → la classe non viene mai aggiunta.
+            `native-android` distingue il guscio Android (safe-area diverse da iOS). */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{if(navigator.userAgent.indexOf('TDBApp')>-1){document.documentElement.classList.add('native-app');}}catch(e){}})();",
+              "(function(){try{var ua=navigator.userAgent;if(ua.indexOf('TDBApp')>-1){var c=document.documentElement.classList;c.add('native-app');if(/Android/i.test(ua)){c.add('native-android');}}}catch(e){}})();",
           }}
         />
       </head>
       <body className="antialiased ui-page">
         <ScrollResetOnNavigate />
+        <NativeBackButton />
         <AppChromeGate>
           <main className="ui-appMain">{children}</main>
         </AppChromeGate>

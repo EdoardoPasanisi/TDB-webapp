@@ -16,10 +16,12 @@ import type {
   AdminUserDetail,
   AdminUserListItem,
   StaffRole,
+  PaymentTag,
 } from '@/lib/admin/types';
 import { buildRequiredOwnerMissing } from '@/lib/admin/requirements';
 import { isConfirmedLikeStatus, lockDogsInfo } from '@/lib/services/pensione/persist';
 import { computePerDogTotals } from '@/lib/services/pensione/utils';
+import { loadAccommodationCatalog } from '@/lib/services/pensione/accommodationsServer';
 import { resolveDogBreedProfile } from '@/data/petBreeds';
 import type { DogLite, PerDogForm } from '@/lib/services/pensione/types';
 import {
@@ -458,19 +460,12 @@ function isConfirmedRevenueStatus(status: BookingStatus | ServiceStatus | null |
   return status === 'CONFIRMED' || status === 'PAID' || status === 'COMPLETED';
 }
 
-/**
- * Debito ancora "in sospeso" nel saldo dell'utente: la prenotazione è confermata
- * ma NON ancora pagata. Quando passa a PAID (o viene annullata) esce dal saldo.
- */
-function isOutstandingBalanceStatus(status: BookingStatus | ServiceStatus | null | undefined): boolean {
-  return status === 'CONFIRMED' || status === 'COMPLETED';
-}
-
 function bookingExtraLabels(extrasList: Array<BookingDogExtras | null | undefined>): string[] {
   const labels = new Set<string>();
 
   for (const extras of extrasList) {
     if (!extras) continue;
+    if (extras.climate) labels.add('Climatizzazione');
     if (extras.grooming) labels.add('Toelettatura');
     if (extras.vaccine) labels.add('Vaccinazione');
     if ((extras.trackingSessions ?? 0) > 0) labels.add(`Ricerca olfattiva x${extras.trackingSessions}`);
@@ -1229,10 +1224,43 @@ function sanitizeDogListItemVisibility(item: AdminDogListItem, visibility: Admin
   };
 }
 
+/** Data di oggi (YYYY-MM-DD) nel fuso della struttura, non in UTC. */
+function todayInRome(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Rome' }).format(new Date());
+}
+
+/**
+ * Cani presenti in struttura OGGI: in una prenotazione pensione confermata o pagata
+ * con arrivo ≤ oggi ≤ partenza. Torna dog_id → owner (user_id della prenotazione).
+ */
+async function loadPresentDogOwners(): Promise<Map<string, string>> {
+  const today = todayInRome();
+  const { data, error } = await supabaseAdmin
+    .from('booking_dogs')
+    .select('dog_id, bookings!inner(user_id, service_type, status, start_date, end_date)')
+    .eq('bookings.service_type', 'PENSIONE')
+    .in('bookings.status', ['CONFIRMED', 'PAID'])
+    .lte('bookings.start_date', today)
+    .gte('bookings.end_date', today);
+
+  if (error) throw new Error(error.message);
+
+  const owners = new Map<string, string>();
+  for (const row of (data ?? []) as Array<{
+    dog_id: string;
+    bookings?: { user_id?: string | null } | Array<{ user_id?: string | null }> | null;
+  }>) {
+    const userId = firstRelation(row.bookings)?.user_id;
+    if (userId) owners.set(row.dog_id, userId);
+  }
+  return owners;
+}
+
 export async function searchAdminUsers(
   search: string,
   limit = 40,
-  visibility: AdminVisibilityMode = 'full'
+  visibility: AdminVisibilityMode = 'full',
+  options: { presentOnly?: boolean } = {}
 ): Promise<AdminUserListItem[]> {
   const term = sanitizeSearchTerm(search).toLowerCase();
   const tokens = normalizeSearchTokens(term);
@@ -1242,8 +1270,14 @@ export async function searchAdminUsers(
   );
   const dogSearchOr = buildTokenSearchOr(['name', 'breed', 'microchip'], tokens);
 
+  // "Cani presenti": solo i proprietari con almeno un cane in struttura oggi. La
+  // ricerca testuale resta attiva sopra questo insieme (haystack sotto).
+  const presentOwners = options.presentOnly ? await loadPresentDogOwners() : null;
+
   const [profileRes, dogRes] = await Promise.all([
-    term
+    presentOwners
+      ? Promise.resolve({ data: [] as ProfileSummaryRow[] })
+      : term
       ? supabaseAdmin
           .from('profiles')
           .select('user_id, first_name, last_name, phone, email, city')
@@ -1257,7 +1291,7 @@ export async function searchAdminUsers(
           .order('last_name', { ascending: true })
           .order('first_name', { ascending: true })
           .limit(limit),
-    term
+    term && !presentOwners
       ? supabaseAdmin
           .from('dogs')
           .select('id, owner_id, name, breed, microchip, size_category, is_active')
@@ -1270,10 +1304,12 @@ export async function searchAdminUsers(
   const profileRows = (profileRes.data ?? []) as ProfileSummaryRow[];
   const dogRows = ((dogRes.data ?? []) as DogSummaryRow[]).filter((dog) => dog.is_active !== false);
 
-  const candidateUserIds = unique([
-    ...profileRows.map((row) => row.user_id),
-    ...dogRows.map((row) => row.owner_id),
-  ]);
+  const candidateUserIds = presentOwners
+    ? unique([...presentOwners.values()])
+    : unique([
+        ...profileRows.map((row) => row.user_id),
+        ...dogRows.map((row) => row.owner_id),
+      ]);
 
   const userIds = candidateUserIds.slice(0, limit * 3);
 
@@ -1408,15 +1444,28 @@ export async function getAdminUserDetail(
 export async function searchAdminDogs(
   search: string,
   limit = 50,
-  visibility: AdminVisibilityMode = 'full'
+  visibility: AdminVisibilityMode = 'full',
+  options: { presentOnly?: boolean } = {}
 ): Promise<AdminDogListItem[]> {
   const term = sanitizeSearchTerm(search).toLowerCase();
   const tokens = normalizeSearchTokens(term);
   const dogSearchOr = buildTokenSearchOr(['name', 'breed', 'microchip'], tokens);
   const profileSearchOr = buildTokenSearchOr(['first_name', 'last_name', 'email', 'phone', 'city'], tokens);
 
+  // "Cani presenti": si parte dai cani in struttura oggi; la ricerca testuale filtra
+  // poi quell'insieme tramite l'haystack (nome, razza, chip, proprietario).
+  const presentOwners = options.presentOnly ? await loadPresentDogOwners() : null;
+
   const [dogsRes, ownerProfilesRes] = await Promise.all([
-    term
+    presentOwners
+      ? presentOwners.size
+        ? supabaseAdmin
+            .from('dogs')
+            .select('id, owner_id, name, breed, microchip, size_category, is_active')
+            .in('id', [...presentOwners.keys()])
+            .order('name', { ascending: true })
+        : Promise.resolve({ data: [] as DogSummaryRow[] })
+      : term
       ? supabaseAdmin
           .from('dogs')
           .select('id, owner_id, name, breed, microchip, size_category, is_active')
@@ -1429,7 +1478,7 @@ export async function searchAdminDogs(
           .neq('is_active', false)
           .limit(limit)
           .order('name', { ascending: true }),
-    term
+    term && !presentOwners
       ? supabaseAdmin
           .from('profiles')
           .select('user_id, first_name, last_name, phone, email, city')
@@ -2214,13 +2263,15 @@ export async function unlockAdminServicePass(args: {
 /**
  * Conferma pagamento: registra l'importo incassato, azzera il saldo dell'utente e
  * sblocca i pacchetti in attesa. Tutto atomico nella RPC settle_user_wallet.
+ * Il tag (C / CC) smista il pagamento in una delle due liste dell'analisi ricavi.
  */
 export async function settleAdminUserWallet(args: {
   userId: string;
   amountEur: number;
   staffUserId: string;
+  tag: PaymentTag;
 }): Promise<{ amountEur: number; balanceBefore: number; paidAt: string }> {
-  const { userId, amountEur, staffUserId } = args;
+  const { userId, amountEur, staffUserId, tag } = args;
 
   const normalizedAmount = Number(amountEur);
   if (!Number.isFinite(normalizedAmount) || normalizedAmount < 0) {
@@ -2231,6 +2282,7 @@ export async function settleAdminUserWallet(args: {
     p_user_id: userId,
     p_amount_eur: normalizedAmount,
     p_staff_id: staffUserId,
+    p_tag: tag,
   });
 
   if (error) {
@@ -2272,7 +2324,7 @@ function perDogFormFromBookingDogRow(row: {
  * Ricalcola il preventivo delle prenotazioni pensione "vive" (PENDING/CONFIRMED/PAID) che
  * contengono un cane, dopo che lo staff ne ha modificato i dati (taglia/difficoltà cambiano
  * il prezzo della toelettatura). Non è retroattiva: prenotazioni completate/annullate/storiche
- * restano invariate. Riconcilia il saldo per le prenotazioni già a saldo.
+ * restano invariate. Il saldo si riallinea da solo al nuovo totale (trigger).
  */
 async function recalcPensioneBookingsForDog(dogId: string): Promise<void> {
   const { data: bookingDogRefs } = await supabaseAdmin
@@ -2282,6 +2334,8 @@ async function recalcPensioneBookingsForDog(dogId: string): Promise<void> {
 
   const candidateIds = unique((bookingDogRefs ?? []).map((row) => String(row.booking_id)));
   if (candidateIds.length === 0) return;
+
+  const catalog = await loadAccommodationCatalog();
 
   const { data: bookings } = await supabaseAdmin
     .from('bookings')
@@ -2299,13 +2353,14 @@ async function recalcPensioneBookingsForDog(dogId: string): Promise<void> {
   }>) {
     const { data: bookingDogs } = await supabaseAdmin
       .from('booking_dogs')
-      .select('id, dog_id, accommodation_type, days_count, extras')
+      .select('id, dog_id, accommodation_type, accommodation_price_per_day, days_count, extras')
       .eq('booking_id', booking.id);
 
     const rows = (bookingDogs ?? []) as Array<{
       id: string;
       dog_id: string;
       accommodation_type: string | null;
+      accommodation_price_per_day: number | null;
       days_count: number | null;
       extras: BookingDogExtras | null;
     }>;
@@ -2328,11 +2383,19 @@ async function recalcPensioneBookingsForDog(dogId: string): Promise<void> {
         size_category: dog.size_category ?? null,
         grooming_difficulty: dog.grooming_difficulty ?? null,
       };
+      // Tariffe alloggio e climatizzazione restano quelle salvate: qui cambia solo la
+      // toelettatura, e un cambio prezzi nel catalogo non deve toccare prenotazioni già fatte.
       const totals = computePerDogTotals({
+        catalog,
         dog: dogLite,
         form: perDogFormFromBookingDogRow(row),
         daysCount: Number(row.days_count ?? 0),
         totalDogs,
+        stored: {
+          accommodationPricePerDay:
+            row.accommodation_price_per_day != null ? Number(row.accommodation_price_per_day) : null,
+          climatePricePerDay: row.extras?.climate ? Number(row.extras.climatePricePerDay ?? 0) : 0,
+        },
       });
       await supabaseAdmin
         .from('booking_dogs')
@@ -2350,8 +2413,8 @@ async function recalcPensioneBookingsForDog(dogId: string): Promise<void> {
     const taxiPrice = Number(booking.taxi_price ?? 0);
     const extrasTotal = extrasTotalPerDogs + taxiPrice;
     const totalPrice = alloggioTotalFull + extrasTotal;
-    const previousTotal = Number(booking.total_price ?? 0);
 
+    // Il saldo segue il nuovo totale da solo (trigger sul registro movimenti).
     await supabaseAdmin
       .from('bookings')
       .update({
@@ -2361,14 +2424,6 @@ async function recalcPensioneBookingsForDog(dogId: string): Promise<void> {
         total_price: totalPrice,
       })
       .eq('id', booking.id);
-
-    // Riconciliazione saldo: solo per le prenotazioni già a saldo.
-    if (isOutstandingBalanceStatus(booking.status) && totalPrice !== previousTotal) {
-      await supabaseAdmin.rpc('add_wallet_due', {
-        p_user_id: String(booking.user_id),
-        p_amount_eur: totalPrice - previousTotal,
-      });
-    }
   }
 }
 
@@ -2717,9 +2772,6 @@ export async function updateAdminBookingStatus(args: {
 }> {
   const { kind, bookingId, status } = args;
   const table = kind === 'PENSIONE' ? 'bookings' : 'service_slot_bookings';
-  // Per la pensione il totale entra nel saldo solo quando la prenotazione è confermata:
-  // ci serve total_price per aggiornare il wallet alla transizione di stato (presente
-  // su entrambe le tabelle).
   const { data: current, error: currentError } = await supabaseAdmin
     .from(table)
     .select('user_id, service_type, status, total_price')
@@ -2739,22 +2791,8 @@ export async function updateAdminBookingStatus(args: {
     throw new Error(error.message);
   }
 
-  // Pensione → saldo: addebita alla conferma, storna se esce dagli stati confermati.
+  // Il saldo segue lo stato da solo (trigger sul registro movimenti, migration 20260929).
   if (kind === 'PENSIONE') {
-    const wasCharged = isOutstandingBalanceStatus(current.status as BookingStatus | null);
-    const isCharged = isOutstandingBalanceStatus(status);
-    const total = Number((current as { total_price?: number | null }).total_price ?? 0);
-    if (Number.isFinite(total) && total > 0 && wasCharged !== isCharged) {
-      const delta = isCharged ? total : -total;
-      const { error: walletError } = await supabaseAdmin.rpc('add_wallet_due', {
-        p_user_id: String(current.user_id),
-        p_amount_eur: delta,
-      });
-      if (walletError) {
-        throw new Error(walletError.message);
-      }
-    }
-
     // Conferma prenotazione = verifica e blocco delle info "da libretto" dei cani. Scatta
     // alla transizione verso uno stato confermato; idempotente sui cani già bloccati.
     const nowConfirmed = isConfirmedLikeStatus(status as BookingStatus);
@@ -2778,10 +2816,9 @@ export async function updateAdminBookingStatus(args: {
 }
 
 /**
- * Elimina definitivamente una prenotazione, stornando prima gli effetti economici:
- * - pensione: se era a saldo (CONFIRMED/COMPLETED) toglie il totale dal wallet.
- * - slot: rimborsa il credito al pass (riattivandolo se era CONSUMED) e toglie
- *   l'eventuale taxi dal wallet.
+ * Elimina definitivamente una prenotazione. Lo storno dal saldo (pensione e taxi) lo
+ * fanno i trigger all'eliminazione; qui resta il rimborso del credito al pacchetto
+ * (riattivandolo se era CONSUMED) per gli slot.
  */
 export async function deleteAdminBooking(args: {
   kind: AdminBookingKind;
@@ -2792,20 +2829,10 @@ export async function deleteAdminBooking(args: {
   if (kind === 'PENSIONE') {
     const { data: current, error: readError } = await supabaseAdmin
       .from('bookings')
-      .select('user_id, status, total_price')
+      .select('user_id')
       .eq('id', bookingId)
       .single();
     if (readError || !current) throw new Error(readError?.message ?? 'Prenotazione non trovata.');
-
-    if (isOutstandingBalanceStatus(current.status as BookingStatus | null)) {
-      const total = Number((current as { total_price?: number | null }).total_price ?? 0);
-      if (Number.isFinite(total) && total > 0) {
-        await supabaseAdmin.rpc('add_wallet_due', {
-          p_user_id: String(current.user_id),
-          p_amount_eur: -total,
-        });
-      }
-    }
 
     await supabaseAdmin.from('booking_dogs').delete().eq('booking_id', bookingId);
     const { error } = await supabaseAdmin.from('bookings').delete().eq('id', bookingId);
@@ -2816,7 +2843,7 @@ export async function deleteAdminBooking(args: {
   // SERVICE_SLOT
   const { data: current, error: readError } = await supabaseAdmin
     .from('service_slot_bookings')
-    .select('user_id, status, pass_id, credits_spent, taxi_enabled, taxi_price_eur')
+    .select('user_id, status, pass_id, credits_spent')
     .eq('id', bookingId)
     .single();
   if (readError || !current) throw new Error(readError?.message ?? 'Prenotazione non trovata.');
@@ -2838,16 +2865,6 @@ export async function deleteAdminBooking(args: {
         .from('service_passes')
         .update(reactivated ? { credits_used: nextUsed, status: 'ACTIVE' } : { credits_used: nextUsed })
         .eq('id', passId);
-    }
-  }
-
-  if (wasActive && (current as { taxi_enabled?: boolean | null }).taxi_enabled) {
-    const taxi = Number((current as { taxi_price_eur?: number | null }).taxi_price_eur ?? 0);
-    if (Number.isFinite(taxi) && taxi > 0) {
-      await supabaseAdmin.rpc('add_wallet_due', {
-        p_user_id: String(current.user_id),
-        p_amount_eur: -taxi,
-      });
     }
   }
 

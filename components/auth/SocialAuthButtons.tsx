@@ -30,8 +30,10 @@ function AppleIcon() {
 export function SocialAuthButtons({ next = '/' }: { next?: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState<SocialProvider | null>(null);
-  // null finché non sappiamo se siamo nell'app: nel dubbio si rende il set completo
-  // (comportamento browser), poi l'effetto nasconde ciò che in app non è disponibile.
+  // null finché non sappiamo se siamo nell'app: nel browser si rende subito il set
+  // completo; nell'app il blocco resta nascosto via CSS (`data-social-pending`, vedi
+  // globals.css) finché l'effetto non dice quali provider nativi esistono, così i
+  // pulsanti non compaiono per poi sparire (o viceversa).
   const [nativeProviders, setNativeProviders] = useState<SocialProvider[] | null>(null);
 
   useEffect(() => {
@@ -87,8 +89,11 @@ export function SocialAuthButtons({ next = '/' }: { next?: string }) {
     }
   };
 
+  // Nell'app senza alcun provider nativo: niente separatore "oppure" orfano.
+  if (nativeProviders !== null && nativeProviders.length === 0) return null;
+
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-social-pending={nativeProviders === null ? '' : undefined}>
       <div className="flex items-center gap-3">
         <div className="h-px flex-1 bg-[var(--border)]" />
         <span className="ui-muted text-xs">oppure</span>

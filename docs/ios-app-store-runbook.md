@@ -155,8 +155,9 @@ dentro l'app** (sul sito resta): meglio assente che rotto.
 
 ### Android
 
-Resta sul flusso web, quindi ha ancora lo stesso bug. Da sistemare se/quando si
-pubblica su Play (serve `webClientId` per Google e il flusso redirect per Apple).
+Google nativo (Credential Manager) dal 2026-09-28: serve `NEXT_PUBLIC_GOOGLE_WEB_CLIENT_ID`
++ client OAuth di tipo Android, vedi `docs/google-play-runbook.md`. Apple su Android non
+è offerto (niente SDK nativo, Google Play non lo richiede).
 
 ## Auth Supabase nella WebView
 
