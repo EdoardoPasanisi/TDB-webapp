@@ -17,6 +17,7 @@ const PUBLIC_PATHS = new Set<string>([
   '/privacy',
   '/terms',
   '/cookies',
+  '/elimina-account', // richiesta da Google Play: raggiungibile senza login
   '/auth/callback', // è il callback email: deve essere pubblico
   '/auth/recovery',
 ]);

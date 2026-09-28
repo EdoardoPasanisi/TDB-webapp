@@ -38,6 +38,10 @@ const config: CapacitorConfig = {
   server: {
     url: SERVER_URL,
     cleartext: false,
+    // Se il sito non si carica (niente rete, server giù) mostriamo la pagina di riserva
+    // inclusa nell'app (capacitor-www/index.html) con il pulsante "Riprova", invece della
+    // pagina d'errore grigia della WebView che fa sembrare l'app un browser.
+    errorPath: 'index.html',
   },
   plugins: {
     // Barre di sistema (status bar + navigazione Android / home indicator iOS).

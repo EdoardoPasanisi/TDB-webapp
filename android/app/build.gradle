@@ -37,8 +37,14 @@ android {
             if (hasUploadSigning) {
                 signingConfig signingConfigs.release
             }
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // R8: riduzione, ottimizzazione e offuscamento del codice + rimozione delle
+            // risorse inutilizzate (Play Console segnalava "Ottimizzazione delle app: Bassa").
+            // Le regole per Capacitor e i plugin arrivano dalle loro librerie
+            // (consumerProguardFiles); le nostre sono in proguard-rules.pro.
+            // Il file di mapping per leggere i crash finisce da solo nell'AAB e Play lo usa.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }

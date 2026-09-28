@@ -1,21 +1,26 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# Regole R8 dell'app (le librerie Capacitor/plugin portano le proprie).
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Il guscio è una WebView Capacitor: quasi tutto il codice nativo sono i plugin, che
+# Capacitor chiama per nome/reflection. Le regole ufficiali stanno in
+# node_modules/@capacitor/android/capacitor/proguard-rules.pro (consumer rules).
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Nomi di file e righe leggibili nei crash di Play Console (con il mapping nell'AAB).
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Metodi esposti a JavaScript dalla WebView (bridge Capacitor, SystemBars).
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Annotazioni usate da Capacitor a runtime per trovare plugin e metodi.
+-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod
+
+# Plugin Cordova/Capacitor registrati per nome (capacitor.plugins.json).
+-keep class com.getcapacitor.** { *; }
+-keep class com.capacitorjs.plugins.** { *; }
+-keep class app.tenutadelbarone.client.** { *; }
+
+# Login Google: Credential Manager carica l'implementazione Play Services via reflection.
+-if class androidx.credentials.CredentialManager
+-keep class androidx.credentials.playservices.** { *; }

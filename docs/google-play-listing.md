@@ -94,16 +94,24 @@ categorie Google. Per ogni voce: **raccolto** = Sì, **condiviso con terzi** = N
 
 | Categoria Google Play | Dato | Note |
 |---|---|---|
-| Personal info | Name, Email address, Phone number, Address | Anagrafica cliente |
-| Personal info | Other personal info (codice fiscale, data di nascita) | Solo se effettivamente raccolti |
-| Photos and videos | Photos | Foto dei pet |
-| Files and docs | Files and docs | Documenti caricati (libretto, vaccinazioni, documento d'identità) |
-| Device or other IDs | Device or other IDs | Token push (solo per invio notifiche, se/quando implementato FCM) |
+| Personal info | Name, Email address, Phone number, Address | Anagrafica cliente (anche da "Accedi con Google/Apple": nome ed email) |
+| Personal info | Other info (codice fiscale, data di nascita) | Richiesti per prenotare |
+| Photos and videos | Photos, Videos | Foto dei pet caricate dal cliente; foto/video dei pet inviati dallo staff |
+| Files and docs | Files and docs | Documento d'identità (fronte/retro), liberatoria |
+| Messages | Other in-app messages | Chat con assistenza/chatbot. L'AI (Anthropic) elabora i messaggi per nostro conto: per Google è un "fornitore di servizi", non condivisione con terzi |
+| App activity | Other user-generated content | Prenotazioni, dati dei pet, note |
+
+Non dichiarare: posizione (l'indirizzo lo scrive l'utente → è Personal info), dati
+finanziari (nessun pagamento in app), ID dispositivo (le notifiche push su Android non
+sono attive), dati sanitari (le vaccinazioni sono del pet, non della persona).
 
 Domande generali del form:
 - **Tutti i dati sono crittografati in transito?** Sì (HTTPS/TLS, Supabase).
 - **L'app segue una policy per la richiesta di cancellazione dati?** Sì → in-app
   Impostazioni → Elimina account (cancellazione immediata, come già dichiarato ad Apple).
+- **URL per l'eliminazione dell'account** (obbligatorio): `https://app.tenutadelbarone.com/elimina-account`
+  — pagina pubblica, spiega come eliminare l'account dall'app o via email. ⚠️ Deve essere
+  online sul sito vero prima di compilare il modulo.
 - **Questo dato è condiviso con terze parti?** No per tutte le voci.
 - **Uso pubblicitario/tracking?** No — nessun SDK ads, nessun tracking cross-app.
 
@@ -129,20 +137,17 @@ general audience senza contenuti per bambini) — l'app richiede account cliente
 - **Acquisti in-app**: No — dichiara "Nessun acquisto in-app" (i pagamenti riguardano solo
   servizi reali resi in struttura — pensione, addestramento — coerente con l'esenzione già
   usata su Apple; Stripe/pagamenti sono disabilitati in produzione).
-- **Account demo per la review** (facoltativo su Play ma consigliato se l'app richiede login):
-  stessa utenza demo creata per Apple, vedi `docs/app-store-listing.md` §7.
+- **Accesso alle app / account demo per la review** (Contenuti dell'app → Accesso alle app):
+  **obbligatorio in pratica**, l'app è inutilizzabile senza login. Inserisci email e
+  password di un cliente demo con pet e almeno una prenotazione. Non usare Google: finché
+  la schermata di consenso Google è in modalità "Test" i revisori non possono accedere.
 
 ---
 
 ## 8. Cosa NON è ancora implementato su Android (da non promettere in scheda)
 
-- Login sociale nativo Google/Apple: solo iOS per ora (`lib/native/socialLogin.ts`,
-  `getNativeSocialProviders` torna `[]` su Android → i pulsanti restano nascosti,
-  l'utente usa email/password). Non è un blocco per la submission, ma non menzionarlo.
+- Accedi con Apple: solo iOS (su Android c'è solo Google, nativo dalla 1.0.1).
 - Fotocamera nativa: gated solo iOS (`lib/native/camera.ts`, `isIosApp()`); su Android il
-  form foto usa ancora `<input type="file">` del browser — funziona, solo non "nativo".
-- Push notifiche: implementate solo per iOS (APNs). Su Android non ancora (serve FCM,
-  vedi `docs/google-play-runbook.md` §"Push notifiche (FCM)").
-
-Nessuna di queste è richiesta per pubblicare su Play (il rischio "è solo un sito" che ha
-motivato le funzioni native su Apple è molto più basso su Android, vedi runbook tecnico).
+  form foto usa `<input type="file">` (selettore di sistema): funziona, niente permessi.
+- Push notifiche: solo iOS (APNs). Su Android servono FCM + `google-services.json`, vedi
+  `docs/google-play-runbook.md`.

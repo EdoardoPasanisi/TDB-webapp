@@ -8,17 +8,17 @@ import { Button } from '@/components/ui/Button';
 // l'utente deve interagire (Vai al calendario / Chiudi / Esc) per uscire, così
 // è chiaro che la prenotazione è andata a buon fine.
 //
-// Promemoria libretto: di default ricorda di portare la copia fisica del libretto
-// sanitario. Passare reminder={null} quando il pet non viene in struttura (consulenza).
+// Promemoria (facoltativo): la pensione passa LIBRETTO_REMINDER per ricordare di portare
+// la copia fisica del libretto; gli altri servizi non mostrano nulla.
 export const LIBRETTO_REMINDER =
-  'Ricordati di portare la copia fisica del libretto sanitario del tuo pet il giorno del servizio.';
+  'Ricordati di portare la copia fisica del libretto sanitario del tuo pet il giorno dell’arrivo in pensione.';
 
 export function BookingSuccessScreen({
   open,
   onClose,
   title = 'Prenotazione effettuata correttamente',
   message = 'Puoi vedere tutti i dettagli nella pagina Calendario.',
-  reminder = LIBRETTO_REMINDER,
+  reminder = null,
 }: {
   open: boolean;
   onClose: () => void;

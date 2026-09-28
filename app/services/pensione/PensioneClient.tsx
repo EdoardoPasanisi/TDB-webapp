@@ -2,7 +2,7 @@
 'use client';
 
 import { PensioneBookingForm } from '@/components/services/pensione/PensioneBookingForm';
-import { BookingSuccessScreen } from '@/components/services/BookingSuccessScreen';
+import { BookingSuccessScreen, LIBRETTO_REMINDER } from '@/components/services/BookingSuccessScreen';
 import { usePensioneBooking } from '@/lib/services/pensione/hooks/usePensioneBooking';
 
 export default function PensioneClient() {
@@ -96,7 +96,11 @@ export default function PensioneClient() {
       showCancelEdit={!!editingBookingId}
       />
 
-      <BookingSuccessScreen open={bookingSuccessOpen} onClose={dismissBookingSuccess} />
+      <BookingSuccessScreen
+        open={bookingSuccessOpen}
+        onClose={dismissBookingSuccess}
+        reminder={LIBRETTO_REMINDER}
+      />
     </>
   );
 }
