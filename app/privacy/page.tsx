@@ -5,7 +5,7 @@ export const metadata = {
   title: 'Privacy Policy | Tenuta del Barone',
 };
 
-const LAST_UPDATED = '5 maggio 2026';
+const LAST_UPDATED = '28 settembre 2026';
 
 export default function PrivacyPage() {
   return (
@@ -26,7 +26,7 @@ export default function PrivacyPage() {
             <br />
             Codice SDI: <strong>N92GLON</strong>
             <br />
-            Contatto: <strong>info@latenutadelbaroneroma.it</strong>
+            Contatto: <strong>info@tenutadelbarone.com</strong>
           </p>
         </section>
 
@@ -112,8 +112,12 @@ export default function PrivacyPage() {
           <p className="ui-legalText">
             Puoi esercitare i diritti previsti dal GDPR (accesso, rettifica, cancellazione, limitazione,
             opposizione, portabilità, ove applicabile) contattando{' '}
-            <strong>info@latenutadelbaroneroma.it</strong>. Hai inoltre diritto di proporre reclamo
+            <strong>info@tenutadelbarone.com</strong>. Hai inoltre diritto di proporre reclamo
             all’Autorità Garante per la protezione dei dati personali.
+          </p>
+          <p className="ui-legalText">
+            Puoi eliminare il tuo account in qualsiasi momento dall’app (Impostazioni → Elimina account) o
+            seguendo le istruzioni nella pagina <a href="/elimina-account">Eliminare il tuo account</a>.
           </p>
         </section>
 

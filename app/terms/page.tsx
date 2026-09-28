@@ -26,7 +26,7 @@ export default function TermsPage() {
             <br />
             Codice SDI: <strong>N92GLON</strong>
             <br />
-            Email: <strong>info@latenutadelbaroneroma.it</strong>
+            Email: <strong>info@tenutadelbarone.com</strong>
           </p>
         </section>
 

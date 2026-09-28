@@ -9,7 +9,7 @@ export const metadata = {
   description: 'Come eliminare il tuo account Tenuta del Barone e quali dati vengono cancellati.',
 };
 
-const CONTACT_EMAIL = 'info@latenutadelbaroneroma.it';
+const CONTACT_EMAIL = 'info@tenutadelbarone.com';
 
 export default function DeleteAccountPage() {
   return (
