@@ -59,10 +59,11 @@ export function CreateUserModal({
     setSubmitting(true);
     setError(null);
     try {
+      // L'email è un campo separato: va dopo il payload profilo, che altrimenti la sovrascrive con null.
       const payload = {
+        ...buildProfilePayload({ ...form, dog_address_same_as_home: true }, null),
         email: email.trim(),
         password: password.trim() || undefined,
-        ...buildProfilePayload({ ...form, dog_address_same_as_home: true }, null),
       };
       const result = await fetchAdminJson<CreatedResult>('/api/admin/users', {
         method: 'POST',
