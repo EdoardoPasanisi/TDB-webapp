@@ -1,7 +1,7 @@
 // Registro movimenti del saldo (tabella wallet_entries, migration 20260929).
 // Gli addebiti li scrivono i trigger del database; da qui lo staff legge lo storico,
-// rettifica a mano, verifica le differenze emerse al passaggio al registro e ripulisce
-// i pagamenti di prova (tag C).
+// rettifica a mano, verifica le differenze emerse al passaggio al registro e annulla
+// i pagamenti registrati per errore.
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { formatPersonName } from '@/lib/admin/utils';
 
@@ -15,6 +15,9 @@ export type AdminWalletEntry = {
   note: string | null;
   createdAt: string;
   reviewedAt: string | null;
+  /** Solo per le righe di un pagamento: id del pagamento e se è stato annullato. */
+  paymentId: string | null;
+  paymentVoided: boolean;
 };
 
 export type AdminWalletReviewItem = {
@@ -34,25 +37,75 @@ type EntryRow = {
   note: string | null;
   created_at: string;
   reviewed_at: string | null;
+  source_type: string | null;
+  source_id: string | null;
 };
 
 export async function listAdminWalletEntries(userId: string, limit = 200): Promise<AdminWalletEntry[]> {
   const { data, error } = await supabaseAdmin
     .from('wallet_entries')
-    .select('id, amount_eur, kind, label, note, created_at, reviewed_at')
+    .select('id, amount_eur, kind, label, note, created_at, reviewed_at, source_type, source_id')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return ((data ?? []) as EntryRow[]).map((row) => ({
-    id: row.id,
-    amountEur: Number(row.amount_eur),
-    kind: row.kind,
-    label: row.label,
-    note: row.note,
-    createdAt: row.created_at,
-    reviewedAt: row.reviewed_at,
-  }));
+  const rows = (data ?? []) as EntryRow[];
+
+  const paymentIds = [
+    ...new Set(rows.filter((row) => row.source_type === 'PAYMENT' && row.source_id).map((row) => row.source_id as string)),
+  ];
+  const voided = new Set<string>();
+  if (paymentIds.length) {
+    const { data: payments, error: paymentsError } = await supabaseAdmin
+      .from('payments')
+      .select('id')
+      .in('id', paymentIds)
+      .not('voided_at', 'is', null);
+    if (paymentsError) throw new Error(paymentsError.message);
+    for (const payment of (payments ?? []) as Array<{ id: string }>) voided.add(payment.id);
+  }
+
+  return rows.map((row) => {
+    const paymentId = row.source_type === 'PAYMENT' ? row.source_id : null;
+    return {
+      id: row.id,
+      amountEur: Number(row.amount_eur),
+      kind: row.kind,
+      label: row.label,
+      note: row.note,
+      createdAt: row.created_at,
+      reviewedAt: row.reviewed_at,
+      paymentId,
+      paymentVoided: paymentId ? voided.has(paymentId) : false,
+    };
+  });
+}
+
+/**
+ * Annulla un pagamento registrato per errore: il pagamento resta (segnato annullato,
+ * con motivo), il saldo torna al dovuto e prenotazioni/pacchetti tornano com'erano.
+ * Per i pagamenti precedenti al 15/10/2026 il database non sa quali prenotazioni
+ * avevano toccato (hadEffects = false): vanno ricontrollate a mano.
+ */
+export async function voidAdminPayment(args: {
+  paymentId: string;
+  reason: string;
+  staffUserId: string;
+}): Promise<{ restoredBookings: number; restoredPasses: number; hadEffects: boolean }> {
+  const { data, error } = await supabaseAdmin.rpc('void_payment', {
+    p_payment_id: args.paymentId,
+    p_reason: args.reason,
+    p_staff_id: args.staffUserId,
+  });
+  if (error) throw new Error(error.message);
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | { restored_bookings?: number; restored_passes?: number; had_effects?: boolean }
+    | null;
+  return {
+    restoredBookings: Number(row?.restored_bookings ?? 0),
+    restoredPasses: Number(row?.restored_passes ?? 0),
+    hadEffects: Boolean(row?.had_effects),
+  };
 }
 
 export async function adjustAdminWallet(args: {
