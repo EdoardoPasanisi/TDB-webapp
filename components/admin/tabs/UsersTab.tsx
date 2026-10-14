@@ -8,7 +8,6 @@ import type {
   AdminServiceKey,
   AdminUserDetail,
   AdminUserListItem,
-  PaymentTag,
 } from '@/lib/admin/types';
 import { getAdminRoleLabel, getAdminServiceLabel } from '@/lib/admin/utils';
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue';
@@ -48,7 +47,6 @@ import { CreatePensioneBookingModal } from '@/components/admin/CreatePensioneBoo
 import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { Modal } from '@/components/common/Modal';
 
-const PAYMENT_TAG_OPTIONS: PaymentTag[] = ['C', 'CC'];
 
 type UsersMode = 'all' | 'active' | 'present' | 'deleted';
 
@@ -406,7 +404,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     setSettleOpen(true);
   };
 
-  const handleSettleWallet = async (tag: PaymentTag) => {
+  const handleSettleWallet = async () => {
     if (!selectedUserId) return;
     const amount = Number(String(settleAmount).replace(',', '.'));
     if (!Number.isFinite(amount) || amount < 0) {
@@ -418,7 +416,7 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     try {
       await fetchAdminJson(`/api/admin/users/${selectedUserId}/settle`, {
         method: 'POST',
-        body: JSON.stringify({ amountEur: amount, tag }),
+        body: JSON.stringify({ amountEur: amount }),
       });
       setSettleOpen(false);
       await loadDetail(selectedUserId);
@@ -1004,11 +1002,9 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
         <div className="space-y-4">
           <div className="ui-muted">
             Saldo da pagare: <span className="font-[var(--font-weight-bold)]">€ {walletDue.toFixed(2)}</span>. Conferma
-            l&apos;importo effettivamente incassato, poi scegli <strong>C</strong> o <strong>CC</strong>: il pagamento
-            finisce nella lista corrispondente dell&apos;analisi ricavi. Se incassi meno del saldo la differenza viene
-            registrata come sconto; se incassi di più resta come credito. Le prenotazioni risultano pagate e i pacchetti
-            in attesa vengono sbloccati. I pagamenti <strong>C</strong> sono quelli di prova: si possono eliminare tutti
-            insieme dall&apos;analisi.
+            l&apos;importo effettivamente incassato. Se incassi meno del saldo la differenza viene registrata come
+            sconto; se incassi di più resta come credito. Le prenotazioni risultano pagate e i pacchetti in attesa
+            vengono sbloccati.
           </div>
           <div className="space-y-1">
             <label className="ui-muted">Importo incassato (€)</label>
@@ -1032,18 +1028,14 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
             >
               Annulla
             </button>
-            {PAYMENT_TAG_OPTIONS.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className="ui-btn ui-btnTone-primary ui-btnCompact min-w-[64px]"
-                onClick={() => void handleSettleWallet(tag)}
-                disabled={settleSubmitting}
-                aria-label={`Registra pagamento come ${tag}`}
-              >
-                {settleSubmitting ? '…' : tag}
-              </button>
-            ))}
+            <button
+              type="button"
+              className="ui-btn ui-btnTone-primary ui-btnCompact"
+              onClick={() => void handleSettleWallet()}
+              disabled={settleSubmitting}
+            >
+              {settleSubmitting ? 'Registrazione…' : 'Conferma pagamento'}
+            </button>
           </div>
         </div>
       </Modal>

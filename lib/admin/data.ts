@@ -16,7 +16,6 @@ import type {
   AdminUserDetail,
   AdminUserListItem,
   StaffRole,
-  PaymentTag,
 } from '@/lib/admin/types';
 import { buildRequiredOwnerMissing } from '@/lib/admin/requirements';
 import { isConfirmedLikeStatus, lockDogsInfo } from '@/lib/services/pensione/persist';
@@ -2263,15 +2262,13 @@ export async function unlockAdminServicePass(args: {
 /**
  * Conferma pagamento: registra l'importo incassato, azzera il saldo dell'utente e
  * sblocca i pacchetti in attesa. Tutto atomico nella RPC settle_user_wallet.
- * Il tag (C / CC) smista il pagamento in una delle due liste dell'analisi ricavi.
  */
 export async function settleAdminUserWallet(args: {
   userId: string;
   amountEur: number;
   staffUserId: string;
-  tag: PaymentTag;
 }): Promise<{ amountEur: number; balanceBefore: number; paidAt: string }> {
-  const { userId, amountEur, staffUserId, tag } = args;
+  const { userId, amountEur, staffUserId } = args;
 
   const normalizedAmount = Number(amountEur);
   if (!Number.isFinite(normalizedAmount) || normalizedAmount < 0) {
@@ -2282,7 +2279,7 @@ export async function settleAdminUserWallet(args: {
     p_user_id: userId,
     p_amount_eur: normalizedAmount,
     p_staff_id: staffUserId,
-    p_tag: tag,
+    p_tag: null,
   });
 
   if (error) {
@@ -2820,57 +2817,22 @@ export async function updateAdminBookingStatus(args: {
  * fanno i trigger all'eliminazione; qui resta il rimborso del credito al pacchetto
  * (riattivandolo se era CONSUMED) per gli slot.
  */
+/**
+ * Elimina del tutto una prenotazione (pensione o servizio) insieme a tutti i suoi
+ * movimenti del saldo; se era a pacchetto il credito torna al cliente. Se era già
+ * pagata, il pagamento resta come credito. Tutto atomico nella RPC delete_booking:
+ * chi chiama deve aver già verificato chi può eliminare cosa.
+ */
 export async function deleteAdminBooking(args: {
   kind: AdminBookingKind;
   bookingId: string;
 }): Promise<{ userId: string }> {
-  const { kind, bookingId } = args;
-
-  if (kind === 'PENSIONE') {
-    const { data: current, error: readError } = await supabaseAdmin
-      .from('bookings')
-      .select('user_id')
-      .eq('id', bookingId)
-      .single();
-    if (readError || !current) throw new Error(readError?.message ?? 'Prenotazione non trovata.');
-
-    await supabaseAdmin.from('booking_dogs').delete().eq('booking_id', bookingId);
-    const { error } = await supabaseAdmin.from('bookings').delete().eq('id', bookingId);
-    if (error) throw new Error(error.message);
-    return { userId: String(current.user_id) };
-  }
-
-  // SERVICE_SLOT
-  const { data: current, error: readError } = await supabaseAdmin
-    .from('service_slot_bookings')
-    .select('user_id, status, pass_id, credits_spent')
-    .eq('id', bookingId)
-    .single();
-  if (readError || !current) throw new Error(readError?.message ?? 'Prenotazione non trovata.');
-
-  const wasActive = current.status !== 'CANCELLED';
-  const passId = (current as { pass_id?: string | null }).pass_id ?? null;
-  const creditsSpent = Number((current as { credits_spent?: number | null }).credits_spent ?? 0);
-
-  if (wasActive && passId && creditsSpent > 0) {
-    const { data: pass } = await supabaseAdmin
-      .from('service_passes')
-      .select('credits_total, credits_used')
-      .eq('id', passId)
-      .single();
-    if (pass) {
-      const nextUsed = Math.max(0, Number(pass.credits_used ?? 0) - creditsSpent);
-      const reactivated = nextUsed < Number(pass.credits_total ?? 0);
-      await supabaseAdmin
-        .from('service_passes')
-        .update(reactivated ? { credits_used: nextUsed, status: 'ACTIVE' } : { credits_used: nextUsed })
-        .eq('id', passId);
-    }
-  }
-
-  const { error } = await supabaseAdmin.from('service_slot_bookings').delete().eq('id', bookingId);
-  if (error) throw new Error(error.message);
-  return { userId: String(current.user_id) };
+  const { data, error } = await supabaseAdmin.rpc('delete_booking', {
+    p_kind: args.kind,
+    p_booking_id: args.bookingId,
+  });
+  if (error) throw new Error(error.message ?? 'Impossibile eliminare la prenotazione.');
+  return { userId: String(data ?? '') };
 }
 
 // ── Stampa prenotazioni pensione ──────────────────────────────────────────────

@@ -6,7 +6,6 @@ import { humanizeErrorMessage } from '@/lib/errors/humanize';
 import type { AdminAnalytics } from '@/lib/admin/types';
 import { Card, CardContent } from '@/components/ui/Card';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { PaymentsByTagSection } from '@/components/admin/PaymentsByTagSection';
 import { WalletReviewSection } from '@/components/admin/WalletReviewSection';
 import {
   EmptyCard,
@@ -99,7 +98,6 @@ export function AnalyticsTab({ canManage = false }: { canManage?: boolean }) {
       </Card>
 
       {canManage ? <WalletReviewSection /> : null}
-      {canManage ? <PaymentsByTagSection /> : null}
     </div>
   );
 }

@@ -122,18 +122,3 @@ export async function reviewAdminWalletOpening(args: {
   });
   if (error) throw new Error(error.message);
 }
-
-/**
- * Elimina tutti i pagamenti di prova (tag C) e i loro movimenti: i saldi tornano come
- * se non fossero mai stati registrati. Nel database resta una riga di log con data,
- * operatore, quantità e totale.
- */
-export async function deleteAdminTestPayments(staffUserId: string): Promise<{ count: number; totalEur: number }> {
-  const { data, error } = await supabaseAdmin.rpc('delete_tagged_payments', {
-    p_tag: 'C',
-    p_staff_id: staffUserId,
-  });
-  if (error) throw new Error(error.message);
-  const row = (Array.isArray(data) ? data[0] : data) as { deleted_count?: number; deleted_total?: number } | null;
-  return { count: Number(row?.deleted_count ?? 0), totalEur: Number(row?.deleted_total ?? 0) };
-}

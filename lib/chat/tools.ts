@@ -277,7 +277,7 @@ export function getChatToolDefinitions() {
       type: 'function',
       name: 'delete_user_pensione_booking',
       description:
-        'Elimina DEFINITIVAMENTE una prenotazione PENSIONE del cliente autenticato (viene rimossa dallo storico). Usare SOLO dopo conferma esplicita del cliente. Il bookingId si ottiene da get_user_bookings_status.',
+        'Elimina DEFINITIVAMENTE una prenotazione PENSIONE del cliente autenticato (viene rimossa dallo storico). Funziona solo per prenotazioni in attesa di conferma o già annullate. Usare SOLO dopo conferma esplicita del cliente. Il bookingId si ottiene da get_user_bookings_status.',
       parameters: {
         type: 'object',
         properties: { bookingId: { type: 'string', description: 'ID della prenotazione pensione.' } },
@@ -344,6 +344,11 @@ async function deleteUserPensioneBooking(userId: string, bookingId: string) {
   const owned = await assertBookingOwnership('bookings', bookingId, userId);
   if (!owned.ok) return owned;
   if (owned.serviceType !== 'PENSIONE') return { ok: false, error: 'Questa non è una prenotazione di pensione.' };
+  // Il cliente può eliminare solo prenotazioni non ancora confermate o già annullate:
+  // quelle confermate/erogate hanno un addebito sul saldo che non deve sparire.
+  if (owned.status !== 'DRAFT' && owned.status !== 'PENDING' && owned.status !== 'CANCELLED') {
+    return { ok: false, error: 'Questa prenotazione non si può eliminare: va annullata, o contatta la struttura.' };
+  }
   await deleteAdminBooking({ kind: 'PENSIONE', bookingId });
   return { ok: true, deleted: true };
 }

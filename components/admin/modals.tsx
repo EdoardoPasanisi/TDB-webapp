@@ -337,7 +337,10 @@ export function BookingDetailModal({
     const ok = await confirm({
       keyword: 'ELIMINA',
       title: 'Elimina prenotazione',
-      message: 'L’operazione storna saldo/crediti e non è reversibile.',
+      message:
+        item.status === 'PAID'
+          ? 'Questa prenotazione risulta già PAGATA: eliminandola, l’importo pagato resta al cliente come credito sul saldo (da usare per la prossima prenotazione o da restituire). La prenotazione e i suoi movimenti vengono eliminati del tutto. Non si può annullare.'
+          : 'La prenotazione viene eliminata del tutto, insieme ai suoi movimenti del saldo; se era a pacchetto, il credito torna al cliente. Non si può annullare.',
     });
     if (!ok) return;
     setDeleting(true);
