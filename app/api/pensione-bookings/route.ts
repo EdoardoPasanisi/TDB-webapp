@@ -25,6 +25,8 @@ import {
   computePricing,
   validateTimeWindow,
 } from '@/lib/services/pensione/utils';
+import { findHolidayTransitError } from '@/lib/services/pensione/holidays';
+import { loadClosedDayOverrides } from '@/lib/services/pensione/closedDaysServer';
 import type {
   AccommodationKey,
   BookingDogExtras,
@@ -112,6 +114,16 @@ export async function POST(request: Request) {
     const departureError = validateTimeWindow('L’orario di partenza', input.departureTime, input.endDate);
     if (departureError) {
       return NextResponse.json({ error: departureError }, { status: 400 });
+    }
+
+    // Nei festivi e nei giorni di chiusura niente ingressi né uscite (si può restare a cavallo).
+    const holidayError = findHolidayTransitError(
+      input.startDate,
+      input.endDate,
+      await loadClosedDayOverrides()
+    );
+    if (holidayError) {
+      return NextResponse.json({ error: holidayError }, { status: 400 });
     }
 
     const daysCount = computeDaysCount(input.startDate, input.endDate, input.departureTime);

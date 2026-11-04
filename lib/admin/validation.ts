@@ -331,6 +331,37 @@ export function sanitizePensioneBlockDeleteInput(body: unknown): { blockId: stri
   return { blockId: assertUuid(body.blockId, 'Blocco') };
 }
 
+export function sanitizePensioneUserBlockInput(body: unknown): { blocked: boolean; notes: string | null } {
+  if (!isPlainObject(body) || typeof body.blocked !== 'boolean') {
+    throw new Error('Payload blocco cliente non valido.');
+  }
+  return { blocked: body.blocked, notes: sanitizeOptionalText(body.notes, 1000) };
+}
+
+function sanitizeClosedDayDate(value: unknown): string {
+  const date = toTrimmedString(value);
+  if (!DATE_RE.test(date) || Number.isNaN(new Date(`${date}T00:00:00Z`).getTime())) {
+    throw new Error('Data non valida.');
+  }
+  return date;
+}
+
+export function sanitizeClosedDayInput(body: unknown): { date: string; closed: boolean; label: string | null } {
+  if (!isPlainObject(body) || typeof body.closed !== 'boolean') {
+    throw new Error('Payload giorno di chiusura non valido.');
+  }
+  return {
+    date: sanitizeClosedDayDate(body.date),
+    closed: body.closed,
+    label: sanitizeOptionalText(body.label, 80),
+  };
+}
+
+export function sanitizeClosedDayDeleteInput(body: unknown): { date: string } {
+  if (!isPlainObject(body)) throw new Error('Payload giorno di chiusura non valido.');
+  return { date: sanitizeClosedDayDate(body.date) };
+}
+
 export function sanitizeAdminPensioneBookingUserId(body: unknown): string {
   if (!isPlainObject(body)) throw new Error('Payload prenotazione non valido.');
   return assertUuid(body.userId, 'Utente');

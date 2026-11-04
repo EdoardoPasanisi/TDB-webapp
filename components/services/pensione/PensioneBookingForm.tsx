@@ -451,7 +451,7 @@ export function PensioneBookingForm(props: Props) {
           <div className="ui-h2">Dettagli prenotazione</div>
 
           <div className="grid grid-cols-1 gap-6 ui-minw0">
-            <Field label="Data inizio *" className="ui-minw0">
+            <Field label="Data inizio *" className="ui-minw0" hint="Nei giorni festivi e di chiusura non è possibile portare il cane.">
               <input
                 type="date"
                 value={startDate}
@@ -460,7 +460,7 @@ export function PensioneBookingForm(props: Props) {
               />
             </Field>
 
-            <Field label="Data fine *" className="ui-minw0">
+            <Field label="Data fine *" className="ui-minw0" hint="Nei giorni festivi e di chiusura non è possibile riprendere il cane.">
               <input
                 type="date"
                 value={endDate}

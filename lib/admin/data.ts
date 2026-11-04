@@ -43,6 +43,7 @@ import type {
 } from '@/types/booking';
 import type { Dog, DogInput } from '@/types/dog';
 import type { Profile } from '@/types/profile';
+import { getPensioneUserBlock } from '@/lib/admin/pensioneBlocks';
 import type {
   ServicePassRow,
   ServiceStatus,
@@ -1376,7 +1377,7 @@ export async function getAdminUserDetail(
   userId: string,
   visibility: AdminVisibilityMode = 'full'
 ): Promise<AdminUserDetail | null> {
-  const [profileRes, dogsRes, passesRes, documentsRes, staffRole, pensioneRows, slotRows] = await Promise.all([
+  const [profileRes, dogsRes, passesRes, documentsRes, staffRole, pensioneRows, slotRows, pensioneBlock] = await Promise.all([
     supabaseAdmin.from('profiles').select(PROFILE_SELECT).eq('user_id', userId).maybeSingle(),
     supabaseAdmin.from('dogs').select(DOG_SELECT).eq('owner_id', userId).order('name', { ascending: true }),
     supabaseAdmin
@@ -1392,6 +1393,9 @@ export async function getAdminUserDetail(
     getStaffRoleForUserInternal(userId),
     fetchPensioneBookingsForUsers([userId]),
     fetchServiceSlotBookingsForUsers([userId]),
+    visibility === 'full'
+      ? getPensioneUserBlock(userId)
+      : Promise.resolve({ blocked: false, notes: null, createdAt: null }),
   ]);
 
   const profile = (profileRes.data as Profile | null) ?? null;
@@ -1437,6 +1441,8 @@ export async function getAdminUserDetail(
     historyTimeline,
     // Calcolato sul profilo REALE (non oscurato), così i mancanti restano accurati per i VIEWER.
     ownerMissing: buildRequiredOwnerMissing(profile),
+    pensioneBlocked: pensioneBlock.blocked,
+    pensioneBlockNotes: pensioneBlock.notes,
   };
 }
 

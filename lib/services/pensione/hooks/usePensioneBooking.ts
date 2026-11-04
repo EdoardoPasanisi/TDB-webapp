@@ -35,6 +35,7 @@ import {
   normalizeSundayTime,
   validateTimeWindow,
 } from '../utils';
+import { findHolidayTransitError, type ClosedDayOverride } from '../holidays';
 
 type TaxiDistanceState = {
   loading: boolean;
@@ -503,6 +504,30 @@ export function usePensioneBooking() {
     };
   }, [startDate, endDate]);
 
+  // Eccezioni dello staff ai giorni di chiusura (festivi riaperti, chiusure aggiunte).
+  // Senza risposta valgono solo i festivi; il server ricontrolla comunque al salvataggio.
+  const [closedDayOverrides, setClosedDayOverrides] = useState<ClosedDayOverride[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/pensione/closed-days', { credentials: 'include', cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json: { overrides?: ClosedDayOverride[] } | null) => {
+        if (!cancelled && Array.isArray(json?.overrides)) setClosedDayOverrides(json.overrides);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Ingresso/uscita in un giorno festivo o di chiusura: avviso immediato (calcolato in locale).
+  // Ha la precedenza sull'avviso di disponibilità, che resta valido una volta spostate le date.
+  const holidayMessage = useMemo(
+    () => findHolidayTransitError(startDate, endDate, closedDayOverrides),
+    [startDate, endDate, closedDayOverrides]
+  );
+  const periodMessage = holidayMessage ?? blockedMessage;
+
   // Caricamento prenotazione in modifica
   useEffect(() => {
     const loadBookingToEdit = async () => {
@@ -751,7 +776,7 @@ export function usePensioneBooking() {
     if (endDate < startDate)
       return setError('La data di partenza deve essere uguale o successiva alla data di arrivo.');
 
-    if (blockedMessage) return setError(blockedMessage);
+    if (periodMessage) return setError(periodMessage);
 
     if (!departureTime) {
       return setError(
@@ -884,7 +909,7 @@ export function usePensioneBooking() {
     notes,
     editingBookingId,
     draftKey,
-    blockedMessage,
+    periodMessage,
     loadMissingRequiredProfileFields,
     router,
   ]);
@@ -919,7 +944,7 @@ export function usePensioneBooking() {
     loading: loading || loadingEdit,
     saving,
     error,
-    blockedMessage,
+    blockedMessage: periodMessage,
     missingRequiredFields,
     missingPetFields,
 

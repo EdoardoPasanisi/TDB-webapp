@@ -172,6 +172,10 @@ export type AdminUserDetail = {
   // Dati obbligatori mancanti del proprietario, calcolati server-side sui dati reali
   // (così resta accurato anche per i VIEWER, che vedono i dati anagrafici oscurati).
   ownerMissing: string[];
+  // Cliente bloccato dallo staff per la pensione (vede sempre "non c'è posto").
+  // Valorizzato solo per chi gestisce (visibilità completa).
+  pensioneBlocked: boolean;
+  pensioneBlockNotes: string | null;
 };
 
 export type AdminDogDetail = {

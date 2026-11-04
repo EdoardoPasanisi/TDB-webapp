@@ -119,6 +119,11 @@ export async function findPensioneBlockConflict(args: {
 }): Promise<PensioneBlockConflict> {
   const { userId, startDate, endDate } = args;
 
+  // Cliente bloccato dallo staff: per lui la pensione risulta piena in qualsiasi periodo.
+  if (await isPensioneUserBlocked(userId)) {
+    return { blocked: true, periods: [{ startDate, endDate }] };
+  }
+
   const { data: blockRows, error: blocksError } = await supabaseAdmin
     .from('pensione_blocks')
     .select('id, start_date, end_date, scope, breeds, notes, created_at')
@@ -177,6 +182,71 @@ export async function findPensioneBlockConflict(args: {
   }
 
   return { blocked: periods.length > 0, periods };
+}
+
+// --- Clienti bloccati -------------------------------------------------------
+
+function isMissingTableError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  return error.code === '42P01' || error.code === 'PGRST205' || /pensione_blocked_users/.test(error.message ?? '');
+}
+
+export type PensioneUserBlock = {
+  blocked: boolean;
+  notes: string | null;
+  createdAt: string | null;
+};
+
+export async function getPensioneUserBlock(userId: string): Promise<PensioneUserBlock> {
+  const { data, error } = await supabaseAdmin
+    .from('pensione_blocked_users')
+    .select('notes, created_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    // Migration non ancora applicata: nessun cliente bloccato.
+    if (isMissingTableError(error)) return { blocked: false, notes: null, createdAt: null };
+    throw new Error(error.message ?? 'Impossibile verificare il blocco del cliente.');
+  }
+
+  const row = data as { notes: string | null; created_at: string } | null;
+  return { blocked: Boolean(row), notes: row?.notes ?? null, createdAt: row?.created_at ?? null };
+}
+
+export async function isPensioneUserBlocked(userId: string): Promise<boolean> {
+  return (await getPensioneUserBlock(userId)).blocked;
+}
+
+export async function setPensioneUserBlocked(input: {
+  userId: string;
+  blocked: boolean;
+  notes?: string | null;
+  createdBy?: string | null;
+}): Promise<PensioneUserBlock> {
+  const { userId, blocked, notes = null, createdBy = null } = input;
+
+  if (!blocked) {
+    const { error } = await supabaseAdmin.from('pensione_blocked_users').delete().eq('user_id', userId);
+    if (error) throw new Error(error.message ?? 'Impossibile sbloccare il cliente.');
+    return { blocked: false, notes: null, createdAt: null };
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('pensione_blocked_users')
+    .upsert({ user_id: userId, notes, created_by: createdBy }, { onConflict: 'user_id' })
+    .select('notes, created_at')
+    .single();
+
+  if (error || !data) {
+    if (isMissingTableError(error)) {
+      throw new Error('Funzione non ancora attiva: applica la migration pensione_blocked_users.');
+    }
+    throw new Error(error?.message ?? 'Impossibile bloccare il cliente.');
+  }
+
+  const row = data as { notes: string | null; created_at: string };
+  return { blocked: true, notes: row.notes ?? null, createdAt: row.created_at };
 }
 
 function formatBlockDate(value: string): string {

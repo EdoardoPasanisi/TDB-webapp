@@ -357,6 +357,42 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
     }
   };
 
+  const handleTogglePensioneBlock = async () => {
+    if (!selectedUserId || !detail) return;
+    const nextBlocked = !detail.pensioneBlocked;
+    if (nextBlocked) {
+      const ok = await confirm({
+        keyword: 'MODIFICA',
+        title: 'Blocca prenotazioni pensione',
+        message:
+          'Il cliente non potrà più prenotare la pensione dall’app: per qualsiasi periodo vedrà l’avviso che è tutto pieno. Puoi sempre creare tu una prenotazione dal gestionale.',
+        confirmLabel: 'Blocca',
+      });
+      if (!ok) return;
+    }
+    setUserActionBusy(true);
+    try {
+      await fetchAdminJson(`/api/admin/users/${selectedUserId}/pensione-block`, {
+        method: 'POST',
+        body: JSON.stringify({ blocked: nextBlocked }),
+      });
+      setDetail((current) =>
+        current && current.userId === selectedUserId
+          ? { ...current, pensioneBlocked: nextBlocked, pensioneBlockNotes: nextBlocked ? current.pensioneBlockNotes : null }
+          : current
+      );
+    } catch (err) {
+      setError(
+        humanizeErrorMessage(
+          err,
+          nextBlocked ? 'Non siamo riusciti a bloccare il cliente.' : 'Non siamo riusciti a sbloccare il cliente.'
+        )
+      );
+    } finally {
+      setUserActionBusy(false);
+    }
+  };
+
   const handleRestoreUser = async () => {
     if (!selectedUserId) return;
     setUserActionBusy(true);
@@ -477,6 +513,11 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                     <span className="ui-accentPill">{detail.dogs.length} cani</span>
                     {canManage ? <span className="ui-accentPill">{detail.activeTimeline.length} prenotazioni attive</span> : null}
                     {canManage ? <span className="ui-accentPill">{detail.historyTimeline.length} storico</span> : null}
+                    {canManage && detail.pensioneBlocked ? (
+                      <span className="ui-accentPill" title="Il cliente vede sempre la pensione al completo">
+                        Pensione bloccata
+                      </span>
+                    ) : null}
                   </div>
                 </div>
 
@@ -495,6 +536,16 @@ export function UsersTab({ canManage }: { canManage: boolean }) {
                   {canManage && !isDeletedMode ? (
                     <Button variant="secondary" className="ui-btnCompact" onClick={() => setBookingModalOpen(true)}>
                       Crea prenotazione
+                    </Button>
+                  ) : null}
+                  {canManage && !isDeletedMode ? (
+                    <Button
+                      variant="secondary"
+                      className="ui-btnCompact"
+                      disabled={userActionBusy}
+                      onClick={() => void handleTogglePensioneBlock()}
+                    >
+                      {detail.pensioneBlocked ? 'Sblocca pensione' : 'Blocca pensione'}
                     </Button>
                   ) : null}
                   {canManage && !isDeletedMode ? (

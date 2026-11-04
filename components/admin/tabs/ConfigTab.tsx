@@ -32,6 +32,7 @@ import {
 } from '@/components/admin/shared';
 import { useConfirm } from '@/components/admin/ConfirmProvider';
 import { AccommodationsSection } from '@/components/admin/AccommodationsSection';
+import { ClosedDaysSection } from '@/components/admin/ClosedDaysSection';
 import { BreedCombobox } from '@/components/dogs/BreedCombobox';
 import { Button } from '@/components/ui/Button';
 import { FormError } from '@/components/ui/FormError';
@@ -1334,6 +1335,8 @@ export function ConfigTab({
           )}
         </CardContent>
       </Card>
+
+      <ClosedDaysSection canManage={canManage} />
     </div>
   );
 }
