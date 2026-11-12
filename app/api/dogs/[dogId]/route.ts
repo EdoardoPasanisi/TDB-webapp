@@ -46,9 +46,13 @@ export async function PATCH(
     const locked = Boolean(existingDog.info_locked);
     const breed = locked ? existingDog.breed ?? null : dogInput.breed;
     const originBreeds = locked ? (existingDog.origin_breeds as string[] | null) ?? null : dogInput.origin_breeds;
-    const librettoName = locked ? existingDog.libretto_name ?? null : dogInput.libretto_name;
-    const microchip = locked ? existingDog.microchip ?? null : dogInput.microchip;
-    const birthDate = locked ? existingDog.birth_date ?? null : dogInput.birth_date;
+    // Eccezione: un campo bloccato ma ancora vuoto si può compilare (es. microchip mancante),
+    // altrimenti il cliente non potrebbe più prenotare.
+    const keepLocked = (current: string | null | undefined, incoming: string | null) =>
+      locked && current?.trim() ? current : incoming;
+    const librettoName = keepLocked(existingDog.libretto_name, dogInput.libretto_name);
+    const microchip = keepLocked(existingDog.microchip, dogInput.microchip);
+    const birthDate = keepLocked(existingDog.birth_date, dogInput.birth_date);
 
     // Taglia/difficoltà derivate dalla razza effettiva (o dalle razze di provenienza per i
     // meticci); per un cane bloccato restano quelle già salvate.

@@ -127,6 +127,11 @@ export function humanizeErrorMessage(
       message: 'Serve un aggiornamento tecnico del sistema. Riprova più tardi.',
     },
     {
+      match: [/dogs_microchip_key/i],
+      message:
+        'Questo microchip è già registrato su un altro pet (anche archiviato). Contatta la struttura per sistemarlo.',
+    },
+    {
       match: [/duplicate key value/i, /already exists/i],
       message: 'Questi dati risultano già presenti. Controlla e riprova.',
     },

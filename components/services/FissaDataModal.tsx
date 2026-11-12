@@ -137,8 +137,8 @@ function formatTime(iso: string): string {
 }
 function slotHalfLabel(startAtIso: string): 'Mattina' | 'Pomeriggio' {
   const d = new Date(startAtIso);
-  const h = d.getHours();
-  return h < 13 ? 'Mattina' : 'Pomeriggio';
+  const minutes = d.getHours() * 60 + d.getMinutes();
+  return minutes <= 13 * 60 ? 'Mattina' : 'Pomeriggio';
 }
 
 async function fetchUserDogs(userId: string): Promise<DogLite[]> {

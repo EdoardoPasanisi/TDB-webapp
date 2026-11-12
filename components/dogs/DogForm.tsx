@@ -147,6 +147,12 @@ export function DogForm({
   const [sex, setSex] = useState<DogSex | null>(editableDog?.sex ?? null);
 
   const [microchip, setMicrochip] = useState(editableDog?.microchip ?? '');
+  // Con il cane bloccato dallo staff i campi "da libretto" restano compilabili solo se
+  // ancora vuoti (altrimenti un cane bloccato senza microchip non potrebbe più prenotare).
+  const isBlankValue = (v: string | null | undefined) => !v || !v.trim();
+  const microchipLocked = infoLocked && !isBlankValue(editableDog?.microchip);
+  const librettoLocked = infoLocked && !isBlankValue(editableDog?.libretto_name);
+  const birthDateLocked = infoLocked && !isBlankValue(editableDog?.birth_date);
   const [microchipWarning, setMicrochipWarning] = useState<string | null>(null);
   const [notes, setNotes] = useState(editableDog?.notes ?? '');
 
@@ -522,7 +528,7 @@ export function DogForm({
                 }}
                 className="ui-control ui-input"
                 placeholder="Nome riportato sul libretto"
-                disabled={infoLocked}
+                disabled={librettoLocked}
               />
             </Field>
           </CardContent>
@@ -717,7 +723,7 @@ export function DogForm({
         <CardContent className="space-y-2">
           <Field label={<>Data di nascita <span className="ui-required">*</span></>} hint="Anno obbligatorio. Mese/Giorno facoltativi.">
             <div className="grid grid-cols-3 gap-2">
-              <select value={birthD ?? ''} onChange={(e) => setBirthD(e.target.value ? Number(e.target.value) : null)} className="ui-control ui-select" disabled={infoLocked}>
+              <select value={birthD ?? ''} onChange={(e) => setBirthD(e.target.value ? Number(e.target.value) : null)} className="ui-control ui-select" disabled={birthDateLocked}>
                 <option value="">Giorno</option>
                 {Array.from({ length: maxDay }, (_, i) => i + 1).map((d) => (
                   <option key={d} value={d}>{d}</option>
@@ -732,7 +738,7 @@ export function DogForm({
                   setBirthD((prevDay) => clampBirthDay(birthY, nextMonth, prevDay));
                 }}
                 className="ui-control ui-select"
-                disabled={infoLocked}
+                disabled={birthDateLocked}
               >
                 <option value="">Mese</option>
                 {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
@@ -748,7 +754,7 @@ export function DogForm({
                   setBirthD((prevDay) => clampBirthDay(nextYear, birthM, prevDay));
                 }}
                 className="ui-control ui-select"
-                disabled={infoLocked}
+                disabled={birthDateLocked}
               >
                 <option value="">Anno *</option>
                 {yearOptions.map((y) => (
@@ -788,7 +794,7 @@ export function DogForm({
                 placeholder="Es. 380260123456789"
                 aria-invalid={!!microchipWarning}
                 aria-describedby={microchipWarning ? 'dog-microchip-error' : undefined}
-                disabled={infoLocked}
+                disabled={microchipLocked}
               />
             </Field>
           </CardContent>

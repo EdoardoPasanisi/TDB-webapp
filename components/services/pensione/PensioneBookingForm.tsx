@@ -478,7 +478,7 @@ export function PensioneBookingForm(props: Props) {
             <Field
               label="Orario di arrivo (indicativo)"
               className="ui-minw0"
-              hint={startIsSunday ? 'Di domenica è possibile solo tra le 9–13.' : 'Possibile tra le 9–13 o le 15–18.'}
+              hint={startIsSunday ? 'Di domenica è possibile solo tra le 9:00–13:00.' : 'Possibile tra le 9:00–13:00 o le 15:00–17:00.'}
             >
               <input
                 type="time"
@@ -493,8 +493,8 @@ export function PensioneBookingForm(props: Props) {
               className="ui-minw0"
               hint={
                 endIsSunday
-                  ? 'Di domenica è possibile solo tra le 9–13. Entro le 13:00 non si conta il giorno di partenza.'
-                  : '9–13: non si conta il giorno di partenza.\n 15–18: si conta anche il giorno di partenza.'
+                  ? 'Di domenica è possibile solo tra le 9:00–13:00. Entro le 13:00 non si conta il giorno di partenza.'
+                  : '9:00–13:00: non si conta il giorno di partenza.\n 15:00–17:00: si conta anche il giorno di partenza.'
               }
             >
               <input

@@ -54,7 +54,7 @@ export function buildChatInstructions(knowledgeBase: string, todayIso: string): 
     'Mantieni tono chiaro, naturale e professionale.',
     '',
     'Esempi di stile desiderato:',
-    '- Se il cliente chiede "Quali sono gli orari?", meglio: "Dal lunedi al sabato 9:00-13:00 e 15:00-18:00. La domenica solo 9:00-13:00."',
+    '- Se il cliente chiede "Quali sono gli orari?", meglio: "Dal lunedi al sabato 9:00-13:00 e 15:00-17:00. La domenica solo 9:00-13:00."',
     '- Se il cliente chiede "Se posso riprendere il cane solo domenica pomeriggio come faccio?", meglio: "La domenica pomeriggio il ritiro non e possibile. Va fatto entro le 13:00 oppure il giorno successivo."',
     '- Se il cliente chiede un prezzo basato sui suoi cani, usa i tool disponibili e rispondi cane per cane con una stima chiara e corta, non con una risposta generica.',
     '',

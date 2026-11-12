@@ -367,7 +367,7 @@ async function getOperationalHours() {
       {
         daysLabel: 'Lunedi-Sabato',
         morning: '09:00-13:00',
-        afternoon: '15:00-18:00',
+        afternoon: '15:00-17:00',
       },
       {
         daysLabel: 'Domenica',
@@ -377,14 +377,14 @@ async function getOperationalHours() {
       },
     ],
     practicalSummary: [
-      'Dal lunedi al sabato ingresso e uscita sono disponibili 09:00-13:00 e 15:00-18:00.',
+      'Dal lunedi al sabato ingresso e uscita sono disponibili 09:00-13:00 e 15:00-17:00.',
       'La domenica ingresso e uscita sono disponibili solo 09:00-13:00.',
       'La domenica pomeriggio la struttura e chiusa, quindi non sono possibili ritiri o consegne in quella fascia.',
       'E consigliato arrivare almeno 30 minuti prima della chiusura.',
     ],
     ingressoUscita: {
       mattina: '09:00-13:00',
-      pomeriggio: '15:00-18:00',
+      pomeriggio: '15:00-17:00',
       sunday: {
         mattina: '09:00-13:00',
         pomeriggio: null,

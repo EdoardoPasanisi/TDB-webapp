@@ -32,41 +32,58 @@ export function isSundayDate(value: string): boolean {
   return date.getDay() === 0;
 }
 
-function readHour(value: string): number | null {
+// Fasce orarie di ingresso/uscita (estremi inclusi):
+// mattina 9:00–13:00, pomeriggio 15:00–17:00 (la domenica solo mattina).
+const MORNING_START = 9 * 60;
+const MORNING_END = 13 * 60;
+const AFTERNOON_START = 15 * 60;
+const AFTERNOON_END = 17 * 60;
+
+/** "HH:MM" (o "HH:MM:SS") → minuti dalla mezzanotte. */
+function readMinutes(value: string): number | null {
   if (!value) return null;
-  const [hStr] = value.split(':');
+  const [hStr, mStr] = value.split(':');
   const hour = parseInt(hStr ?? '', 10);
-  return Number.isInteger(hour) ? hour : null;
+  const minute = mStr === undefined || mStr === '' ? 0 : parseInt(mStr, 10);
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return hour * 60 + minute;
 }
 
-function isMorningWindow(hour: number): boolean {
-  return hour >= 9 && hour < 13;
+function isMorningWindow(minutes: number): boolean {
+  return minutes >= MORNING_START && minutes <= MORNING_END;
 }
 
-function isAfternoonWindow(hour: number): boolean {
-  return hour >= 15 && hour < 18;
+function isAfternoonWindow(minutes: number): boolean {
+  return minutes >= AFTERNOON_START && minutes <= AFTERNOON_END;
 }
 
 export function validateTimeWindow(label: string, value: string, date?: string | null): string | null {
   if (!value) return null;
-  const hour = readHour(value);
-  if (hour === null) return `${label} non valido.`;
+  const minutes = readMinutes(value);
+  if (minutes === null) return `${label} non valido.`;
 
   const isSunday = isSundayDate(String(date ?? ''));
-  const ok = isMorningWindow(hour) || (!isSunday && isAfternoonWindow(hour));
+  const ok = isMorningWindow(minutes) || (!isSunday && isAfternoonWindow(minutes));
   if (!ok) {
-    if (isSunday) return `${label} di domenica deve essere tra 9–13.`;
-    return `${label} deve essere tra 9–13 o 15–18.`;
+    if (isSunday) return `${label} di domenica deve essere tra 9:00 e 13:00.`;
+    return `${label} deve essere tra 9:00–13:00 o 15:00–17:00.`;
   }
 
   return null;
 }
 
 export function normalizeSundayTime(value: string, date?: string | null): string {
-  const hour = readHour(value);
-  if (hour === null) return value;
+  const minutes = readMinutes(value);
+  if (minutes === null) return value;
   if (!isSundayDate(String(date ?? ''))) return value;
-  return isMorningWindow(hour) ? value : DEFAULT_TIMES.ARRIVAL;
+  return isMorningWindow(minutes) ? value : DEFAULT_TIMES.ARRIVAL;
+}
+
+/** Uscita entro le 13:00 (comprese) → il giorno di partenza non si conta. */
+export function isMorningDeparture(departureTime: string): boolean {
+  const minutes = readMinutes(departureTime);
+  return minutes !== null && minutes <= MORNING_END;
 }
 
 export function computeDaysCount(
@@ -88,13 +105,10 @@ export function computeDaysCount(
   if (baseDays <= 0) return 0;
   if (!departureTime) return baseDays;
 
-  const [hStr] = departureTime.split(':');
-  const hour = parseInt(hStr ?? '0', 10);
+  // Uscita entro le 13:00 comprese → non si conta il giorno di partenza
+  if (isMorningDeparture(departureTime)) return Math.max(baseDays - 1, 1);
 
-  // 9–13 → non si conta il giorno di partenza
-  if (hour >= 9 && hour < 13) return Math.max(baseDays - 1, 1);
-
-  // 15–18 → si conta il giorno di partenza
+  // Pomeriggio → si conta il giorno di partenza
   return baseDays;
 }
 

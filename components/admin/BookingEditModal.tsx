@@ -9,7 +9,7 @@ import { Field } from '@/components/ui/Field';
 import { Card, CardContent } from '@/components/ui/Card';
 import { ModalFrame, LoadingCard, ErrorCard, formatEuro } from '@/components/admin/shared';
 import type { AdminAgendaItem, AdminBookingDetail, AdminSlotRecord, AdminUserDetail } from '@/lib/admin/types';
-import { computePricing } from '@/lib/services/pensione/utils';
+import { computeDaysCount, computePricing } from '@/lib/services/pensione/utils';
 import {
   accommodationClimatePricePerDay,
   type AccommodationCatalog,
@@ -195,13 +195,8 @@ export function BookingEditModal({
 
   const livePricing = useMemo(() => {
     if (!detail || detail.kind !== 'PENSIONE' || selectedDogIds.length === 0) return null;
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null;
-    const msPerDay = 24 * 60 * 60 * 1000;
-    let daysCount = Math.floor((end.getTime() - start.getTime()) / msPerDay) + 1;
-    const hour = parseInt(departureTime.split(':')[0] ?? '0', 10);
-    if (hour >= 9 && hour < 13) daysCount = Math.max(daysCount - 1, 1);
+    const daysCount = computeDaysCount(startDate, endDate, departureTime);
+    if (daysCount <= 0) return null;
     return computePricing({
       catalog,
       selectedDogIds,

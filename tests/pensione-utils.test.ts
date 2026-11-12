@@ -18,11 +18,23 @@ import {
 
 test('validateTimeWindow accepts only supported booking hours', () => {
   assert.equal(validateTimeWindow('Arrivo', '09:00'), null);
-  assert.match(String(validateTimeWindow('Arrivo', '14:00')), /Arrivo deve essere tra 9–13 o 15–18\./);
+  assert.equal(validateTimeWindow('Arrivo', '13:00'), null);
+  assert.equal(validateTimeWindow('Arrivo', '15:00'), null);
+  assert.equal(validateTimeWindow('Arrivo', '17:00'), null);
+  assert.match(String(validateTimeWindow('Arrivo', '14:00')), /Arrivo deve essere tra 9:00–13:00 o 15:00–17:00\./);
+  assert.match(String(validateTimeWindow('Arrivo', '13:30')), /deve essere tra/);
+  assert.match(String(validateTimeWindow('Arrivo', '17:30')), /deve essere tra/);
+  assert.match(String(validateTimeWindow('Arrivo', '08:59')), /deve essere tra/);
+  // domenica (2026-03-22) solo mattina
+  assert.equal(validateTimeWindow('Arrivo', '13:00', '2026-03-22'), null);
+  assert.match(String(validateTimeWindow('Arrivo', '15:00', '2026-03-22')), /di domenica/);
 });
 
-test('computeDaysCount excludes departure day for morning pickup', () => {
+test('computeDaysCount excludes departure day for morning pickup (13:00 included)', () => {
   assert.equal(computeDaysCount('2026-03-17', '2026-03-18', '10:00'), 1);
+  assert.equal(computeDaysCount('2026-03-17', '2026-03-18', '13:00'), 1);
+  assert.equal(computeDaysCount('2026-03-17', '2026-03-18', '13:00:00'), 1);
+  assert.equal(computeDaysCount('2026-03-17', '2026-03-18', '15:00'), 2);
   assert.equal(computeDaysCount('2026-03-17', '2026-03-18', '16:00'), 2);
 });
 
